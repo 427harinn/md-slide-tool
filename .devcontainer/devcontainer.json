@@ -10,10 +10,18 @@
     "customizations": {
         "vscode": {
             "extensions": [
-                "marp-team.marp-vscode",
+                "quarto.quarto",
+                "yzhang.markdown-all-in-one",
                 "AdamRaichu.pdf-viewer",
-                "yzhang.markdown-all-in-one"
-            ]
+                "Gruntfuggly.triggertaskonsave"
+            ],
+            "settings": {
+                "triggerTaskOnSave.tasks": {
+                    "Quarto Build": [
+                        "projects/**/*.qmd"
+                    ]
+                }
+            }
         }
     }
 }
