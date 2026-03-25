@@ -14,6 +14,7 @@
         "start": "node ./cli/slidegen.js"
     },
     "dependencies": {
+        "adm-zip": "^0.5.16",
         "commander": "^12.1.0"
     }
 }

@@ -37,7 +37,7 @@ _slidegen_completion() {
 
           if [[ -d "/work/templates/${selected_type}" ]]; then
             local templates
-            templates=$(find "/work/templates/${selected_type}" -maxdepth 1 -type f -name "*.qmd" -printf "%f\n" 2>/dev/null | sed 's/\.qmd$//')
+            templates=$(find "/work/templates/${selected_type}" -mindepth 1 -maxdepth 1 -type d -printf "%f\n" 2>/dev/null)
             COMPREPLY=( $(compgen -W "${templates}" -- "${cur}") )
           fi
           return

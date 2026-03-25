@@ -4,7 +4,7 @@ author: "名前を入力"
 date: today
 format: 
     docx:
-        reference-doc: ../../references/docx/template.docx
+        reference-doc: template.docx
 ---
 
 # はじめに

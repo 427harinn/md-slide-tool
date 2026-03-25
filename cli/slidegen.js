@@ -12,6 +12,24 @@ const rootDir = path.resolve(__dirname, "..");
 
 const program = new Command();
 
+function copyDirectoryContents(srcDir, destDir, excludeFiles = []) {
+    const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+        if (excludeFiles.includes(entry.name)) continue;
+
+        const srcPath = path.join(srcDir, entry.name);
+        const destPath = path.join(destDir, entry.name);
+
+        if (entry.isDirectory()) {
+            fs.mkdirSync(destPath, { recursive: true });
+            copyDirectoryContents(srcPath, destPath, []);
+        } else {
+            fs.copyFileSync(srcPath, destPath);
+        }
+    }
+}
+
 program
     .name("slidegen")
     .description("Markdown / Quarto project generator")
@@ -21,18 +39,13 @@ program
     .command("new")
     .description("新しいプロジェクトを作成する")
     .argument("<name>", "プロジェクト名")
-    .requiredOption("--type <type>", "出力形式 (pptx/docx/html)")
-    .option(
-        "--template <template>",
-        "テンプレート名（省略時: template）",
-        "template"
-    )
+    .requiredOption("--type <type>", "出力形式")
+    .option("--template <template>", "テンプレート名", "template")
     .action((name, options) => {
         const type = options.type;
         const template = options.template;
 
         const templatesRoot = path.join(rootDir, "templates");
-
         if (!fs.existsSync(templatesRoot)) {
             console.error("templates フォルダが見つかりません");
             process.exit(1);
@@ -55,13 +68,20 @@ program
         const qmdFileName = `${name}_${type}.qmd`;
         const qmdFilePath = path.join(projectDir, qmdFileName);
 
-        const templatePath = path.join(rootDir, "templates", type, `${template}.qmd`);
+        const templateDir = path.join(rootDir, "templates", type, template);
+        const templateQmdPath = path.join(templateDir, "template.qmd");
 
-        if (!fs.existsSync(templatePath)) {
-            console.error(`テンプレートが見つかりません: ${templatePath}`);
+        if (!fs.existsSync(templateDir) || !fs.statSync(templateDir).isDirectory()) {
+            console.error(`テンプレートフォルダが見つかりません: ${templateDir}`);
             process.exit(1);
         }
 
+        if (!fs.existsSync(templateQmdPath)) {
+            console.error(`template.qmd が見つかりません: ${templateQmdPath}`);
+            process.exit(1);
+        }
+
+        fs.mkdirSync(projectDir, { recursive: true });
         fs.mkdirSync(imgDir, { recursive: true });
 
         if (!fs.existsSync(readmePath)) {
@@ -73,10 +93,12 @@ program
             process.exit(1);
         }
 
-        const templateContent = fs.readFileSync(templatePath, "utf8");
+        const templateContent = fs.readFileSync(templateQmdPath, "utf8");
         const outputContent = templateContent.replaceAll("{{TITLE}}", name);
 
         fs.writeFileSync(qmdFilePath, outputContent, "utf8");
+
+        copyDirectoryContents(templateDir, projectDir, ["template.qmd"]);
 
         console.log(`作成しました: ${qmdFilePath}`);
 
@@ -101,18 +123,16 @@ program
 
         types.forEach((type) => {
             const typePath = path.join(templatesRoot, type);
-
             if (!fs.statSync(typePath).isDirectory()) return;
 
-            const files = fs.readdirSync(typePath);
+            const templateDirs = fs.readdirSync(typePath).filter((entry) => {
+                const fullPath = path.join(typePath, entry);
+                return fs.statSync(fullPath).isDirectory();
+            });
 
-            const templates = files
-                .filter((file) => file.endsWith(".qmd"))
-                .map((file) => file.replace(".qmd", ""));
-
-            if (templates.length > 0) {
+            if (templateDirs.length > 0) {
                 console.log(`${type}:`);
-                templates.forEach((t) => {
+                templateDirs.forEach((t) => {
                     if (t === "template") {
                         console.log(`  - ${t} (default)`);
                     } else {
