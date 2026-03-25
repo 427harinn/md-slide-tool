@@ -69,17 +69,31 @@ program
         const qmdFilePath = path.join(projectDir, qmdFileName);
 
         const templateDir = path.join(rootDir, "templates", type, template);
-        const templateQmdPath = path.join(templateDir, "template.qmd");
 
         if (!fs.existsSync(templateDir) || !fs.statSync(templateDir).isDirectory()) {
             console.error(`テンプレートフォルダが見つかりません: ${templateDir}`);
             process.exit(1);
         }
 
-        if (!fs.existsSync(templateQmdPath)) {
-            console.error(`template.qmd が見つかりません: ${templateQmdPath}`);
+        const templateFiles = fs.readdirSync(templateDir, { withFileTypes: true });
+
+        const qmdFiles = templateFiles
+            .filter((entry) => entry.isFile() && entry.name.endsWith(".qmd"))
+            .map((entry) => entry.name);
+
+        if (qmdFiles.length === 0) {
+            console.error(`qmdファイルが見つかりません: ${templateDir}`);
             process.exit(1);
         }
+
+        if (qmdFiles.length > 1) {
+            console.error(`qmdファイルが複数あります（1つだけにしてください）: ${templateDir}`);
+            qmdFiles.forEach((file) => console.error(` - ${file}`));
+            process.exit(1);
+        }
+
+        const templateQmdName = qmdFiles[0];
+        const templateQmdPath = path.join(templateDir, templateQmdName);
 
         fs.mkdirSync(projectDir, { recursive: true });
         fs.mkdirSync(imgDir, { recursive: true });
@@ -98,7 +112,7 @@ program
 
         fs.writeFileSync(qmdFilePath, outputContent, "utf8");
 
-        copyDirectoryContents(templateDir, projectDir, ["template.qmd"]);
+        copyDirectoryContents(templateDir, projectDir, [templateQmdName]);
 
         console.log(`作成しました: ${qmdFilePath}`);
 

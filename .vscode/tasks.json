@@ -2,10 +2,44 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Slidegen New",
+            "type": "shell",
+            "command": "slidegen new ${input:projectName} --type ${input:projectType} --template ${input:projectTemplate}",
+            "problemMatcher": []
+        },
+        {
             "label": "Quarto Build",
             "type": "shell",
             "command": "bash scripts/render-current.sh \"${file}\"",
             "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "projectName",
+            "type": "promptString",
+            "description": "プロジェクト名を入力",
+            "default": "sample"
+        },
+        {
+            "id": "projectType",
+            "type": "command",
+            "command": "shellCommand.execute",
+            "args": {
+                "command": "find /work/templates -mindepth 1 -maxdepth 1 -type d -printf \"%f\n\" | sort",
+                "description": "出力形式を選択",
+                "useSingleResult": true
+            }
+        },
+        {
+            "id": "projectTemplate",
+            "type": "command",
+            "command": "shellCommand.execute",
+            "args": {
+                "command": "find /work/templates/${input:projectType} -mindepth 1 -maxdepth 1 -type d -printf \"%f\n\" | sort",
+                "description": "テンプレートを選択",
+                "useSingleResult": true
+            }
         }
     ]
 }

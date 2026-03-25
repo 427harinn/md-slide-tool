@@ -14,7 +14,8 @@
                 "quarto.quarto",
                 "yzhang.markdown-all-in-one",
                 "AdamRaichu.pdf-viewer",
-                "Gruntfuggly.triggertaskonsave"
+                "Gruntfuggly.triggertaskonsave",
+                "augustocdias.tasks-shell-input"
             ],
             "settings": {
                 "triggerTaskOnSave.tasks": {
