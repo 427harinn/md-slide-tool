@@ -1,0 +1,19 @@
+{
+    "name": "md-slide-tool",
+    "build": {
+        "dockerfile": "../Dockerfile"
+    },
+    "workspaceFolder": "/work",
+    "mounts": [
+        "source=${localWorkspaceFolder},target=/work,type=bind"
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "marp-team.marp-vscode",
+                "AdamRaichu.pdf-viewer",
+                "yzhang.markdown-all-in-one"
+            ]
+        }
+    }
+}

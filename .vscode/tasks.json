@@ -1,0 +1,19 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Marp Watch PDF",
+            "type": "shell",
+            "command": "marp --watch slides/main.md --pdf -o dist/main.pdf",
+            "isBackground": true,
+            "problemMatcher": []
+        },
+        {
+            "label": "Marp Watch PPTX",
+            "type": "shell",
+            "command": "marp --watch slides/main.md --pptx -o dist/main.pptx",
+            "isBackground": true,
+            "problemMatcher": []
+        }
+    ]
+}
