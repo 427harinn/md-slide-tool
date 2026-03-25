@@ -1,5 +1,5 @@
 ---
-title: "{{TITLE}}"
+title: "template"
 author: "名前を入力"
 date: today
 format: 

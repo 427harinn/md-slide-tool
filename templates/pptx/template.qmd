@@ -1,6 +1,8 @@
 ---
 title: "{{TITLE}}"
-format: pptx
+format: 
+    pptx:
+        reference-doc: ../../references/pptx/template.pptx
 ---
 
 ## 1枚目

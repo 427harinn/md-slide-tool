@@ -1,5 +1,5 @@
 ﻿---
-title: "{{TITLE}}"
+title: "template"
 format: 
     html:
         css: style.css
