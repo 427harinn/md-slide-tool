@@ -2,6 +2,8 @@
 
 Quarto ベースの Markdown / スライド / ドキュメント生成を補助するツールです。
 
+主役は `slidegen` という CLI で、テンプレートから Quarto プロジェクトを生成するために使います。
+
 このリポジトリには次の 2 つが含まれています。
 
 - `slidegen` CLI: テンプレートから新しいプロジェクトを作成する
@@ -60,12 +62,64 @@ CLI ヘルプ:
 npm run start -- --help
 ```
 
-## CLI の使い方
+## slidegen の概要
+
+`slidegen` は、`templates/` 配下にあるテンプレートを使って `projects/` 配下へ新しいプロジェクトを作る CLI です。
+
+やっていることはシンプルです。
+
+1. 出力形式とテンプレートを選ぶ
+2. `projects/<name>/` を作る
+3. テンプレート内の `.qmd` を `projects/<name>/<name>_<type>.qmd` として生成する
+4. `{{TITLE}}` をプロジェクト名に置き換える
+5. `.qmd` 以外のテンプレートファイルをそのままコピーする
+6. 最後に VS Code で生成した `.qmd` を開こうとする
+
+つまり、`slidegen` は「Quarto のひな形を作るところまで」を担当し、実際の出力は Quarto でレンダリングします。
+
+## slidegen の使い方
+
+### 実行方法
+
+このリポジトリでは主に次の形で使います。
+
+```bash
+npm run start -- <command>
+```
+
+例:
+
+```bash
+npm run start -- list-templates
+npm run start -- new demo --type pptx
+```
+
+直接実行することもできます。
+
+```bash
+node cli/slidegen.js list-templates
+node cli/slidegen.js new demo --type docx
+```
+
+グローバルまたはローカルリンクして `slidegen` コマンドとして使うこともできます。
+
+```bash
+npm link
+slidegen list-templates
+slidegen new demo --type pdf
+```
+
+### コマンド一覧
+
+```bash
+slidegen --help
+slidegen new --help
+```
 
 ### テンプレート一覧を表示
 
 ```bash
-npm run start -- list-templates
+slidegen list-templates
 ```
 
 現状のテンプレート:
@@ -76,21 +130,48 @@ npm run start -- list-templates
 - `pptx/template`
 - `pptx/self_introduction`
 
+このコマンドは `templates/` 配下を走査して、利用可能な出力形式とテンプレート名を表示します。
+
 ### 新しいプロジェクトを作成
 
 ```bash
-npm run start -- new <project-name> --type <type> [--template <template>]
+slidegen new <project-name> --type <type> [--template <template>]
 ```
 
 例:
 
 ```bash
-npm run start -- new samplepptx --type pptx
-npm run start -- new selfintroduction --type pptx --template self_introduction
-npm run start -- new report --type docx
+slidegen new samplepptx --type pptx
+slidegen new selfintroduction --type pptx --template self_introduction
+slidegen new report --type docx
 ```
 
-生成される内容:
+`--type` は必須です。現状使える値は次の 4 つです。
+
+- `pptx`
+- `docx`
+- `html`
+- `pdf`
+
+`--template` は省略可能で、未指定時は `template` が使われます。
+
+たとえば次のコマンド:
+
+```bash
+slidegen new meeting --type pptx
+```
+
+は `templates/pptx/template/` を元に、次のような構成を作ります。
+
+```text
+projects/meeting/
+├── README.md
+├── img/
+├── meeting_pptx.qmd
+└── template.pptx
+```
+
+生成されるもの:
 
 - `projects/<project-name>/README.md`
 - `projects/<project-name>/img/`
@@ -103,6 +184,49 @@ npm run start -- new report --type docx
 - `.qmd` のタイトルはテンプレート中の `{{TITLE}}` をプロジェクト名に置換して作成されます
 - 生成後、CLI は `code <qmd-file>` を実行して VS Code で対象ファイルを開こうとします
 - `code` コマンドが使えない環境では、ファイル作成自体は完了しても自動オープンは失敗する可能性があります
+- 同名の `.qmd` がすでに存在する場合は上書きせず終了します
+- `projects/<project-name>/` 自体が存在していても、対象 `.qmd` がなければそのまま利用されます
+
+### よくある作業フロー
+
+最短の流れは次のとおりです。
+
+1. 使えるテンプレートを確認する
+
+```bash
+slidegen list-templates
+```
+
+2. プロジェクトを作る
+
+```bash
+slidegen new monthly-report --type docx
+```
+
+3. 生成された `.qmd` を編集する
+
+```text
+projects/monthly-report/monthly-report_docx.qmd
+```
+
+4. Quarto でレンダリングする
+
+```bash
+bash scripts/render-current.sh projects/monthly-report/monthly-report_docx.qmd
+```
+
+### エラーになる条件
+
+`slidegen new` は次のような場合に失敗します。
+
+- `templates/` ディレクトリが存在しない
+- `--type` で指定した形式が存在しない
+- `--template` で指定したテンプレートが存在しない
+- テンプレートディレクトリ内に `.qmd` が 0 個
+- テンプレートディレクトリ内に `.qmd` が 2 個以上
+- 生成先の `.qmd` がすでに存在する
+
+テンプレートの作り方に制約があるので、自作テンプレートを追加する場合は後述の「テンプレート追加方法」を見るのが安全です。
 
 ## レンダリング
 
