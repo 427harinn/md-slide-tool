@@ -1,5 +1,5 @@
 ---
-title: "タイトルーー"
+title: "{{TITLE}}"
 format: pptx
 ---
 
@@ -10,4 +10,4 @@ format: pptx
 
 ## 2枚目
 
-- 2枚目ですよ
+- 2枚目の内容

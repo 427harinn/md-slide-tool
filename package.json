@@ -1,0 +1,19 @@
+{
+    "name": "slidegen",
+    "version": "1.0.0",
+    "description": "CLI tool for generating Quarto-based presentation/document templates",
+    "type": "module",
+    "bin": {
+        "slidegen": "./cli/slidegen.js"
+    },
+    "files": [
+        "cli",
+        "templates"
+    ],
+    "scripts": {
+        "start": "node ./cli/slidegen.js"
+    },
+    "dependencies": {
+        "commander": "^12.1.0"
+    }
+}

@@ -7,6 +7,7 @@
     "mounts": [
         "source=${localWorkspaceFolder},target=/work,type=bind"
     ],
+    "postCreateCommand": "npm install && npm link && grep -qxF 'source /work/completions/slidegen.bash' ~/.bashrc || echo 'source /work/completions/slidegen.bash' >> ~/.bashrc",
     "customizations": {
         "vscode": {
             "extensions": [
