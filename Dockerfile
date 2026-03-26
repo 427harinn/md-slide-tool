@@ -33,4 +33,4 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     && apt-get install -y ./quarto-1.9.36-linux-${QUARTO_ARCH}.deb \
     && rm quarto-1.9.36-linux-${QUARTO_ARCH}.deb
 
-RUN quarto install tinytex --update-path
+#RUN quarto install tinytex --update-path

@@ -13,7 +13,6 @@
             "extensions": [
                 "quarto.quarto",
                 "yzhang.markdown-all-in-one",
-                "AdamRaichu.pdf-viewer",
                 "Gruntfuggly.triggertaskonsave",
                 "augustocdias.tasks-shell-input"
             ],
