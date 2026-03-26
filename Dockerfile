@@ -19,9 +19,18 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
-RUN wget https://github.com/quarto-dev/quarto-cli/releases/download/v1.9.36/quarto-1.9.36-linux-arm64.deb \
+ARG TARGETARCH
+
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        QUARTO_ARCH="amd64"; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+        QUARTO_ARCH="arm64"; \
+    else \
+        echo "Unsupported architecture: $TARGETARCH" && exit 1; \
+    fi \
+    && wget https://github.com/quarto-dev/quarto-cli/releases/download/v1.9.36/quarto-1.9.36-linux-${QUARTO_ARCH}.deb \
     && apt-get update \
-    && apt-get install -y ./quarto-1.9.36-linux-arm64.deb \
-    && rm quarto-1.9.36-linux-arm64.deb
+    && apt-get install -y ./quarto-1.9.36-linux-${QUARTO_ARCH}.deb \
+    && rm quarto-1.9.36-linux-${QUARTO_ARCH}.deb
 
 RUN quarto install tinytex --update-path
