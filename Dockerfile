@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y \
     pandoc \
     locales \
     fonts-noto-cjk \
+    python3 \
+    python3-pip \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
@@ -33,4 +36,4 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     && apt-get install -y ./quarto-1.9.36-linux-${QUARTO_ARCH}.deb \
     && rm quarto-1.9.36-linux-${QUARTO_ARCH}.deb
 
-#RUN quarto install tinytex --update-path
+RUN pip3 install --no-cache-dir python-pptx Pillow

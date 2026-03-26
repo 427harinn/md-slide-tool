@@ -11,12 +11,25 @@ fi
 FILE="$(realpath "$FILE")"
 DIR="$(dirname "$FILE")"
 BASENAME="$(basename "$FILE")"
+STEM="${BASENAME%.*}"
+
+RENDER_QMD="$DIR/.${STEM}.render.qmd"
+IMAGES_JSON="$DIR/.${STEM}.images.json"
+RENDER_BASENAME="$(basename "$RENDER_QMD")"
+RENDER_STEM="${RENDER_BASENAME%.*}"
+RENDER_PPTX="$DIR/${RENDER_STEM}.pptx"
+FINAL_PPTX="$DIR/${STEM}.pptx"
 
 echo "Rendering: $FILE"
 
-# pptxかどうか判定
-if grep -q "pptx" "$FILE"; then
-  TEMPLATE=$(grep -E "reference-doc:" "$FILE" | head -1 | sed 's/.*reference-doc:[[:space:]]*//')
+python3 /work/scripts/prepare-qmd-for-pptx.py \
+  --input "$FILE" \
+  --output "$RENDER_QMD" \
+  --images-json "$IMAGES_JSON"
+
+# render 用 qmd に対してテンプレ正規化
+if grep -q "pptx" "$RENDER_QMD"; then
+  TEMPLATE=$(grep -E "reference-doc:" "$RENDER_QMD" | head -1 | sed 's/.*reference-doc:[[:space:]]*//')
 
   if [ -n "$TEMPLATE" ]; then
     TEMPLATE_PATH="$DIR/$TEMPLATE"
@@ -34,4 +47,21 @@ if grep -q "pptx" "$FILE"; then
 fi
 
 cd "$DIR"
-quarto render "$BASENAME"
+quarto render "$RENDER_BASENAME"
+
+# render 用ファイル名で出た pptx を最終名へ寄せる
+if [ -f "$RENDER_PPTX" ]; then
+  if [ "$RENDER_PPTX" != "$FINAL_PPTX" ]; then
+    cp "$RENDER_PPTX" "$FINAL_PPTX"
+  fi
+else
+  echo "PPTXが見つかりません: $RENDER_PPTX"
+  exit 1
+fi
+
+echo "画像後処理: $FINAL_PPTX"
+python3 /work/scripts/postprocess-pptx.py \
+  --pptx "$FINAL_PPTX" \
+  --images-json "$IMAGES_JSON"
+
+echo "完了: $FINAL_PPTX"

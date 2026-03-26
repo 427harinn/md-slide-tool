@@ -1,0 +1,49 @@
+[
+  {
+    "slide_index": 0,
+    "title": "ごあいさつ",
+    "images": [
+      {
+        "path": "img/profile.png",
+        "place": "right"
+      },
+      {
+        "path": "img/test1.png",
+        "place": "right"
+      }
+    ]
+  },
+  {
+    "slide_index": 1,
+    "title": "ちょっとだけ自己紹介",
+    "images": [
+      {
+        "path": "img/profile.png",
+        "place": "right"
+      },
+      {
+        "path": "img/test1.png",
+        "place": "right"
+      },
+      {
+        "path": "img/test2.png",
+        "place": "right"
+      }
+    ]
+  },
+  {
+    "slide_index": 2,
+    "title": "好きなこと",
+    "images": []
+  },
+  {
+    "slide_index": 3,
+    "title": "これから",
+    "images": []
+  },
+  {
+    "slide_index": 4,
+    "title": "最後に",
+    "images": []
+  }
+]

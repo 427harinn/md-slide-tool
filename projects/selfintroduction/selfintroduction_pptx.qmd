@@ -1,23 +1,18 @@
 ---
 title: "自己紹介だよ"
-format: pptx
+format:
+    pptx:
+        reference-doc: template.pptx
 ---
 
 ## ごあいさつ
 
-::: columns
-
-::: column
 - 本日より入社しました、唐川です
 - まだまだ慣れないことも多いですが、少しずつ頑張っていきます
 - これからよろしくお願いいたします！
-:::
 
-::: column
-![](img/profile.png){width=90%}
-:::
-
-:::
+![](img/profile.png){place=right}
+![](img/test1.png){place=right}
 
 
 ## ちょっとだけ自己紹介
@@ -25,8 +20,9 @@ format: pptx
 - 福岡出身です
 - 情報系の大学院にいました
 - ゲーム制作とか、ものづくりが好きです
-
-<!-- 画像：作ったゲームのスクショ or PC作業してるイメージ（右側） -->
+![](img/profile.png){place=right}
+![](img/test1.png){place=right}
+![](img/test2.png){place=right}
 
 ## 好きなこと
 
