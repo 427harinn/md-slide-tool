@@ -1,8 +1,6 @@
 ---
 title: "自己紹介だよ"
-format:
-    pptx:
-        reference-doc: template.pptx
+format: pptx
 ---
 
 ## ごあいさつ

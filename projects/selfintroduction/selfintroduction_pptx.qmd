@@ -1,8 +1,6 @@
 ---
 title: "自己紹介だよ"
-format:
-    pptx:
-        reference-doc: template.pptx
+format: pptx
 ---
 
 ## ごあいさつ
@@ -11,8 +9,8 @@ format:
 - まだまだ慣れないことも多いですが、少しずつ頑張っていきます
 - これからよろしくお願いいたします！
 
-![](img/profile.png){place=right}
-![](img/test1.png){place=right}
+![](img/profile.png)
+![](img/test1.png)
 
 
 ## ちょっとだけ自己紹介
@@ -20,9 +18,9 @@ format:
 - 福岡出身です
 - 情報系の大学院にいました
 - ゲーム制作とか、ものづくりが好きです
-![](img/profile.png){place=right}
-![](img/test1.png){place=right}
-![](img/test2.png){place=right}
+![画像１](img/profile.png)
+![画像２](img/test1.png)
+![画像３](img/test2.png)
 
 ## 好きなこと
 
