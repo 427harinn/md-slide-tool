@@ -22,12 +22,17 @@ FINAL_PPTX="$DIR/${STEM}.pptx"
 
 echo "Rendering: $FILE"
 
+# ----------------------------
+# ① 前処理
+# ----------------------------
 python3 /work/scripts/prepare-qmd-for-pptx.py \
   --input "$FILE" \
   --output "$RENDER_QMD" \
   --images-json "$IMAGES_JSON"
 
-# render 用 qmd に対してテンプレ正規化
+# ----------------------------
+# ② テンプレ正規化
+# ----------------------------
 if grep -q "pptx" "$RENDER_QMD"; then
   TEMPLATE=$(grep -E "reference-doc:" "$RENDER_QMD" | head -1 | sed 's/.*reference-doc:[[:space:]]*//')
 
@@ -36,20 +41,20 @@ if grep -q "pptx" "$RENDER_QMD"; then
 
     if [ -f "$TEMPLATE_PATH" ]; then
       echo "テンプレ検出: $TEMPLATE_PATH"
-      echo "テンプレを正規化します..."
       node /work/scripts/normalize-pptx-template.js "$TEMPLATE_PATH"
-    else
-      echo "テンプレが見つかりません: $TEMPLATE_PATH"
     fi
-  else
-    echo "reference-doc 未指定"
   fi
 fi
 
+# ----------------------------
+# ③ Quarto render
+# ----------------------------
 cd "$DIR"
 quarto render "$RENDER_BASENAME"
 
-# render 用ファイル名で出た pptx を最終名へ寄せる
+# ----------------------------
+# ④ ファイル名整理
+# ----------------------------
 if [ -f "$RENDER_PPTX" ]; then
   if [ "$RENDER_PPTX" != "$FINAL_PPTX" ]; then
     cp "$RENDER_PPTX" "$FINAL_PPTX"
@@ -59,9 +64,21 @@ else
   exit 1
 fi
 
+# ----------------------------
+# ⑤ 画像後処理
+# ----------------------------
 echo "画像後処理: $FINAL_PPTX"
 python3 /work/scripts/postprocess-pptx.py \
   --pptx "$FINAL_PPTX" \
   --images-json "$IMAGES_JSON"
+
+# ----------------------------
+# ⑥ cleanup（ここ追加）
+# ----------------------------
+echo "cleanup..."
+
+rm -f "$RENDER_QMD"
+rm -f "$IMAGES_JSON"
+rm -f "$RENDER_PPTX"
 
 echo "完了: $FINAL_PPTX"

@@ -1,6 +1,8 @@
 ---
 title: "自己紹介だよ"
-format: pptx
+format: 
+    pptx:
+        reference-doc: template.pptx
 ---
 
 ## ごあいさつ
@@ -13,7 +15,7 @@ format: pptx
 ![](img/test1.png)
 
 
-## ちょっとだけ自己紹介
+## ちょっとだけ自己紹介あ
 
 - 福岡出身です
 - 情報系の大学院にいました

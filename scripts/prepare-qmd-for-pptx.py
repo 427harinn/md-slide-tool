@@ -11,14 +11,15 @@ from typing import List, Optional
 
 HEADING_PATTERN = re.compile(r'^\s*##\s+(.+?)\s*$')
 IMAGE_ONLY_LINE_PATTERN = re.compile(
-    r'^\s*!\[[^\]]*\]\((?P<path>[^)]+)\)\s*(?:\{(?P<attrs>[^}]*)\})?\s*$'
+    r'^\s*!\[(?P<alt>[^\]]*)\]\((?P<path>[^)]+)\)\s*(?:\{(?P<attrs>[^}]*)\})?\s*$'
 )
 
 
 @dataclass
 class ImageSpec:
     path: str
-    place: str = "right"
+    caption: str = ""
+    place: str = ""
 
 
 @dataclass
@@ -66,23 +67,19 @@ def main() -> int:
 
     current_slide: Optional[SlideSpec] = None
     in_front_matter = False
-    front_matter_done = False
 
     for i, line in enumerate(lines):
         stripped = line.strip()
 
-        # YAML front matter の開始
         if i == 0 and stripped == "---":
             in_front_matter = True
             output_lines.append(line)
             continue
 
-        # YAML front matter の終了
         if in_front_matter:
             output_lines.append(line)
             if stripped == "---":
                 in_front_matter = False
-                front_matter_done = True
             continue
 
         heading_match = HEADING_PATTERN.match(line)
@@ -98,12 +95,14 @@ def main() -> int:
         image_match = IMAGE_ONLY_LINE_PATTERN.match(line)
         if image_match and current_slide is not None:
             attrs = parse_attrs(image_match.group("attrs"))
-            place = attrs.get("place", "right").strip().lower()
+            place = attrs.get("place", "").strip().lower()
+            caption = image_match.group("alt").strip()
 
             current_slide.images.append(
                 ImageSpec(
                     path=image_match.group("path").strip(),
-                    place=place
+                    caption=caption,
+                    place=place,
                 )
             )
 
@@ -142,7 +141,11 @@ def main() -> int:
             f"title='{slide.title}' images={len(slide.images)}"
         )
         for image in slide.images:
-            print(f"  - path={image.path}, place={image.place}")
+            print(
+                f"  - path={image.path}, "
+                f"caption={image.caption!r}, "
+                f"place={image.place or '(auto)'}"
+            )
 
     return 0
 

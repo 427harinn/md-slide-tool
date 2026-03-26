@@ -3,14 +3,14 @@
 
 import argparse
 import json
-import math
 import unicodedata
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 from PIL import Image
 from pptx import Presentation
-from pptx.util import Inches
+from pptx.enum.text import PP_ALIGN, MSO_AUTO_SIZE
+from pptx.util import Inches, Pt
 
 
 # ----------------------------
@@ -35,8 +35,12 @@ def emu(value_inch: float) -> int:
     return int(Inches(value_inch))
 
 
-def clamp(v: int, lo: int, hi: int) -> int:
-    return max(lo, min(v, hi))
+def rect_right(rect: Tuple[int, int, int, int]) -> int:
+    return rect[0] + rect[2]
+
+
+def rect_bottom(rect: Tuple[int, int, int, int]) -> int:
+    return rect[1] + rect[3]
 
 
 def rect_intersects(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> bool:
@@ -50,24 +54,11 @@ def rect_intersects(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) 
     )
 
 
-def rect_right(rect: Tuple[int, int, int, int]) -> int:
-    return rect[0] + rect[2]
-
-
-def rect_bottom(rect: Tuple[int, int, int, int]) -> int:
-    return rect[1] + rect[3]
-
-
 # ----------------------------
-# PPTX shape / title 判定
+# title / body 判定
 # ----------------------------
 
 def get_slide_title(slide) -> str:
-    """
-    タイトル候補を優先して拾う。
-    1) タイトルplaceholder
-    2) 一番上にある広めのテキスト
-    """
     placeholder_candidates = []
     fallback_candidates = []
 
@@ -79,10 +70,8 @@ def get_slide_title(slide) -> str:
         if not text:
             continue
 
-        left = int(shape.left)
         top = int(shape.top)
         width = int(shape.width)
-        height = int(shape.height)
 
         if getattr(shape, "is_placeholder", False):
             try:
@@ -90,13 +79,11 @@ def get_slide_title(slide) -> str:
             except Exception:
                 ph_type = None
 
-            # TITLE=1, CENTER_TITLE=3 を優先
             if ph_type in (1, 3):
                 score = (1000000000 - top) + width
                 placeholder_candidates.append((score, text))
                 continue
 
-        # fallback: 上にあって幅が広いもの
         score = (1000000000 - top) + width
         fallback_candidates.append((score, text))
 
@@ -112,9 +99,6 @@ def get_slide_title(slide) -> str:
 
 
 def find_title_shape(slide):
-    """
-    タイトル shape を返す。なければ None。
-    """
     placeholder_candidates = []
     fallback_candidates = []
 
@@ -126,10 +110,8 @@ def find_title_shape(slide):
         if not text:
             continue
 
-        left = int(shape.left)
         top = int(shape.top)
         width = int(shape.width)
-        height = int(shape.height)
 
         if getattr(shape, "is_placeholder", False):
             try:
@@ -157,10 +139,6 @@ def find_title_shape(slide):
 
 
 def find_body_shape(slide, slide_h: int):
-    """
-    本文プレースホルダ候補を返す。
-    プレースホルダ優先。なければ本文っぽい広いテキスト欄を返す。
-    """
     placeholder_candidates = []
     fallback_candidates = []
 
@@ -181,7 +159,6 @@ def find_body_shape(slide, slide_h: int):
             except Exception:
                 ph_type = None
 
-            # BODY=2, OBJECT=7
             if ph_type in (2, 7):
                 score = area
                 if top < slide_h * 0.18:
@@ -237,14 +214,10 @@ def fit_size(orig_w: int, orig_h: int, max_w: int, max_h: int) -> Tuple[int, int
 
 
 # ----------------------------
-# 実テキスト使用範囲の推定
+# テキスト使用範囲の近似
 # ----------------------------
 
 def extract_font_size_pt(shape) -> float:
-    """
-    shape内の見つかる範囲で代表フォントサイズを拾う。
-    見つからなければ適当な既定値。
-    """
     sizes = []
 
     try:
@@ -273,9 +246,6 @@ def extract_font_size_pt(shape) -> float:
 
 
 def count_visual_width_units(text: str) -> float:
-    """
-    全角っぽい文字は 1.0、ASCII系は 0.55 くらいで数える簡易近似。
-    """
     units = 0.0
     for ch in text:
         if ch.isspace():
@@ -292,9 +262,6 @@ def count_visual_width_units(text: str) -> float:
 
 
 def estimate_text_content_bounds(shape) -> Tuple[int, int, int, int]:
-    """
-    プレースホルダ全体ではなく、実際に文字が使っていそうな範囲をざっくり推定する。
-    """
     left = int(shape.left)
     top = int(shape.top)
     width = int(shape.width)
@@ -311,34 +278,21 @@ def estimate_text_content_bounds(shape) -> Tuple[int, int, int, int]:
         return left, top, min(width, emu(2.0)), min(height, emu(0.8))
 
     font_size_pt = extract_font_size_pt(shape)
-
-    # 1pt ≒ 1/72 inch
     font_size_emu = font_size_pt * 12700.0
 
     max_units = max(count_visual_width_units(line) for line in lines)
     line_count = len(lines)
 
-    # 箇条書きや余白を少し盛る
     estimated_text_w = int(max_units * font_size_emu * 0.95 + emu(0.5))
     estimated_text_h = int(line_count * font_size_emu * 1.65 + emu(0.25))
 
-    # shapeより大きくなりすぎないように制限
-    estimated_text_w = min(estimated_text_w, width)
-    estimated_text_h = min(estimated_text_h, height)
-
-    # 下限
-    estimated_text_w = max(estimated_text_w, emu(2.0))
-    estimated_text_h = max(estimated_text_h, emu(1.0))
+    estimated_text_w = min(max(estimated_text_w, emu(2.0)), width)
+    estimated_text_h = min(max(estimated_text_h, emu(1.0)), height)
 
     return left, top, estimated_text_w, estimated_text_h
 
 
 def get_occupied_rects(slide, slide_w: int, slide_h: int) -> List[Tuple[int, int, int, int]]:
-    """
-    配置を避けたい領域。
-    - タイトル: shape全体
-    - 本文: shape全体ではなく実使用範囲の近似
-    """
     rects = []
 
     title_shape = find_title_shape(slide)
@@ -359,18 +313,52 @@ def get_occupied_rects(slide, slide_w: int, slide_h: int) -> List[Tuple[int, int
 
 
 # ----------------------------
-# 配置候補
+# caption
+# ----------------------------
+
+def estimate_caption_box_height(caption: str) -> int:
+    if not caption:
+        return 0
+
+    length = len(caption.strip())
+    if length <= 12:
+        return emu(0.22)
+    if length <= 28:
+        return emu(0.34)
+    return emu(0.46)
+
+
+def add_caption_textbox(slide, caption: str, x: int, y: int, w: int, h: int) -> None:
+    if not caption.strip():
+        return
+
+    textbox = slide.shapes.add_textbox(x, y, w, h)
+    text_frame = textbox.text_frame
+    text_frame.clear()
+    text_frame.word_wrap = True
+    text_frame.auto_size = MSO_AUTO_SIZE.NONE
+    text_frame.margin_left = 0
+    text_frame.margin_right = 0
+    text_frame.margin_top = 0
+    text_frame.margin_bottom = 0
+
+    p = text_frame.paragraphs[0]
+    p.alignment = PP_ALIGN.CENTER
+
+    run = p.add_run()
+    run.text = caption
+    run.font.size = Pt(10)
+
+
+# ----------------------------
+# 候補矩形
 # ----------------------------
 
 def make_candidate_rects(
     slide_w: int,
     slide_h: int,
     occupied_rects: List[Tuple[int, int, int, int]],
-    place: str,
 ) -> List[dict]:
-    """
-    プレースホルダを触らず、空き領域候補を作る。
-    """
     margin = emu(0.25)
     safe_left = emu(0.45)
     safe_top = emu(0.35)
@@ -378,13 +366,9 @@ def make_candidate_rects(
     safe_bottom = slide_h - emu(0.35)
 
     if occupied_rects:
-        occ_left = min(r[0] for r in occupied_rects)
-        occ_top = min(r[1] for r in occupied_rects)
         occ_right = max(rect_right(r) for r in occupied_rects)
         occ_bottom = max(rect_bottom(r) for r in occupied_rects)
     else:
-        occ_left = safe_left
-        occ_top = safe_top
         occ_right = int(slide_w * 0.55)
         occ_bottom = int(slide_h * 0.45)
 
@@ -421,14 +405,11 @@ def make_candidate_rects(
         ),
     }
 
-    if place == "right":
-        return [right_rect, bottom_right_rect, bottom_rect]
-
     return [right_rect, bottom_right_rect, bottom_rect]
 
 
 # ----------------------------
-# 配置評価
+# レイアウト評価
 # ----------------------------
 
 def score_layout(
@@ -436,9 +417,6 @@ def score_layout(
     rect: Tuple[int, int, int, int],
     mode: str,
 ) -> Optional[dict]:
-    """
-    候補領域に対して画像がどれくらいの大きさで置けるか評価する。
-    """
     x, y, w, h = rect
     if w <= 0 or h <= 0:
         return None
@@ -449,18 +427,36 @@ def score_layout(
     if count == 0:
         return None
 
-    # 1枚だけなら single を優遇
     if count == 1 and mode == "single":
-        orig_w, orig_h = get_image_size_emu(images[0]["resolved_path"])
-        pic_w, pic_h = fit_size(orig_w, orig_h, w, h)
-        area = pic_w * pic_h
+        img = images[0]
+        caption_h = estimate_caption_box_height(img.get("caption", ""))
+        usable_h = h - caption_h - emu(0.06)
+        if usable_h <= 0:
+            return None
+
+        orig_w, orig_h = get_image_size_emu(img["resolved_path"])
+        pic_w, pic_h = fit_size(orig_w, orig_h, w, usable_h)
+
         if pic_w < emu(1.3) or pic_h < emu(1.0):
             return None
+
+        px = x + (w - pic_w) // 2
+        py = y + max(0, (usable_h - pic_h) // 2)
+
         return {
             "mode": "single",
             "rect": rect,
-            "placements": [(x + (w - pic_w) // 2, y + (h - pic_h) // 2, pic_w, pic_h)],
-            "score": area,
+            "placements": [{
+                "img_x": px,
+                "img_y": py,
+                "img_w": pic_w,
+                "img_h": pic_h,
+                "caption_x": x,
+                "caption_y": py + pic_h + emu(0.04),
+                "caption_w": w,
+                "caption_h": caption_h,
+            }],
+            "score": pic_w * pic_h,
         }
 
     if mode == "vertical":
@@ -474,15 +470,31 @@ def score_layout(
         cy = y
 
         for img in images:
-            orig_w, orig_h = get_image_size_emu(img["resolved_path"])
-            pic_w, pic_h = fit_size(orig_w, orig_h, w, slot_h)
+            caption_h = estimate_caption_box_height(img.get("caption", ""))
+            usable_h = slot_h - caption_h - emu(0.05)
+            if usable_h <= 0:
+                return None
 
-            if pic_w < emu(1.3) or pic_h < emu(0.9):
+            orig_w, orig_h = get_image_size_emu(img["resolved_path"])
+            pic_w, pic_h = fit_size(orig_w, orig_h, w, usable_h)
+
+            if pic_w < emu(1.2) or pic_h < emu(0.8):
                 return None
 
             px = x + (w - pic_w) // 2
-            py = cy + (slot_h - pic_h) // 2
-            placements.append((px, py, pic_w, pic_h))
+            py = cy + max(0, (usable_h - pic_h) // 2)
+
+            placements.append({
+                "img_x": px,
+                "img_y": py,
+                "img_w": pic_w,
+                "img_h": pic_h,
+                "caption_x": x,
+                "caption_y": py + pic_h + emu(0.04),
+                "caption_w": w,
+                "caption_h": caption_h,
+            })
+
             total_area += pic_w * pic_h
             cy += slot_h + gap
 
@@ -504,15 +516,31 @@ def score_layout(
         cx = x
 
         for img in images:
-            orig_w, orig_h = get_image_size_emu(img["resolved_path"])
-            pic_w, pic_h = fit_size(orig_w, orig_h, slot_w, h)
+            caption_h = estimate_caption_box_height(img.get("caption", ""))
+            usable_h = h - caption_h - emu(0.05)
+            if usable_h <= 0:
+                return None
 
-            if pic_w < emu(1.3) or pic_h < emu(0.9):
+            orig_w, orig_h = get_image_size_emu(img["resolved_path"])
+            pic_w, pic_h = fit_size(orig_w, orig_h, slot_w, usable_h)
+
+            if pic_w < emu(1.2) or pic_h < emu(0.8):
                 return None
 
             px = cx + (slot_w - pic_w) // 2
-            py = y + (h - pic_h) // 2
-            placements.append((px, py, pic_w, pic_h))
+            py = y + max(0, (usable_h - pic_h) // 2)
+
+            placements.append({
+                "img_x": px,
+                "img_y": py,
+                "img_w": pic_w,
+                "img_h": pic_h,
+                "caption_x": cx,
+                "caption_y": py + pic_h + emu(0.04),
+                "caption_w": slot_w,
+                "caption_h": caption_h,
+            })
+
             total_area += pic_w * pic_h
             cx += slot_w + gap
 
@@ -531,10 +559,6 @@ def choose_best_layout(
     candidate_rects: List[dict],
     occupied_rects: List[Tuple[int, int, int, int]],
 ) -> Optional[dict]:
-    """
-    候補を全部試して、一番面積が大きく取れるものを採用。
-    occupied_rect と重なる候補は避ける。
-    """
     best = None
 
     for cand in candidate_rects:
@@ -542,13 +566,9 @@ def choose_best_layout(
         name = cand["name"]
         mode = cand["mode"]
 
-        # 候補自体が occupied に深く重なるなら使わない
-        # （一応保険）
         if any(rect_intersects(rect, occ) for occ in occupied_rects):
-            # right/bottom は occupied の外側から作っている想定だが保険で除外
             continue
 
-        # single は複数枚だと向かないので1枚限定
         if mode == "single" and len(images) != 1:
             continue
 
@@ -573,7 +593,6 @@ def collect_target_images(slide_info: dict, base_dir: Path) -> List[dict]:
     result = []
 
     for image in images:
-        place = str(image.get("place", "right")).strip().lower()
         raw_path = str(image.get("path", "")).strip()
         resolved_path = (base_dir / raw_path).resolve()
 
@@ -587,7 +606,7 @@ def collect_target_images(slide_info: dict, base_dir: Path) -> List[dict]:
         result.append({
             "raw_path": raw_path,
             "resolved_path": resolved_path,
-            "place": place or "right",
+            "caption": str(image.get("caption", "")).strip(),
         })
 
     return result
@@ -601,10 +620,25 @@ def add_offslide_images_near_target_slide(slide, images: List[dict], slide_w: in
     max_h = emu(1.8)
 
     for image in images:
+        caption_h = estimate_caption_box_height(image.get("caption", ""))
+        usable_h = max_h - caption_h - emu(0.05)
+
         orig_w, orig_h = get_image_size_emu(image["resolved_path"])
-        pic_w, pic_h = fit_size(orig_w, orig_h, max_w, max_h)
+        pic_w, pic_h = fit_size(orig_w, orig_h, max_w, usable_h)
+
         slide.shapes.add_picture(str(image["resolved_path"]), x, y, width=pic_w, height=pic_h)
-        y += pic_h + margin
+
+        if caption_h > 0:
+            add_caption_textbox(
+                slide,
+                image["caption"],
+                x,
+                y + pic_h + emu(0.04),
+                max_w,
+                caption_h,
+            )
+
+        y += pic_h + caption_h + margin
 
 
 def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Path) -> None:
@@ -624,13 +658,10 @@ def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Pa
     else:
         offslide_anchor_top = emu(1.4)
 
-    # 今は place=right ベースでまとめて処理
-    # 将来 left などを増やすなら place ごとに分ける
     candidate_rects = make_candidate_rects(
         slide_w=slide_w,
         slide_h=slide_h,
         occupied_rects=occupied_rects,
-        place="right",
     )
 
     best_layout = choose_best_layout(
@@ -651,14 +682,24 @@ def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Pa
 
     print(f"  place: {best_layout['candidate_name']} / {best_layout['mode']}")
 
-    for image, (x, y, w, h) in zip(target_images, best_layout["placements"]):
+    for image, placement in zip(target_images, best_layout["placements"]):
         slide.shapes.add_picture(
             str(image["resolved_path"]),
-            x,
-            y,
-            width=w,
-            height=h,
+            placement["img_x"],
+            placement["img_y"],
+            width=placement["img_w"],
+            height=placement["img_h"],
         )
+
+        if placement["caption_h"] > 0 and image.get("caption", "").strip():
+            add_caption_textbox(
+                slide,
+                image["caption"],
+                placement["caption_x"],
+                placement["caption_y"],
+                placement["caption_w"],
+                placement["caption_h"],
+            )
 
 
 # ----------------------------
