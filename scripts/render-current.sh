@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+
 FILE="$1"
 
 if [ -z "$FILE" ]; then
@@ -25,7 +28,7 @@ echo "Rendering: $FILE"
 # ----------------------------
 # ① 前処理
 # ----------------------------
-python3 /work/scripts/prepare-qmd-for-pptx.py \
+python3 "$REPO_ROOT/scripts/prepare-qmd-for-pptx.py" \
   --input "$FILE" \
   --output "$RENDER_QMD" \
   --images-json "$IMAGES_JSON"
@@ -41,7 +44,7 @@ if grep -q "pptx" "$RENDER_QMD"; then
 
     if [ -f "$TEMPLATE_PATH" ]; then
       echo "テンプレ検出: $TEMPLATE_PATH"
-      node /work/scripts/normalize-pptx-template.js "$TEMPLATE_PATH"
+      node "$REPO_ROOT/scripts/normalize-pptx-template.js" "$TEMPLATE_PATH"
     fi
   fi
 fi
@@ -68,7 +71,7 @@ fi
 # ⑤ 画像後処理
 # ----------------------------
 echo "画像後処理: $FINAL_PPTX"
-python3 /work/scripts/postprocess-pptx.py \
+python3 "$REPO_ROOT/scripts/postprocess-pptx.py" \
   --pptx "$FINAL_PPTX" \
   --images-json "$IMAGES_JSON"
 
