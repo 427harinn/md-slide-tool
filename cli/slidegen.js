@@ -158,4 +158,60 @@ program
         });
     });
 
-program.parse(process.argv);
+program
+    .command("render")
+    .description("既存のPPTXレンダリング処理でQMDファイルをレンダリングする")
+    .argument("<file>", "PPTX向けQMDファイル")
+    .action(async (file) => {
+        const absoluteQmdPath = path.resolve(file);
+
+        if (!fs.existsSync(absoluteQmdPath)) {
+            console.error(`Error: input file not found: ${absoluteQmdPath}`);
+            process.exitCode = 1;
+            return;
+        }
+
+        if (!fs.statSync(absoluteQmdPath).isFile()) {
+            console.error(`Error: input is not a file: ${absoluteQmdPath}`);
+            process.exitCode = 1;
+            return;
+        }
+
+        if (path.extname(absoluteQmdPath).toLowerCase() !== ".qmd") {
+            console.error(`Error: input must be a .qmd file: ${absoluteQmdPath}`);
+            process.exitCode = 1;
+            return;
+        }
+
+        const renderScriptPath = path.join(rootDir, "scripts", "render-current.sh");
+
+        if (!fs.existsSync(renderScriptPath) || !fs.statSync(renderScriptPath).isFile()) {
+            console.error(`Error: render script not found: ${renderScriptPath}`);
+            process.exitCode = 1;
+            return;
+        }
+
+        process.exitCode = await new Promise((resolve) => {
+            const child = spawn("bash", [renderScriptPath, absoluteQmdPath], {
+                stdio: "inherit",
+                shell: false,
+            });
+
+            child.once("error", (error) => {
+                console.error(`Error: failed to start Bash: ${error.message}`);
+                resolve(1);
+            });
+
+            child.once("close", (code, signal) => {
+                if (signal) {
+                    console.error(`Error: render process terminated by signal: ${signal}`);
+                    resolve(1);
+                    return;
+                }
+
+                resolve(code ?? 1);
+            });
+        });
+    });
+
+await program.parseAsync(process.argv);
