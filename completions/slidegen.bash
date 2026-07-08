@@ -4,7 +4,7 @@ _slidegen_completion() {
   prev="${COMP_WORDS[COMP_CWORD-1]}"
   cmd="${COMP_WORDS[1]}"
 
-  local commands="new list-templates"
+  local commands="new list-templates render"
 
   if [[ ${COMP_CWORD} -eq 1 ]]; then
     COMPREPLY=( $(compgen -W "${commands}" -- "${cur}") )
@@ -48,6 +48,9 @@ _slidegen_completion() {
         COMPREPLY=( $(compgen -W "--type --template --help" -- "${cur}") )
         return
       fi
+      ;;
+    render)
+      COMPREPLY=( $(compgen -f -X '!*.qmd' -- "${cur}") )
       ;;
   esac
 }

@@ -115,6 +115,7 @@ slidegen new demo --type pdf
 ```bash
 slidegen --help
 slidegen new --help
+slidegen render --help
 ```
 
 ### テンプレート一覧を表示
@@ -201,19 +202,19 @@ slidegen list-templates
 2. プロジェクトを作る
 
 ```bash
-slidegen new monthly-report --type docx
+slidegen new monthly-report --type pptx
 ```
 
 3. 生成された `.qmd` を編集する
 
 ```text
-projects/monthly-report/monthly-report_docx.qmd
+projects/monthly-report/monthly-report_pptx.qmd
 ```
 
-4. Quarto でレンダリングする
+4. PPTX向けQMDをレンダリングする
 
 ```bash
-bash scripts/render-current.sh projects/monthly-report/monthly-report_docx.qmd
+slidegen render projects/monthly-report/monthly-report_pptx.qmd
 ```
 
 ### エラーになる条件
@@ -231,10 +232,21 @@ bash scripts/render-current.sh projects/monthly-report/monthly-report_docx.qmd
 
 ## レンダリング
 
-`scripts/render-current.sh` は指定した `.qmd` を Quarto でレンダリングします。
+`slidegen render` は既存の `scripts/render-current.sh` を呼び出す、正式なCLIレンダリング入口です。
+現時点で正式対象としているのはPPTX向けQMDです。docx / html / pdf はこのコマンドの正式対象外です。
 
 ```bash
-bash scripts/render-current.sh projects/samplepptx/samplepptx_pptx.qmd
+slidegen render <file.qmd>
+slidegen render projects/selfintroduction/selfintroduction_pptx.qmd
+```
+
+実行には Bash、Quarto、Python など、既存のレンダリングスクリプトが使用するツールが必要です。
+WindowsではGit BashまたはDev Containerの利用を推奨します。PowerShell / cmdからの直接実行は現時点では正式対象外です。
+
+低レベルのスクリプトを直接実行することもできますが、通常は `slidegen render` を使用してください。
+
+```bash
+bash scripts/render-current.sh projects/selfintroduction/selfintroduction_pptx.qmd
 ```
 
 内部で行っていること:
@@ -288,10 +300,10 @@ docker run --rm \
   -v "$(pwd):/work" \
   -w /work \
   md-slide-tool \
-  bash scripts/render-current.sh projects/samplepptx/samplepptx_pptx.qmd
+  slidegen render projects/selfintroduction/selfintroduction_pptx.qmd
 ```
 
-`render-current.sh` は `/work/scripts/normalize-pptx-template.js` を参照するため、Docker ではこのマウント前提で使うのが安全です。
+`slidegen render` はインストール先の `scripts/render-current.sh` を解決して呼び出します。対象QMDと関連ファイルをコンテナから参照できるようにマウントしてください。
 
 ## テンプレート追加方法
 
