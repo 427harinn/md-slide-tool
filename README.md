@@ -45,6 +45,7 @@ Quarto ベースの Markdown / スライド / ドキュメント生成を補助�
 Docker イメージには次が含まれます。
 
 - Quarto CLI
+- Chrome Headless Shell（Mermaid 図を含む QMD の PPTX など非 HTML 形式へのレンダリング用）
 - Pandoc
 - TinyTeX
 - OpenJDK 17
@@ -266,6 +267,18 @@ node scripts/normalize-pptx-template.js projects/samplepptx/template.pptx
 
 ```bash
 docker build -t md-slide-tool .
+```
+
+Chrome Headless Shell と実行に必要な共有ライブラリを含むため、Docker イメージのサイズは増える可能性があります。
+
+Mermaid 入り QMD の PPTX レンダリングは、確認用 fixture を使って次のように確認できます。
+
+```bash
+docker run --rm \
+  -v "$(pwd):/work" \
+  -w /work \
+  md-slide-tool \
+  quarto render tests/fixtures/mermaid-pptx.qmd
 ```
 
 その後、リポジトリを `/work` にマウントしてレンダリングします。

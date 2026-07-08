@@ -1,0 +1,12 @@
+---
+title: "Mermaid PPTX smoke test"
+format: pptx
+---
+
+## Mermaid diagram
+
+```{mermaid}
+flowchart LR
+  A[QMD] --> B[Mermaid]
+  B --> C[PPTX]
+```

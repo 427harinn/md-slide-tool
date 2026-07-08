@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y \
     pandoc \
     locales \
     fonts-noto-cjk \
+    libgbm1 \
+    libxkbcommon0 \
     python3 \
     python3-pip \
     python3-venv \
@@ -35,5 +37,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     && apt-get update \
     && apt-get install -y ./quarto-1.9.36-linux-${QUARTO_ARCH}.deb \
     && rm quarto-1.9.36-linux-${QUARTO_ARCH}.deb
+
+RUN quarto install chrome-headless-shell --no-prompt
 
 RUN pip3 install --no-cache-dir python-pptx Pillow
