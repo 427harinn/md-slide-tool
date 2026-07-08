@@ -8,7 +8,9 @@
     },
     "files": [
         "cli",
-        "templates"
+        "templates",
+        "scripts",
+        "completions"
     ],
     "scripts": {
         "start": "node ./cli/slidegen.js"
