@@ -249,10 +249,10 @@ docker run --rm \
   -v "$(pwd):/work" \
   -w /work \
   md-slide-tool \
-  slidegen render projects/selfintroduction/selfintroduction_pptx.qmd
+  npm run start -- render projects/selfintroduction/selfintroduction_pptx.qmd
 ```
 
-`slidegen render` はインストール先の `scripts/render-current.sh` を解決して呼び出します。対象 QMD と関連ファイルをコンテナから参照できるようにマウントしてください。
+コンテナ内では、マウントしたリポジトリの `npm run start -- render` を使って `slidegen render` を実行します。対象 QMD と関連ファイルをコンテナから参照できるようにマウントしてください。
 
 ## Mermaid / Chrome Headless Shell
 
