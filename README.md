@@ -1,88 +1,57 @@
 # md-slide-tool
 
-Quarto ベースの Markdown / スライド / ドキュメント生成を補助するツールです。
+Quarto ベースの Markdown / スライド / ドキュメントプロジェクトを、テンプレートから生成するためのツールです。
 
-主役は `slidegen` という CLI で、テンプレートから Quarto プロジェクトを生成するために使います。
+主な入口は `slidegen` CLI です。現在の実装では、テンプレートから `projects/` 配下に Quarto プロジェクトを作成し、PPTX 向け QMD をレンダリングするための補助コマンドを提供しています。
 
-このリポジトリには次の 2 つが含まれています。
+## できること / できないこと
 
-- `slidegen` CLI: テンプレートから新しいプロジェクトを作成する
-- レンダリング補助スクリプト: Quarto を使って `pptx` / `docx` / `html` / `pdf` を出力する
+現在できること:
 
-## 特徴
+- `templates/` 配下のテンプレートからプロジェクトを作成する
+- `pptx` / `docx` / `html` テンプレートを使って `.qmd` を生成する
+- テンプレート内の `{{TITLE}}` をプロジェクト名で置き換える
+- `.qmd` 以外のテンプレート補助ファイルを生成先へコピーする
+- PPTX 向け QMD を `slidegen render` でレンダリングする
+- Docker 環境で Quarto、Pandoc、Chrome Headless Shell、Python ベースの PPTX 後処理を使う
 
-- 出力形式ごとのテンプレートからプロジェクトをすばやく作成
-- `{{TITLE}}` をプロジェクト名で置き換えて `.qmd` を生成
-- `pptx` は PowerPoint テンプレートファイルも一緒にコピー
-- `docx` は Word テンプレートファイルも一緒にコピー
-- Docker ベースで Quarto / Pandoc / TinyTeX をまとめて実行可能
+現在できないこと:
+
+- `pdf` テンプレートからのプロジェクト生成
+- `docx` / `html` / `pdf` の `slidegen render` による CLI レンダリング
+- `slidegen preview`
 
 ## ディレクトリ構成
 
 ```text
 .
 ├── cli/                  # slidegen CLI
+├── completions/          # shell completion
 ├── scripts/              # レンダリング・補助スクリプト
 ├── templates/            # 出力形式ごとのテンプレート
 │   ├── docx/
 │   ├── html/
-│   ├── pdf/
 │   └── pptx/
-└── projects/             # 生成されたプロジェクト
+└── projects/             # 生成済みまたはサンプルプロジェクト
 ```
 
-## 動作環境
-
-### CLI を使う場合
-
-- Node.js 20 系推奨
-- npm
-
-### レンダリングする場合
-
-ローカルに Quarto と Pandoc を入れてもよいですが、このリポジトリには Dockerfile が含まれているため、基本的には Docker 利用が前提です。
-
-Docker イメージには次が含まれます。
-
-- Quarto CLI
-- Chrome Headless Shell（Mermaid 図を含む QMD の PPTX など非 HTML 形式へのレンダリング用）
-- Pandoc
-- TinyTeX
-- OpenJDK 17
-- 日本語フォント `Noto Sans CJK JP`
-
 ## セットアップ
+
+CLI の利用には Node.js 20 系と npm を推奨します。
 
 ```bash
 npm install
 ```
 
-CLI ヘルプ:
+ヘルプを確認します。
 
 ```bash
 npm run start -- --help
 ```
 
-## slidegen の概要
+## クイックスタート
 
-`slidegen` は、`templates/` 配下にあるテンプレートを使って `projects/` 配下へ新しいプロジェクトを作る CLI です。
-
-やっていることはシンプルです。
-
-1. 出力形式とテンプレートを選ぶ
-2. `projects/<name>/` を作る
-3. テンプレート内の `.qmd` を `projects/<name>/<name>_<type>.qmd` として生成する
-4. `{{TITLE}}` をプロジェクト名に置き換える
-5. `.qmd` 以外のテンプレートファイルをそのままコピーする
-6. 最後に VS Code で生成した `.qmd` を開こうとする
-
-つまり、`slidegen` は「Quarto のひな形を作るところまで」を担当し、実際の出力は Quarto でレンダリングします。
-
-## slidegen の使い方
-
-### 実行方法
-
-このリポジトリでは主に次の形で使います。
+このリポジトリ内では、主に次の形で `slidegen` を実行します。
 
 ```bash
 npm run start -- <command>
@@ -92,25 +61,32 @@ npm run start -- <command>
 
 ```bash
 npm run start -- list-templates
-npm run start -- new demo --type pptx
+npm run start -- new monthly-report --type pptx
+npm run start -- render projects/monthly-report/monthly-report_pptx.qmd
 ```
 
 直接実行することもできます。
 
 ```bash
 node cli/slidegen.js list-templates
-node cli/slidegen.js new demo --type docx
+node cli/slidegen.js new report --type docx
 ```
 
-グローバルまたはローカルリンクして `slidegen` コマンドとして使うこともできます。
+`npm link` した場合は、`slidegen` コマンドとして実行できます。
 
 ```bash
 npm link
 slidegen list-templates
-slidegen new demo --type pdf
+slidegen new demo --type pptx
 ```
 
-### コマンド一覧
+## コマンド一覧
+
+現在の CLI コマンドは次の 3 つです。
+
+- `slidegen list-templates`
+- `slidegen new`
+- `slidegen render`
 
 ```bash
 slidegen --help
@@ -118,23 +94,24 @@ slidegen new --help
 slidegen render --help
 ```
 
-### テンプレート一覧を表示
+### slidegen list-templates
+
+利用可能なテンプレートを `templates/` 配下から走査して表示します。
 
 ```bash
 slidegen list-templates
 ```
 
-現状のテンプレート:
+現在のテンプレート:
 
 - `docx/template`
 - `html/template`
-- `pdf/template`
 - `pptx/template`
 - `pptx/self_introduction`
 
-このコマンドは `templates/` 配下を走査して、利用可能な出力形式とテンプレート名を表示します。
+### slidegen new
 
-### 新しいプロジェクトを作成
+テンプレートから新しいプロジェクトを `projects/<project-name>/` 配下に作成します。
 
 ```bash
 slidegen new <project-name> --type <type> [--template <template>]
@@ -143,17 +120,17 @@ slidegen new <project-name> --type <type> [--template <template>]
 例:
 
 ```bash
-slidegen new samplepptx --type pptx
+slidegen new sample --type pptx
 slidegen new selfintroduction --type pptx --template self_introduction
 slidegen new report --type docx
+slidegen new webdoc --type html
 ```
 
-`--type` は必須です。現状使える値は次の 4 つです。
+`--type` は必須です。現在使える値は、実体として `templates/` に存在する次の 3 つです。
 
 - `pptx`
 - `docx`
 - `html`
-- `pdf`
 
 `--template` は省略可能で、未指定時は `template` が使われます。
 
@@ -173,94 +150,67 @@ projects/meeting/
 └── template.pptx
 ```
 
-生成されるもの:
+`slidegen new` が行うこと:
 
-- `projects/<project-name>/README.md`
-- `projects/<project-name>/img/`
-- `projects/<project-name>/<project-name>_<type>.qmd`
-- テンプレートに含まれる補助ファイル
-  - 例: `template.pptx`, `template.docx`
+1. `templates/<type>/<template>/` を探す
+2. 生成先として `projects/<project-name>/` と `img/` を作る
+3. テンプレート内の唯一の `.qmd` を `<project-name>_<type>.qmd` として生成する
+4. `.qmd` 内の `{{TITLE}}` をプロジェクト名に置き換える
+5. `.qmd` 以外のテンプレートファイルをそのままコピーする
+6. 最後に `code <qmd-file>` で VS Code を開こうとする
 
 補足:
 
-- `.qmd` のタイトルはテンプレート中の `{{TITLE}}` をプロジェクト名に置換して作成されます
-- 生成後、CLI は `code <qmd-file>` を実行して VS Code で対象ファイルを開こうとします
-- `code` コマンドが使えない環境では、ファイル作成自体は完了しても自動オープンは失敗する可能性があります
-- 同名の `.qmd` がすでに存在する場合は上書きせず終了します
-- `projects/<project-name>/` 自体が存在していても、対象 `.qmd` がなければそのまま利用されます
+- `code` コマンドが使えない環境では、自動オープンだけ失敗する可能性があります。
+- 生成先の `.qmd` がすでに存在する場合は、上書きせず終了します。
+- テンプレートディレクトリ内の `.qmd` は 1 ファイルだけである必要があります。
 
-### よくある作業フロー
+### slidegen render
 
-最短の流れは次のとおりです。
-
-1. 使えるテンプレートを確認する
-
-```bash
-slidegen list-templates
-```
-
-2. プロジェクトを作る
-
-```bash
-slidegen new monthly-report --type pptx
-```
-
-3. 生成された `.qmd` を編集する
-
-```text
-projects/monthly-report/monthly-report_pptx.qmd
-```
-
-4. PPTX向けQMDをレンダリングする
-
-```bash
-slidegen render projects/monthly-report/monthly-report_pptx.qmd
-```
-
-### エラーになる条件
-
-`slidegen new` は次のような場合に失敗します。
-
-- `templates/` ディレクトリが存在しない
-- `--type` で指定した形式が存在しない
-- `--template` で指定したテンプレートが存在しない
-- テンプレートディレクトリ内に `.qmd` が 0 個
-- テンプレートディレクトリ内に `.qmd` が 2 個以上
-- 生成先の `.qmd` がすでに存在する
-
-テンプレートの作り方に制約があるので、自作テンプレートを追加する場合は後述の「テンプレート追加方法」を見るのが安全です。
-
-## レンダリング
-
-`slidegen render` は既存の `scripts/render-current.sh` を呼び出す、正式なCLIレンダリング入口です。
-現時点で正式対象としているのはPPTX向けQMDです。docx / html / pdf はこのコマンドの正式対象外です。
+PPTX 向け QMD をレンダリングするための正式な CLI 入口です。
 
 ```bash
 slidegen render <file.qmd>
 slidegen render projects/selfintroduction/selfintroduction_pptx.qmd
 ```
 
-実行には Bash、Quarto、Python など、既存のレンダリングスクリプトが使用するツールが必要です。
-WindowsではGit BashまたはDev Containerの利用を推奨します。PowerShell / cmdからの直接実行は現時点では正式対象外です。
+現時点で `slidegen render` の正式対象は PPTX 向け QMD です。`docx` / `html` / `pdf` の CLI レンダリングは未対応です。
 
-低レベルのスクリプトを直接実行することもできますが、通常は `slidegen render` を使用してください。
+通常は低レベルスクリプトを直接実行せず、`slidegen render` を使用してください。内部では `scripts/render-current.sh` を呼び出します。
+
+Advanced:
 
 ```bash
 bash scripts/render-current.sh projects/selfintroduction/selfintroduction_pptx.qmd
 ```
 
-内部で行っていること:
+内部では主に次の処理を行います。
 
-1. 対象 `.qmd` の絶対パスを取得
-2. `pptx` を含むファイルの場合は `reference-doc:` を確認
-3. テンプレート `.pptx` があれば `scripts/normalize-pptx-template.js` を実行
-4. `quarto render <file>` を実行
+1. 入力 `.qmd` をレンダリング用の一時 `.render.qmd` に変換する
+2. 単独行の Markdown 画像を抽出し、後処理用の `.images.json` を作る
+3. PPTX テンプレートがあれば `scripts/normalize-pptx-template.js` でレイアウト名を正規化する
+4. `quarto render` を実行する
+5. 生成された PPTX に抽出済み画像を後処理で追加する
+6. 一時ファイルを削除する
 
-### PPTX テンプレート正規化について
+実行には Bash、Quarto、Node.js、Python 3、`python-pptx`、Pillow などが必要です。Windows では Git Bash または Dev Container / Docker 環境での利用を推奨します。
 
-PowerPoint テンプレートのスライドレイアウト名が日本語だと、Quarto / Pandoc 側で期待する英語名と一致せず崩れることがあります。
+## 対応状況
 
-`scripts/normalize-pptx-template.js` は `.pptx` を zip として開き、代表的なレイアウト名を次のように英語へ置換します。
+| 項目 | 現在の対応 |
+| --- | --- |
+| Project generation | `pptx` / `docx` / `html` |
+| CLI render | PPTX 向け QMD のみ |
+| `pdf` | テンプレート未同梱、現時点では未対応 |
+| `slidegen preview` | 未実装 |
+
+## PPTX テンプレート正規化
+
+PowerPoint テンプレートのスライドレイアウト名が日本語だと、Quarto / Pandoc 側で期待する英語名と一致せず、出力が崩れることがあります。
+
+`scripts/normalize-pptx-template.js` は `.pptx` を zip として開き、代表的なレイアウト名を英語へ置換します。
+
+例:
 
 - `タイトル スライド` -> `Title Slide`
 - `タイトルとコンテンツ` -> `Title and Content`
@@ -270,10 +220,10 @@ PowerPoint テンプレートのスライドレイアウト名が日本語だと
 PowerPoint テンプレート単体を正規化したい場合:
 
 ```bash
-node scripts/normalize-pptx-template.js projects/samplepptx/template.pptx
+node scripts/normalize-pptx-template.js projects/selfintroduction/template.pptx
 ```
 
-## Docker で使う
+## Docker での利用
 
 まずイメージをビルドします。
 
@@ -281,9 +231,34 @@ node scripts/normalize-pptx-template.js projects/samplepptx/template.pptx
 docker build -t md-slide-tool .
 ```
 
-Chrome Headless Shell と実行に必要な共有ライブラリを含むため、Docker イメージのサイズは増える可能性があります。
+Docker image には主に次が含まれます。
 
-Mermaid 入り QMD の PPTX レンダリングは、確認用 fixture を使って次のように確認できます。
+- Quarto 1.9.36
+- Chrome Headless Shell
+- Pandoc
+- OpenJDK 17
+- Noto CJK fonts
+- Python 3
+- `python-pptx`
+- Pillow
+
+リポジトリを `/work` にマウントしてレンダリングします。
+
+```bash
+docker run --rm \
+  -v "$(pwd):/work" \
+  -w /work \
+  md-slide-tool \
+  npm run start -- render projects/selfintroduction/selfintroduction_pptx.qmd
+```
+
+コンテナ内では、マウントしたリポジトリの `npm run start -- render` を使って `slidegen render` を実行します。対象 QMD と関連ファイルをコンテナから参照できるようにマウントしてください。
+
+## Mermaid / Chrome Headless Shell
+
+Docker 環境では Chrome Headless Shell が入っているため、Mermaid 入り QMD の PPTX レンダリングを扱えます。
+
+確認用 fixture を使う場合:
 
 ```bash
 docker run --rm \
@@ -293,17 +268,7 @@ docker run --rm \
   quarto render tests/fixtures/mermaid-pptx.qmd
 ```
 
-その後、リポジトリを `/work` にマウントしてレンダリングします。
-
-```bash
-docker run --rm \
-  -v "$(pwd):/work" \
-  -w /work \
-  md-slide-tool \
-  slidegen render projects/selfintroduction/selfintroduction_pptx.qmd
-```
-
-`slidegen render` はインストール先の `scripts/render-current.sh` を解決して呼び出します。対象QMDと関連ファイルをコンテナから参照できるようにマウントしてください。
+ローカルで同等のレンダリングを行う場合は、Quarto や Chrome Headless Shell などを別途用意する必要があります。
 
 ## テンプレート追加方法
 
@@ -323,21 +288,31 @@ templates/pptx/my_template/
 └── template.pptx
 ```
 
+## npm package に含まれるもの
+
+`package.json` の `files` 設定により、npm package には主に次が含まれます。
+
+- CLI
+- templates
+- scripts
+- completions
+- README.md
+- package.json
+
+`projects/` や生成済みの成果物は、配布対象ではありません。
+
 ## サンプル
 
 既存のサンプルプロジェクト:
 
-- `projects/samplepptx`
+- `projects/sample`
 - `projects/selfintroduction`
 
 それぞれ `.qmd` と出力済みファイルの例が含まれています。
 
-## 注意点
+## 既知の注意点
 
-- `html/template/template.qmd` は `style.css` を参照していますが、現時点でテンプレート内に CSS は含まれていません
-- `compose.yml` は現時点では未設定です
-- Dockerfile 内の Quarto インストールは特定バージョン固定です
-
-## ライセンス
-
-必要に応じて追記してください。
+- `html/template/template.qmd` は `style.css` を参照していますが、現時点でテンプレート内に `style.css` は含まれていません。
+- `compose.yml` は現時点では未設定です。
+- Dockerfile 内の Quarto インストールは 1.9.36 に固定されています。
+- PPTX 画像処理では `place` 属性が抽出されますが、配置制御としてはまだ限定的です。
