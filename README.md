@@ -299,7 +299,7 @@ templates/pptx/my_template/
 - README.md
 - package.json
 
-`projects/` や生成済みの `pptx` / `docx` / `html` / `pdf` などの成果物は、配布対象ではありません。
+`projects/` や生成済みの成果物は、配布対象ではありません。
 
 ## サンプル
 
@@ -316,7 +316,3 @@ templates/pptx/my_template/
 - `compose.yml` は現時点では未設定です。
 - Dockerfile 内の Quarto インストールは 1.9.36 に固定されています。
 - PPTX 画像処理では `place` 属性が抽出されますが、配置制御としてはまだ限定的です。
-
-## ライセンス
-
-必要に応じて追記してください。
