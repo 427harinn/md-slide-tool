@@ -177,3 +177,9 @@ docker run --rm -v "$(pwd):/work" -w /work md-slide-tool npm run start -- --help
 * この実行環境ではnpm registryが`pdfjs-dist`取得に403を返すため、拡張の`npm run build`と`npm run package:check`は実PDF.js不足ガードで失敗する。
 * 成功確認済み: `npm test`、`cd vscode-extension && npm test`、`python3 -m unittest tests/test_postprocess_place.py`、`bash scripts/smoke-test.sh`、`npm run start -- --help`、`npm run start -- list-templates`、`npm run start -- new pr10-smoke --type pptx`（`code`コマンドなし警告あり、生成物は削除）。
 * 未完了確認: `quarto --version`、`libreoffice --version || soffice --version`、Dev Container GUI確認、実PPTX→PDF変換、スクリーンショット保存。
+
+## VS Code拡張起動設定の修正
+
+* `vscode-extension/.vscode/launch.json`は、`vscode-extension`フォルダをワークスペースとして開く前提で`--extensionDevelopmentPath=${workspaceFolder}`を使う。
+* Extension Development Hostで開く対象として`/work`をargsへ追加した。
+* `vscode-extension/package.json`に`extensionKind: ["workspace"]`を追加し、Dev Containerのワークスペース側で拡張が動作することを明示した。

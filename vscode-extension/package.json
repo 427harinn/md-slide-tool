@@ -48,5 +48,8 @@
     "webview",
     "package.json",
     "README.md"
+  ],
+  "extensionKind": [
+    "workspace"
   ]
 }
