@@ -341,7 +341,7 @@ npm install
 npm run build
 ```
 
-Open the extension in VS Code and launch an Extension Development Host with the extension development path set to `vscode-extension/`. The extension declares `pdfjs-dist` as a dependency. `npm run build` copies `pdfjs-dist/build/pdf.mjs` and `pdfjs-dist/build/pdf.worker.mjs` into `vscode-extension/webview/` and fails if real PDF.js files are missing or placeholder files are present.
+Open the extension in VS Code and launch an Extension Development Host with the extension development path set to `vscode-extension/`. The extension declares `pdfjs-dist` as a dependency. `npm run build` copies `pdfjs-dist/build/pdf.mjs` and `pdfjs-dist/build/pdf.worker.mjs` into `vscode-extension/webview/` and fails if real PDF.js files are missing or placeholder files are present. `npm run package:check` runs the same build verification before `npm pack --dry-run`.
 
 ### Usage
 

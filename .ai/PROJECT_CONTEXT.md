@@ -155,7 +155,7 @@ docker run --rm -v "$(pwd):/work" -w /work md-slide-tool npm run start -- --help
 * PPTX選択・検証、LibreOffice検出、PPTX to PDF変換、一時ディレクトリ管理、Webview管理、Webview描画を分離した。
 * LibreOffice検出はPATH、Windows標準候補、macOS標準候補を確認する。
 * PDF描画UIは`vscode-extension/webview/`配下のローカルリソースだけを参照し、外部CDNを使用しない。
-* `pdfjs-dist`を拡張の正式依存関係として宣言し、`npm run build`で実ファイルを`webview/`へコピーする。仮PDF.jsファイルが残っている場合は検証スクリプトが失敗する。
+* `pdfjs-dist`を拡張の正式依存関係として宣言し、`npm run build`で実ファイルを`webview/`へコピーする。仮PDF.jsファイルが残っている場合は検証スクリプトが失敗する。`package:check`も`npm run build`を先に実行する。
 * 一時PDFは`context.globalStorageUri/pptx-preview`配下へ生成し、その固定ディレクトリをWebviewの`localResourceRoots`へ含める。
 * WebviewはPDF描画後に`renderComplete`または`renderFailed`を拡張へ返し、拡張側は描画完了まで更新をアイドル状態へ戻さない。
 * この環境ではnpm registryへのアクセスが403となったため、`pdfjs-dist`取得、実PDF.jsコピー、Windows/macOS実機GUI検証は未実施。静的検証とモックテストで代替した。

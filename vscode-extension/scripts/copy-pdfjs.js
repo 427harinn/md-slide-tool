@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('..', import.meta.url);
+const root = fileURLToPath(new URL('..', import.meta.url));
 const sources = [
   ['node_modules/pdfjs-dist/build/pdf.mjs', 'webview/pdf.mjs'],
   ['node_modules/pdfjs-dist/build/pdf.worker.mjs', 'webview/pdf.worker.mjs']
@@ -9,8 +10,8 @@ const sources = [
 
 async function copyPdfJs() {
   for (const [from, to] of sources) {
-    const src = path.join(root.pathname, from);
-    const dest = path.join(root.pathname, to);
+    const src = path.join(root, from);
+    const dest = path.join(root, to);
     let contents;
     try {
       contents = await fs.readFile(src, 'utf8');
