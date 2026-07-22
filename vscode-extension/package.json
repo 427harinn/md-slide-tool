@@ -34,12 +34,15 @@
     }
   },
   "scripts": {
-    "build": "node ./scripts/verify-package.js",
+    "build": "node ./scripts/copy-pdfjs.js && node ./scripts/verify-package.js",
     "watch": "node --watch ./scripts/verify-package.js",
     "test": "node --test test/*.test.js",
-    "package:check": "npm pack --dry-run"
+    "package:check": "npm pack --dry-run",
+    "copy:pdfjs": "node ./scripts/copy-pdfjs.js"
   },
-  "dependencies": {},
+  "dependencies": {
+    "pdfjs-dist": "^4.10.38"
+  },
   "files": [
     "src",
     "webview",

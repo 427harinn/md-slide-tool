@@ -155,5 +155,8 @@ docker run --rm -v "$(pwd):/work" -w /work md-slide-tool npm run start -- --help
 * PPTX選択・検証、LibreOffice検出、PPTX to PDF変換、一時ディレクトリ管理、Webview管理、Webview描画を分離した。
 * LibreOffice検出はPATH、Windows標準候補、macOS標準候補を確認する。
 * PDF描画UIは`vscode-extension/webview/`配下のローカルリソースだけを参照し、外部CDNを使用しない。
-* この環境ではnpm registryへのアクセスが403となったため、実PDF描画用`pdfjs-dist`取得とWindows/macOS実機GUI検証は未実施。静的検証とモックテストで代替した。
-* 確認済みコマンド: `cd vscode-extension && npm run build`、`cd vscode-extension && npm test`、`python3 -m unittest tests/test_postprocess_place.py`、`bash scripts/smoke-test.sh`、`npm run start -- --help`、`npm run start -- list-templates`。
+* `pdfjs-dist`を拡張の正式依存関係として宣言し、`npm run build`で実ファイルを`webview/`へコピーする。仮PDF.jsファイルが残っている場合は検証スクリプトが失敗する。
+* 一時PDFは`context.globalStorageUri/pptx-preview`配下へ生成し、その固定ディレクトリをWebviewの`localResourceRoots`へ含める。
+* WebviewはPDF描画後に`renderComplete`または`renderFailed`を拡張へ返し、拡張側は描画完了まで更新をアイドル状態へ戻さない。
+* この環境ではnpm registryへのアクセスが403となったため、`pdfjs-dist`取得、実PDF.jsコピー、Windows/macOS実機GUI検証は未実施。静的検証とモックテストで代替した。
+* 確認済みコマンド: `cd vscode-extension && npm test`、`python3 -m unittest tests/test_postprocess_place.py`、`bash scripts/smoke-test.sh`、`npm run start -- --help`、`npm run start -- list-templates`。

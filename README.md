@@ -341,7 +341,7 @@ npm install
 npm run build
 ```
 
-Open the extension in VS Code and launch an Extension Development Host with the extension development path set to `vscode-extension/`. In restricted/offline environments, `npm install` may be unable to download `pdfjs-dist`; the repository includes local placeholder PDF.js-compatible files so static tests and package verification can still run, but real PDF rendering requires replacing them with the `pdfjs-dist` bundle.
+Open the extension in VS Code and launch an Extension Development Host with the extension development path set to `vscode-extension/`. The extension declares `pdfjs-dist` as a dependency. `npm run build` copies `pdfjs-dist/build/pdf.mjs` and `pdfjs-dist/build/pdf.worker.mjs` into `vscode-extension/webview/` and fails if real PDF.js files are missing or placeholder files are present.
 
 ### Usage
 
