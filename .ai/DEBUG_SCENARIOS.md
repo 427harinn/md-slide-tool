@@ -1,8 +1,12 @@
 # DEBUG_SCENARIOS
 
-## CLI が起動しない
+問題が発生した場合は、最初にエラーメッセージ、実行コマンド、対象ファイル、OS、利用バージョンを記録してください。
 
-確認候補:
+同じ調査を繰り返さず、原因候補を切り分けてください。
+
+## CLIが起動しない
+
+確認:
 
 ```bash
 node --version
@@ -14,33 +18,42 @@ node cli/slidegen.js --help
 
 見る場所:
 
-- `package.json`
-- `cli/slidegen.js`
-- `package-lock.json`
+* `package.json`
+* `package-lock.json`
+* `cli/slidegen.js`
 
-## テンプレート一覧や生成が失敗する
+確認事項:
 
-確認候補:
+* Node.js 20系か。
+* `node_modules`が作成されているか。
+* ES Modulesとして読み込まれているか。
+* 実行中の作業ディレクトリがリポジトリ直下か。
+
+## テンプレート一覧・プロジェクト生成が失敗する
+
+確認:
 
 ```bash
 npm run start -- list-templates
-npm run start -- new sample --type pptx
+npm run start -- new debug-sample --type pptx
 ```
 
 見る場所:
 
-- `cli/slidegen.js`
-- `templates/`
-- `projects/`
+* `cli/slidegen.js`
+* `templates/`
+* `projects/`
 
-注意:
+確認事項:
 
-- 既存プロジェクト名を使うと、既存 QMD 保護により失敗する場合がある。
-- `code` コマンドがない環境では、VS Code の自動オープンだけ失敗する可能性がある。
+* 指定した種類とテンプレートが存在するか。
+* テンプレート内のQMDが1ファイルか。
+* 同名プロジェクトや既存QMDが存在しないか。
+* `code`コマンドの失敗とプロジェクト生成自体の失敗を区別する。
 
-## PPTX レンダリングが失敗する
+## PPTXレンダリングが失敗する
 
-確認候補:
+確認:
 
 ```bash
 npm run start -- render projects/selfintroduction/selfintroduction_pptx.qmd
@@ -51,21 +64,26 @@ python3 --version
 
 見る場所:
 
-- `scripts/render-current.sh`
-- `scripts/prepare-qmd-for-pptx.py`
-- `scripts/postprocess-pptx.py`
-- `scripts/normalize-pptx-template.js`
-- 対象 `.qmd`
-- 対象 `template.pptx`
+* `scripts/render-current.sh`
+* `scripts/prepare-qmd-for-pptx.py`
+* `scripts/postprocess-pptx.py`
+* `scripts/normalize-pptx-template.js`
+* 対象QMD
+* 対象テンプレートPPTX
+* 一時QMD
+* 画像配置JSON
 
-注意:
+確認事項:
 
-- Quarto、Bash、Python 3、`python-pptx`、Pillow が必要。
-- Windows では Git Bash または Dev Container / Docker 環境が推奨されている。
+* Quarto、Python 3、python-pptx、Pillowが利用可能か。
+* QMDのfront matterが正しいか。
+* テンプレートPPTXが存在するか。
+* 一時ファイルが途中状態で残っていないか。
+* Quarto生成前の問題か、PPTX後処理の問題かを分ける。
 
-## Docker / Dev Container で失敗する
+## Docker・Dev Containerで失敗する
 
-確認候補:
+確認:
 
 ```bash
 docker build -t md-slide-tool .
@@ -74,18 +92,20 @@ docker run --rm -v "$(pwd):/work" -w /work md-slide-tool npm run start -- --help
 
 見る場所:
 
-- `Dockerfile`
-- `compose.yml`
-- `.devcontainer/devcontainer.json`
+* `Dockerfile`
+* `compose.yml`
+* `.devcontainer/devcontainer.json`
 
-注意:
+確認事項:
 
-- `compose.yml` は現時点で空。
-- Dockerfile は Quarto 1.9.36 をインストールする。
+* Dockerイメージが正常にビルドされるか。
+* ワークスペースが`/work`へマウントされているか。
+* コンテナ内でNode.js、Quarto、Pythonが利用可能か。
+* ホストとコンテナのパス差異がないか。
 
-## CI の smoke test が失敗する
+## CIのsmoke testが失敗する
 
-確認候補:
+確認:
 
 ```bash
 bash scripts/smoke-test.sh
@@ -94,18 +114,61 @@ npm pack --dry-run
 
 見る場所:
 
-- `.github/workflows/ci.yml`
-- `scripts/smoke-test.sh`
-- `package.json`
+* `.github/workflows/ci.yml`
+* `scripts/smoke-test.sh`
+* `package.json`
 
-## GUI/E2E の確認
+確認事項:
 
-現状:
+* ローカルとCIのNode.jsバージョン差異。
+* npm packageへ必要ファイルが含まれているか。
+* OS依存コマンドをCIで実行していないか。
 
-- GUI プロジェクト向け E2E 環境は未確認または未整備。
-- Playwright、Cypress 等の設定は確認できない。
+## VS Code拡張・Webviewが起動しない
+
+確認候補:
+
+* Extension Hostのログ
+* VS CodeのDeveloper Toolsコンソール
+* コマンド登録
+* 拡張機能のactivation条件
+* 対象ワークスペースと対象ファイル
+* Webview HTML生成処理
+
+保存する情報:
+
+* VS Codeのバージョン
+* OS
+* 実行したコマンド
+* Extension Hostのエラー
+* Webviewコンソールエラー
+* 失敗時スクリーンショット
+
+## 外部プロセスが失敗する
+
+確認事項:
+
+* 実行ファイルをPATHから検出できるか。
+* WindowsとmacOSで実行ファイル名や標準パスが異ならないか。
+* `shell: true`へ不要に依存していないか。
+* 引数を文字列連結せず、安全に配列で渡しているか。
+* パスに空白や日本語が含まれていないか。
+* 終了コード、標準出力、標準エラーを取得しているか。
+* タイムアウトやキャンセル時に子プロセスが残らないか。
+
+## GUI・E2E確認が失敗する
+
+保存する情報:
+
+* 失敗時スクリーンショット
+* Trace
+* Extension Hostログ
+* Webviewコンソールログ
+* 外部プロセスの標準エラー
+* テスト結果
 
 注意:
 
-- E2E ツールを勝手に導入しない。
-- 導入前に対象画面、検証観点、CI 実行方針を決める。
+* 読み込みや画面更新が完了してからスクリーンショットを撮る。
+* パスワード、トークン、個人情報を画像やログへ残さない。
+* E2E環境が未導入の場合は勝手に追加せず、現在のタスクで導入が許可されているか確認する。
