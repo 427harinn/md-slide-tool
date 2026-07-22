@@ -159,4 +159,21 @@ docker run --rm -v "$(pwd):/work" -w /work md-slide-tool npm run start -- --help
 * 一時PDFは`context.globalStorageUri/pptx-preview`配下へ生成し、その固定ディレクトリをWebviewの`localResourceRoots`へ含める。
 * WebviewはPDF描画後に`renderComplete`または`renderFailed`を拡張へ返し、拡張側は描画完了まで更新をアイドル状態へ戻さない。
 * この環境ではnpm registryへのアクセスが403となったため、`pdfjs-dist`取得、実PDF.jsコピー、Windows/macOS実機GUI検証は未実施。静的検証とモックテストで代替した。
-* 確認済みコマンド: `cd vscode-extension && npm test`、`python3 -m unittest tests/test_postprocess_place.py`、`bash scripts/smoke-test.sh`、`npm run start -- --help`、`npm run start -- list-templates`。
+* 確認済みコマンド: `npm test`、`cd vscode-extension && npm test`、`python3 -m unittest tests/test_postprocess_place.py`、`bash scripts/smoke-test.sh`、`npm run start -- --help`、`npm run start -- list-templates`。
+
+## Dev Container前提への修正事項
+
+* PR #10レビューを受け、PPTXプレビューMVPの正式実行経路をWindows/macOSホスト上のVS Code Dev Containerに変更した。
+* ホスト側Node.js、LibreOffice、pdfjs-dist、npm installは要求しない。
+* DockerfileへDebian公式パッケージのLibreOffice Impressを追加し、コンテナ内PATHの`libreoffice`または`soffice`でPPTX→PDF変換を行う方針にした。
+* `.devcontainer/devcontainer.json`の`postCreateCommand`は`/work/scripts/devcontainer-setup.sh`へ分離し、ルート依存、`slidegen`リンク、拡張依存、拡張ビルド、既存補完設定を再実行可能にした。
+* VS Code拡張のLibreOffice検出はWindows/macOS固有パスを探索せず、コンテナ内PATHの`libreoffice`、`soffice`に限定した。
+* 実GUI確認はこのLinuxコンテナからは未実施。変換処理は共通コンテナ内で行われるが、Windows/macOSホストでのDev Container GUI結果は未確認として扱う。
+
+## 今回の環境制約付き検証結果
+
+* この実行環境では`docker`コマンドが存在しないため、Dev Container rebuild、Dockerfile内LibreOfficeバージョン確認、コンテナ内PPTX→PDF実変換は未実施。
+* この実行環境では`quarto`、`libreoffice`、`soffice`がPATHになく、`slidegen render`と実LibreOffice変換は未完了。
+* この実行環境ではnpm registryが`pdfjs-dist`取得に403を返すため、拡張の`npm run build`と`npm run package:check`は実PDF.js不足ガードで失敗する。
+* 成功確認済み: `npm test`、`cd vscode-extension && npm test`、`python3 -m unittest tests/test_postprocess_place.py`、`bash scripts/smoke-test.sh`、`npm run start -- --help`、`npm run start -- list-templates`、`npm run start -- new pr10-smoke --type pptx`（`code`コマンドなし警告あり、生成物は削除）。
+* 未完了確認: `quarto --version`、`libreoffice --version || soffice --version`、Dev Container GUI確認、実PPTX→PDF変換、スクリーンショット保存。

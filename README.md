@@ -325,33 +325,53 @@ templates/pptx/my_template/
 
 ## VS Code PPTX Preview MVP
 
-This repository now includes an independent VS Code extension under `vscode-extension/` for previewing finished `.pptx` files in a VS Code Webview tab.
+This repository includes an independent VS Code extension under `vscode-extension/` for previewing finished `.pptx` files in a VS Code Webview tab.
 
-### Requirements
+### Supported execution model
 
-- VS Code on Windows or macOS.
-- LibreOffice installed locally. The extension checks `PATH` plus common Windows and macOS install locations.
-- The initial MVP previews already-generated `.pptx` files only. It does not render QMD files automatically and does not change `slidegen render`.
+- Host OS: Windows or macOS.
+- Runtime: VS Code Dev Container.
+- Required host tools: Docker Desktop, VS Code, and the VS Code Dev Containers extension.
+- Host-side Node.js, LibreOffice, `pdfjs-dist`, and `npm install` are not required for this preview workflow.
+- LibreOffice is installed in the container image and PPTX-to-PDF conversion runs inside the container.
+- `pdfjs-dist` is installed in `vscode-extension/node_modules` during Dev Container setup and copied into `vscode-extension/webview/` during extension build.
+- Windows/macOS native extension execution and host-specific LibreOffice path discovery are outside this MVP.
 
-### Development startup
+### Dev Container startup and rebuild
+
+Open this repository in VS Code and run **Dev Containers: Rebuild and Reopen in Container**. The container setup script runs:
 
 ```bash
-cd vscode-extension
 npm install
-npm run build
+npm link
+npm --prefix /work/vscode-extension install
+npm --prefix /work/vscode-extension run build
 ```
 
-Open the extension in VS Code and launch an Extension Development Host with the extension development path set to `vscode-extension/`. The extension declares `pdfjs-dist` as a dependency. `npm run build` copies `pdfjs-dist/build/pdf.mjs` and `pdfjs-dist/build/pdf.worker.mjs` into `vscode-extension/webview/` and fails if real PDF.js files are missing or placeholder files are present. `npm run package:check` runs the same build verification before `npm pack --dry-run`.
+The setup also keeps the existing `slidegen` shell completion entry in `~/.bashrc`. The command is idempotent and lives in `scripts/devcontainer-setup.sh`.
+
+To verify the container manually:
+
+```bash
+node --version
+quarto --version
+python3 --version
+libreoffice --version || soffice --version
+```
+
+### Extension development startup
+
+Inside the Dev Container, use the launch configuration in `vscode-extension/.vscode/launch.json` to start an Extension Development Host. The extension runs on the workspace/container side so it can access `/work`, container temporary directories, and container LibreOffice.
 
 ### Usage
 
 - Run **Open PPTX Preview** from the command palette, then select a `.pptx` file if one was not passed by URI or active selection.
 - Right-click a `.pptx` file in the Explorer and choose **Open PPTX Preview**.
-- The Webview converts the PPTX to a temporary PDF with LibreOffice headless mode and displays the PDF pages as slides in order.
+- The extension converts the PPTX to a temporary PDF with container LibreOffice headless mode and displays the PDF pages as slides in order.
 - Click **Refresh** to reconvert the same PPTX. Refresh is disabled while conversion/rendering is in progress.
 
-### Known limitations
+### Known limitations and validation status
 
-- Windows and macOS paths are covered by unit tests, but this Linux container could not perform Windows/macOS real-device GUI validation.
-- Linux is not a formal target for this MVP.
+- Windows/macOS native execution is not a supported path for this MVP.
+- This container session could update static code and tests, but could not launch a Windows/macOS Dev Container GUI session, so GUI screenshots are not recorded as successful.
 - QMD auto-rendering, file watching, zoom, thumbnail grid, modal enlargement, export, and slide editing are out of scope.

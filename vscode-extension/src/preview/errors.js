@@ -4,7 +4,7 @@ export class PreviewError extends Error {
 export const messages = {
   notFound: 'The selected PPTX file does not exist.',
   notPptx: 'Please select a .pptx file.',
-  libreOfficeMissing: 'LibreOffice is required to preview PPTX files. Install LibreOffice, then restart VS Code or run Refresh again.',
+  libreOfficeMissing: 'LibreOffice was not found in the Dev Container PATH. Rebuild the Dev Container image, then run Refresh again.',
   libreOfficeLaunchFailed: 'LibreOffice could not be started.',
   conversionFailed: 'LibreOffice could not convert the PPTX to PDF.',
   pdfMissing: 'LibreOffice finished, but no PDF was generated.',

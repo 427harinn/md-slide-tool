@@ -2,12 +2,13 @@ FROM node:20-bullseye
 
 WORKDIR /work
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     curl \
     unzip \
     openjdk-17-jre \
     pandoc \
+    libreoffice-impress \
     locales \
     fonts-noto-cjk \
     libgbm1 \
@@ -35,9 +36,13 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     fi \
     && wget https://github.com/quarto-dev/quarto-cli/releases/download/v1.9.36/quarto-1.9.36-linux-${QUARTO_ARCH}.deb \
     && apt-get update \
-    && apt-get install -y ./quarto-1.9.36-linux-${QUARTO_ARCH}.deb \
-    && rm quarto-1.9.36-linux-${QUARTO_ARCH}.deb
+    && apt-get install -y --no-install-recommends ./quarto-1.9.36-linux-${QUARTO_ARCH}.deb \
+    && rm quarto-1.9.36-linux-${QUARTO_ARCH}.deb \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN quarto install chrome-headless-shell --no-prompt
 
 RUN pip3 install --no-cache-dir python-pptx Pillow
+
+
+RUN libreoffice --version || soffice --version
