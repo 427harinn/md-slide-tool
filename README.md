@@ -322,3 +322,36 @@ templates/pptx/my_template/
 - `compose.yml` は現時点では未設定です。
 - Dockerfile 内の Quarto インストールは 1.9.36 に固定されています。
 - PPTX 画像処理では `place` 属性を配置候補の優先指定として扱いますが、強制配置ではなく、置けない場合は自動選択に fallback します。
+
+## VS Code PPTX Preview MVP
+
+This repository now includes an independent VS Code extension under `vscode-extension/` for previewing finished `.pptx` files in a VS Code Webview tab.
+
+### Requirements
+
+- VS Code on Windows or macOS.
+- LibreOffice installed locally. The extension checks `PATH` plus common Windows and macOS install locations.
+- The initial MVP previews already-generated `.pptx` files only. It does not render QMD files automatically and does not change `slidegen render`.
+
+### Development startup
+
+```bash
+cd vscode-extension
+npm install
+npm run build
+```
+
+Open the extension in VS Code and launch an Extension Development Host with the extension development path set to `vscode-extension/`. In restricted/offline environments, `npm install` may be unable to download `pdfjs-dist`; the repository includes local placeholder PDF.js-compatible files so static tests and package verification can still run, but real PDF rendering requires replacing them with the `pdfjs-dist` bundle.
+
+### Usage
+
+- Run **Open PPTX Preview** from the command palette, then select a `.pptx` file if one was not passed by URI or active selection.
+- Right-click a `.pptx` file in the Explorer and choose **Open PPTX Preview**.
+- The Webview converts the PPTX to a temporary PDF with LibreOffice headless mode and displays the PDF pages as slides in order.
+- Click **Refresh** to reconvert the same PPTX. Refresh is disabled while conversion/rendering is in progress.
+
+### Known limitations
+
+- Windows and macOS paths are covered by unit tests, but this Linux container could not perform Windows/macOS real-device GUI validation.
+- Linux is not a formal target for this MVP.
+- QMD auto-rendering, file watching, zoom, thumbnail grid, modal enlargement, export, and slide editing are out of scope.

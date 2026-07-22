@@ -1,0 +1,5 @@
+import test from 'node:test'; import assert from 'node:assert/strict';
+import { getPlatformCandidates, getPathCandidates, findLibreOffice } from '../src/preview/libreOfficeLocator.js';
+test('windows and macOS standard candidates', () => { assert.ok(getPlatformCandidates('win32').some(p=>p.includes('LibreOffice'))); assert.ok(getPlatformCandidates('darwin').some(p=>p.includes('/Applications/LibreOffice.app'))); });
+test('PATH candidates include platform executable names', () => { assert.ok(getPathCandidates(['/bin','/usr/bin'].join(':'),'linux').includes('/bin/soffice')); assert.ok(getPathCandidates('C:\\Tools','win32').some(p=>p.endsWith('soffice.exe'))); });
+test('findLibreOffice returns first executable candidate and reports missing', async () => { const access = async (p) => { if (p !== '/ok/soffice') throw new Error('no'); }; const found = await findLibreOffice({ pathCandidates:['/bad/soffice','/ok/soffice'], platformCandidates:[], access }); assert.equal(found.path, '/ok/soffice'); const missing = await findLibreOffice({ pathCandidates:['/bad'], platformCandidates:[], access: async()=>{throw new Error('no')} }); assert.equal(missing.found, false); });

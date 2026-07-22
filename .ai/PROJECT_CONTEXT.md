@@ -147,3 +147,13 @@ docker run --rm -v "$(pwd):/work" -w /work md-slide-tool npm run start -- --help
 * QuartoとPython依存をローカルへ直接導入する標準手順。
 * docx、html、pdfレンダリングの今後の方針。
 * GUI E2E環境を導入する場合のツールと実行方法。
+
+## VS Code PPTX Preview MVP実装後の確認事項
+
+* `vscode-extension/`に独立したVS Code拡張MVPを追加した。
+* 拡張の入口は`vscode-extension/src/extension.js`で、`mdSlideTool.openPptxPreview` / `Open PPTX Preview`を登録する。
+* PPTX選択・検証、LibreOffice検出、PPTX to PDF変換、一時ディレクトリ管理、Webview管理、Webview描画を分離した。
+* LibreOffice検出はPATH、Windows標準候補、macOS標準候補を確認する。
+* PDF描画UIは`vscode-extension/webview/`配下のローカルリソースだけを参照し、外部CDNを使用しない。
+* この環境ではnpm registryへのアクセスが403となったため、実PDF描画用`pdfjs-dist`取得とWindows/macOS実機GUI検証は未実施。静的検証とモックテストで代替した。
+* 確認済みコマンド: `cd vscode-extension && npm run build`、`cd vscode-extension && npm test`、`python3 -m unittest tests/test_postprocess_place.py`、`bash scripts/smoke-test.sh`、`npm run start -- --help`、`npm run start -- list-templates`。
