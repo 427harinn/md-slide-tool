@@ -13,6 +13,9 @@ from pptx.enum.text import PP_ALIGN, MSO_AUTO_SIZE
 from pptx.util import Inches, Pt
 
 
+VALID_PLACES = {"right", "bottom", "bottom_right"}
+
+
 # ----------------------------
 # 基本ユーティリティ
 # ----------------------------
@@ -554,7 +557,7 @@ def score_layout(
     return None
 
 
-def choose_best_layout(
+def choose_best_layout_auto(
     images: List[dict],
     candidate_rects: List[dict],
     occupied_rects: List[Tuple[int, int, int, int]],
@@ -584,9 +587,81 @@ def choose_best_layout(
     return best
 
 
+def choose_best_layout(
+    images: List[dict],
+    candidate_rects: List[dict],
+    occupied_rects: List[Tuple[int, int, int, int]],
+    preferred_place: Optional[str] = None,
+) -> Optional[dict]:
+    if preferred_place:
+        preferred_candidates = [
+            cand for cand in candidate_rects
+            if cand["name"] == preferred_place
+        ]
+        preferred_layout = choose_best_layout_auto(
+            images=images,
+            candidate_rects=preferred_candidates,
+            occupied_rects=occupied_rects,
+        )
+        if preferred_layout is not None:
+            return preferred_layout
+
+        print(
+            f"  fallback: requested place '{preferred_place}' does not fit; "
+            "using auto placement"
+        )
+
+    return choose_best_layout_auto(
+        images=images,
+        candidate_rects=candidate_rects,
+        occupied_rects=occupied_rects,
+    )
+
+
 # ----------------------------
 # 画像配置
 # ----------------------------
+
+def resolve_requested_place(images: List[dict]) -> Optional[str]:
+    requested_places = []
+    seen_places = set()
+
+    for image in images:
+        place = str(image.get("place", "")).strip().lower()
+        if not place:
+            continue
+
+        if place not in VALID_PLACES:
+            print(
+                f"  [WARN] invalid place '{place}' for image "
+                f"'{image.get('raw_path', '')}'; using auto placement"
+            )
+            continue
+
+        if place not in seen_places:
+            requested_places.append(place)
+            seen_places.add(place)
+
+    if not requested_places:
+        return None
+
+    selected_place = requested_places[0]
+
+    if len(requested_places) > 1:
+        print(
+            "  [WARN] mixed place values in slide: "
+            f"{', '.join(requested_places)}; using first: {selected_place}"
+        )
+
+    if selected_place == "bottom_right" and len(images) > 1:
+        print(
+            "  [WARN] place 'bottom_right' is only supported for a single image; "
+            "using auto placement"
+        )
+        return None
+
+    return selected_place
+
 
 def collect_target_images(slide_info: dict, base_dir: Path) -> List[dict]:
     images = slide_info.get("images", [])
@@ -607,6 +682,7 @@ def collect_target_images(slide_info: dict, base_dir: Path) -> List[dict]:
             "raw_path": raw_path,
             "resolved_path": resolved_path,
             "caption": str(image.get("caption", "")).strip(),
+            "place": str(image.get("place", "")).strip().lower(),
         })
 
     return result
@@ -664,10 +740,16 @@ def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Pa
         occupied_rects=occupied_rects,
     )
 
+    requested_place = resolve_requested_place(target_images)
+
+    if requested_place:
+        print(f"  requested place: {requested_place}")
+
     best_layout = choose_best_layout(
         images=target_images,
         candidate_rects=candidate_rects,
         occupied_rects=occupied_rects,
+        preferred_place=requested_place,
     )
 
     if best_layout is None:

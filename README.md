@@ -180,7 +180,7 @@ slidegen render projects/selfintroduction/selfintroduction_pptx.qmd
 
 PPTX レンダリングでは、QMD 内の単独行 Markdown 画像を抽出し、Quarto レンダリング後に PPTX へ自動配置します。対象は単独行の `![caption](path)` 形式です。画像は直前の `##` 見出しのスライドに紐づき、alt テキストは画像下のキャプションとして使われます。
 
-`{place=...}` 属性は現時点では前処理で抽出され `.images.json` に保存されますが、配置指定としてはまだ機能しません。詳細な仕様、制限、トラブルシュートは [PPTX image placement](docs/image-placement.md) を参照してください。
+`{place=...}` 属性は、PPTX 後処理で配置候補の優先指定として使えます。対応値は `right` / `bottom` / `bottom_right` です。強制配置ではないため、指定候補に置けない場合は従来の自動選択に fallback します。詳細な仕様、制限、トラブルシュートは [PPTX image placement](docs/image-placement.md) を参照してください。
 
 通常は低レベルスクリプトを直接実行せず、`slidegen render` を使用してください。内部では `scripts/render-current.sh` を呼び出します。
 
@@ -321,4 +321,4 @@ templates/pptx/my_template/
 - `html/template/template.qmd` は `style.css` を参照していますが、現時点でテンプレート内に `style.css` は含まれていません。
 - `compose.yml` は現時点では未設定です。
 - Dockerfile 内の Quarto インストールは 1.9.36 に固定されています。
-- PPTX 画像処理では `place` 属性が抽出されますが、配置制御としてはまだ限定的です。
+- PPTX 画像処理では `place` 属性を配置候補の優先指定として扱いますが、強制配置ではなく、置けない場合は自動選択に fallback します。
