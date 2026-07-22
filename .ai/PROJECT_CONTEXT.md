@@ -183,3 +183,9 @@ docker run --rm -v "$(pwd):/work" -w /work md-slide-tool npm run start -- --help
 * `vscode-extension/.vscode/launch.json`は、`vscode-extension`フォルダをワークスペースとして開く前提で`--extensionDevelopmentPath=${workspaceFolder}`を使う。
 * Extension Development Hostで開く対象として`/work`をargsへ追加した。
 * `vscode-extension/package.json`に`extensionKind: ["workspace"]`を追加し、Dev Containerのワークスペース側で拡張が動作することを明示した。
+
+## Webview CSPとPDF.js source map対応
+
+* 実機確認でPDF fetchとPDF.js workerがCSPに拒否されたため、Webview CSPへ`connect-src ${webview.cspSource}`を追加した。
+* `default-src 'none'`、nonce付きscript、`${webview.cspSource}`によるローカルリソース制限、`worker-src ${webview.cspSource} blob:`、外部CDN不使用は維持した。
+* `pdf.mjs.map`などsource mapの取得失敗がプレビュー本体へ波及しないよう、ビルド時コピーで`sourceMappingURL`コメントを除去する。

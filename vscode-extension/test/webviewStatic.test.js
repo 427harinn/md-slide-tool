@@ -27,6 +27,8 @@ test('build scripts require real pdfjs-dist assets and reject placeholders', asy
   assert.match(copyScript, /node_modules\/pdfjs-dist\/build\/pdf\.mjs/);
   assert.match(copyScript, /node_modules\/pdfjs-dist\/build\/pdf\.worker\.mjs/);
   assert.match(copyScript + verifyScript, /placeholder\|offline static validation\|Bundled PDF\\\.js is unavailable/);
+  assert.match(copyScript, /stripSourceMapReference/);
+  assert.match(copyScript, /sourceMappingURL/);
 });
 
 test('package check runs build before npm pack', async () => {
@@ -34,9 +36,15 @@ test('package check runs build before npm pack', async () => {
   assert.equal(packageJson.scripts['package:check'], 'npm run build && npm pack --dry-run');
 });
 
-test('preview panel CSP allows nonce scripts and Webview local script modules', async () => {
+test('preview panel CSP permits only required local resource channels', async () => {
   const panel = await fs.readFile(new URL('../src/preview/previewPanel.js', import.meta.url), 'utf8');
-  assert.match(panel, /script-src 'nonce-\$\{nonce\}' \$\{webview\.cspSource\}/);
+  const cspLine = panel.split('Content-Security-Policy')[1];
+  assert.match(cspLine, /default-src 'none'/);
+  assert.match(cspLine, /script-src 'nonce-\$\{nonce\}' \$\{webview\.cspSource\}/);
+  assert.match(cspLine, /connect-src \$\{webview\.cspSource\}/);
+  assert.match(cspLine, /worker-src \$\{webview\.cspSource\} blob:/);
+  assert.doesNotMatch(cspLine, /connect-src[^;]*(\*|https:)/);
+  assert.doesNotMatch(cspLine, /script-src[^;]*(\*|https:)/);
 });
 
 test('extension awaits async PreviewPanel.open', async () => {

@@ -8,6 +8,10 @@ const sources = [
   ['node_modules/pdfjs-dist/build/pdf.worker.mjs', 'webview/pdf.worker.mjs']
 ];
 
+function stripSourceMapReference(contents) {
+  return contents.replace(/\n?\/\/# sourceMappingURL=.*$/u, '');
+}
+
 async function copyPdfJs() {
   for (const [from, to] of sources) {
     const src = path.join(root, from);
@@ -22,7 +26,7 @@ async function copyPdfJs() {
       throw new Error(`${from} appears to be a placeholder, not the real pdfjs-dist file.`);
     }
     await fs.mkdir(path.dirname(dest), { recursive: true });
-    await fs.writeFile(dest, contents);
+    await fs.writeFile(dest, stripSourceMapReference(contents));
   }
 }
 
