@@ -176,6 +176,12 @@ slidegen render projects/selfintroduction/selfintroduction_pptx.qmd
 
 現時点で `slidegen render` の正式対象は PPTX 向け QMD です。`docx` / `html` / `pdf` の CLI レンダリングは未対応です。
 
+#### PPTX 画像自動配置
+
+PPTX レンダリングでは、QMD 内の単独行 Markdown 画像を抽出し、Quarto レンダリング後に PPTX へ自動配置します。対象は単独行の `![caption](path)` 形式です。画像は直前の `##` 見出しのスライドに紐づき、alt テキストは画像下のキャプションとして使われます。
+
+`{place=...}` 属性は現時点では前処理で抽出され `.images.json` に保存されますが、配置指定としてはまだ機能しません。詳細な仕様、制限、トラブルシュートは [PPTX image placement](docs/image-placement.md) を参照してください。
+
 通常は低レベルスクリプトを直接実行せず、`slidegen render` を使用してください。内部では `scripts/render-current.sh` を呼び出します。
 
 Advanced:
