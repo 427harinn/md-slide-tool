@@ -19,10 +19,10 @@ async function renderPdf(uri) {
   try {
     setBusy(true, 'Rendering PDF…');
     errorEl.hidden = true;
-    slidesEl.replaceChildren();
     const pdfjs = await import(window.__PDFJS_URL__);
     pdfjs.GlobalWorkerOptions.workerSrc = window.__PDFJS_WORKER_URL__;
     const pdf = await pdfjs.getDocument(uri).promise;
+    const nextSlides = document.createDocumentFragment();
     for (let pageNo = 1; pageNo <= pdf.numPages; pageNo += 1) {
       const page = await pdf.getPage(pageNo);
       const viewport = page.getViewport({ scale: 1.4 });
@@ -35,9 +35,10 @@ async function renderPdf(uri) {
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       section.append(title, canvas);
-      slidesEl.append(section);
+      nextSlides.append(section);
       await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
     }
+    slidesEl.replaceChildren(nextSlides);
     setBusy(false, `Rendered ${pdf.numPages} slide${pdf.numPages === 1 ? '' : 's'}.`);
     vscode.postMessage({ type: 'renderComplete', pageCount: pdf.numPages });
   } catch (error) {

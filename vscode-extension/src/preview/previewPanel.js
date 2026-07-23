@@ -18,11 +18,11 @@ function esc(value) {
 export class PreviewPanel {
   static panels = new Map();
 
-  static async open(context, pptxPath, output) {
+  static async open(context, pptxPath, output, options = {}) {
     const key = path.resolve(pptxPath);
     const existing = this.panels.get(key);
     if (existing) {
-      existing.panel.reveal();
+      existing.panel.reveal(undefined, options.preserveFocus === true);
       existing.refresh();
       return existing;
     }
@@ -33,7 +33,7 @@ export class PreviewPanel {
     const panel = vscode.window.createWebviewPanel(
       'pptxPreview',
       `PPTX: ${path.basename(pptxPath)}`,
-      vscode.ViewColumn.Beside,
+      { viewColumn: vscode.ViewColumn.Beside, preserveFocus: options.preserveFocus === true },
       {
         enableScripts: true,
         localResourceRoots: [

@@ -13,6 +13,7 @@ Quarto ベースの Markdown / スライド / ドキュメントプロジェク�
 - テンプレート内の `{{TITLE}}` をプロジェクト名で置き換える
 - `.qmd` 以外のテンプレート補助ファイルを生成先へコピーする
 - PPTX 向け QMD を `slidegen render` でレンダリングする
+- Dev Container内のVS Code拡張で、PPTXプレビューとQMD保存時の自動PPTXプレビューを使う
 - Docker 環境で Quarto、Pandoc、Chrome Headless Shell、Python ベースの PPTX 後処理を使う
 
 現在できないこと:
@@ -346,9 +347,11 @@ npm install
 npm link
 npm --prefix /work/vscode-extension install
 npm --prefix /work/vscode-extension run build
+npm --prefix /work/vscode-extension run package:vsix
+code --install-extension /work/vscode-extension/dist/md-slide-tool-pptx-preview.vsix --force
 ```
 
-The setup also keeps the existing `slidegen` shell completion entry in `~/.bashrc`. The command is idempotent and lives in `scripts/devcontainer-setup.sh`.
+The setup also keeps the existing `slidegen` shell completion entry in `~/.bashrc`. The command is idempotent and lives in `scripts/devcontainer-setup.sh`. To reflect extension source updates in the normal `/work` window, rerun the setup script or rebuild the Dev Container.
 
 To verify the container manually:
 
@@ -363,15 +366,36 @@ libreoffice --version || soffice --version
 
 Inside the Dev Container, use the launch configuration in `vscode-extension/.vscode/launch.json` to start an Extension Development Host. The extension runs on the workspace/container side so it can access `/work`, container temporary directories, and container LibreOffice.
 
-### Usage
+### Manual PPTX preview
 
 - Run **Open PPTX Preview** from the command palette, then select a `.pptx` file if one was not passed by URI or active selection.
 - Right-click a `.pptx` file in the Explorer and choose **Open PPTX Preview**.
 - The extension converts the PPTX to a temporary PDF with container LibreOffice headless mode and displays the PDF pages as slides in order.
 - Click **Refresh** to reconvert the same PPTX. Refresh is disabled while conversion/rendering is in progress.
 
+### Auto preview from QMD saves
+
+Open a PPTX-oriented `.qmd` file in the normal Dev Container `/work` window and run **Start Auto Preview**. The extension watches one QMD file at a time.
+
+Behavior:
+
+- The target must be a `.qmd` file.
+- The output PPTX is the same directory and stem as the QMD, with `.pptx` as the extension. For example, `projects/demo/demo_pptx.qmd` maps to `projects/demo/demo_pptx.pptx`.
+- Starting the command for the same QMD does not create a duplicate watcher.
+- Starting it for another QMD switches the single watched target.
+- Saving the watched QMD starts after about 500ms, so quick repeated saves are debounced.
+- Rendering runs through the existing `slidegen render <file.qmd>` path. The extension does not duplicate Quarto or PPTX post-processing logic.
+- If another save happens while rendering is running, only the latest pending rerun is kept.
+- On the first successful render, the PPTX preview opens to the right. Later successful renders reuse the same preview tab.
+- The QMD editor focus is preserved as much as VS Code allows.
+- **Stop Auto Preview** stops save-triggered rendering. It does not close an already open preview tab.
+- Set `mdSlideTool.autoPreview.enabled` to `false` to disable the feature. When disabled, **Start Auto Preview** shows guidance instead of starting a watcher.
+
+Details are written to the **md-slide-tool PPTX Preview** output channel. Rendering or PDF failures keep the previous successful preview visible when one exists.
+
 ### Known limitations and validation status
 
 - Windows/macOS native execution is not a supported path for this MVP.
-- This container session could update static code and tests, but could not launch a Windows/macOS Dev Container GUI session, so GUI screenshots are not recorded as successful.
-- QMD auto-rendering, file watching, zoom, thumbnail grid, modal enlargement, export, and slide editing are out of scope.
+- Docker image build, container runtime checks, container tests, `slidegen render`, and setup-script VSIX packaging have been verified.
+- This session could not launch a Windows/macOS VS Code Dev Container GUI session because the `code` CLI is not available in PATH, so GUI screenshots are not recorded as successful.
+- Zoom, thumbnail grid, modal enlargement, export, slide editing, and multiple simultaneous QMD auto-watch targets are out of scope.

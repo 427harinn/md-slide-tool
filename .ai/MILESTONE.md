@@ -2,55 +2,244 @@
 
 ## マイルストーン名
 
-Dev Container版 VS Code PPTXプレビューMVP
+QMD保存時の自動PPTXプレビュー
 
 ## 背景
 
-md-slide-toolはDocker / Dev ContainerでQuarto、Pandoc、Python、フォントを揃えて利用する構成を持つ。PPTXプレビューもホストOSへNode.js、LibreOffice、pdfjs-distを直接導入するのではなく、WindowsまたはmacOS上のVS CodeからDev Container内で実行する前提へ修正する。
+前マイルストーンで、完成済みPPTXをLibreOfficeでPDFへ変換し、
+VS Code Webview内で表示する手動プレビュー機能を実装した。
+
+現在は、拡張を開発モードで起動し、完成済みPPTXを手動で選択する必要がある。
+通常の作業ではQMDを編集するため、保存からPPTX生成、プレビュー更新までを自動化する。
 
 ## 目的
 
-完成済み`.pptx`を、Dev Containerで動作するVS Code拡張からLibreOffice headless変換し、VS Code Webviewでスライド順にプレビューできるようにする。既存CLIとレンダリング処理を壊さず、Webview、PDF.js描画、更新処理、変換サービス、一時ファイル管理、入力検証の既存実装はDev Container前提で利用できる範囲を残す。
+Dev Containerで通常どおりQMDを編集し、保存するだけで、
+対応するPPTXが再生成され、同じVS Code作業ウィンドウ内の
+プレビューが自動更新されるようにする。
 
 ## 確定仕様
 
-- ホストOSはWindowsまたはmacOS。
-- 実際の実行環境はVS Code Dev Container。
-- VS Code拡張はDev Containerのワークスペース側で利用する。
-- ホスト側へのNode.js、LibreOffice、pdfjs-dist、npm installは要求しない。
-- LibreOfficeはコンテナ内へインストールする。
-- PPTXからPDFへの変換はコンテナ内で行う。
-- Windows/macOS固有のLibreOfficeパス探索は今回の対象外。
-- LibreOffice検出はコンテナ内PATH上の`libreoffice`、次に`soffice`を使用する。
-- コンテナ内でLibreOfficeが見つからない場合は、Dev Containerイメージが正しくビルドされていないことを示す。
-- ホストOS差異はDocker / Dev Containerの起動とファイルマウントに限定する。
-- 完成済み`.pptx`を対象とし、QMD自動レンダリングや`slidegen render`自動連携は行わない。
-- PDF.jsはDev Container内の`vscode-extension/node_modules`へインストールし、ビルド時に実ファイルをWebview用ディレクトリへコピーする。
-- placeholder PDF.jsファイルを正式実装として使用しない。
-- Webviewは外部CDNを使わず、CSPと`localResourceRoots`を設定する。
-- 変換済みPDFはWebviewから許可されたコンテナ内ディレクトリに生成する。
-- 更新処理、処理中表示、重複防止、エラー表示、一時ファイル削除を維持する。
+### 実行環境
+
+- WindowsまたはmacOS上のVS Code
+- VS Code Dev Container
+- Node.js、Quarto、Python、LibreOfficeはコンテナ内で利用する
+- ホスト側へのNode.js、LibreOffice、npm依存の導入は要求しない
+
+### 通常利用
+
+- 拡張は通常のDev Containerワークスペースで利用できるようにする
+- 毎回F5やExtension Development Hostを起動する操作は不要にする
+- Marketplace公開は行わない
+- Dev Containerのセットアップ処理で拡張をビルド・導入する
+
+### 自動プレビューの開始
+
+PPTX用QMDを開いた状態で、以下のコマンドを実行する。
+
+- `Start Auto Preview`
+
+開始時に以下を行う。
+
+1. 対象QMDを検証する
+2. 対応する出力PPTXを決定する
+3. 自動プレビュー対象として登録する
+4. 必要に応じて最初のレンダリングを実行する
+5. プレビューを右側のエディターグループへ開く
+
+開始済みQMDに対して再実行した場合は、重複登録しない。
+
+### 自動プレビューの停止
+
+以下のコマンドを追加する。
+
+- `Stop Auto Preview`
+
+停止後は、対象QMDを保存してもレンダリングやプレビュー更新を行わない。
+
+既に開いているプレビュータブを自動で閉じる必要はない。
+
+### 保存監視
+
+- 自動プレビュー開始済みのQMDだけを対象とする
+- `.qmd`以外の保存では処理しない
+- 保存後約500ms待ってレンダリングを開始する
+- 短時間に複数回保存された場合はデバウンスする
+- 自動保存と手動保存の両方を同じ保存イベントとして扱う
+- 拡張自身が生成・変更したファイルを再帰的な処理対象にしない
+
+### レンダリング
+
+- 既存の正式なPPTXレンダリング経路を再利用する
+- 既存の`slidegen render`または同等の既存処理を呼び出す
+- レンダリングロジックを拡張内へ重複実装しない
+- 対象QMDに対応するPPTXだけを生成する
+- Dev Container内で子プロセスを起動する
+- `shell: true`へ依存しない
+- 引数は配列で安全に渡す
+- 標準出力、標準エラー、終了コードを記録する
+
+### 重複実行の制御
+
+対象QMDごとに、同時に実行するレンダリングは1件だけとする。
+
+レンダリング中に再度保存された場合は以下とする。
+
+- 実行中の処理を重複起動しない
+- 最新の保存を1件だけ保留する
+- 現在の処理終了後に、保留分を1回だけ再実行する
+- 保存回数分をすべて順番に実行しない
+
+停止操作や拡張終了時には、可能な範囲で実行中プロセスを終了する。
+
+### プレビュー表示
+
+- 初回成功時は右側のエディターグループにプレビューを開く
+- 既存のPPTXプレビューWebviewを再利用する
+- 同じ対象に対して新しいタブを増やさない
+- 2回目以降は同じタブの内容だけを更新する
+- 保存や更新のたびにプレビューへフォーカスを移さない
+- QMDエディターのカーソル位置とフォーカスを維持する
+- プレビュータブが閉じられた後の次回成功時は、再度右側に開く
+
+### 状態表示
+
+以下の状態を区別する。
+
+- 自動プレビュー未開始
+- 待機中
+- レンダリング中
+- PDF変換中
+- プレビュー更新中
+- 成功
+- レンダリング失敗
+- PDF変換失敗
+- PDF描画失敗
+- 停止済み
+
+状態は、プレビュー画面、ステータスバー、通知、Output Channelを
+必要に応じて使い分ける。
+
+### 失敗時
+
+- 前回の成功プレビューがある場合は、その表示を維持する
+- 前回の表示を空にしない
+- プレビュー画面または通知で失敗を示す
+- 詳細はOutput Channelへ記録する
+- 保存のたびに同じエラー通知を大量表示しない
+- 修正後の次回保存で自動的に再試行する
+- 無制限の内部再試行は行わない
+
+### 設定
+
+VS Code設定として、自動プレビュー機能全体を無効化できるようにする。
+
+設定例:
+
+- `mdSlideTool.autoPreview.enabled`
+
+初期値は有効とする。
+
+この設定が無効の場合、`Start Auto Preview`実行時に
+無効であることと設定変更方法を案内する。
+
+### 対象QMDの保持
+
+初期版では、同時に自動監視するQMDは1ファイルだけとする。
+
+別のQMDで`Start Auto Preview`を実行した場合は、
+現在の対象を新しいQMDへ切り替える。
+
+VS Code再起動後に自動監視状態を復元するかは、
+既存構成を確認し、必要最小限のワークスペース状態として保存する。
+安全に復元できない場合は、再起動後に再度開始コマンドを実行する仕様でもよい。
+
+Codexは調査結果に基づき、複雑性が低い方を採用し、
+READMEに実際の挙動を記載する。
+
+### セキュリティ
+
+- 外部APIや外部サービスを使用しない
+- QMD、PPTX、PDFの内容を外部へ送信しない
+- 子プロセスの引数を文字列連結しない
+- Webviewの既存CSPを維持する
+- 外部CDNを追加しない
+- 任意コマンドをQMD内容から組み立てない
 
 ## 完了条件
 
-DockerfileにLibreOfficeが追加され、Dev Container作成後にルート依存、`slidegen`リンク、拡張依存、拡張ビルドが利用できる。拡張はコンテナ内PATHの`libreoffice`または`soffice`を検出し、コンテナ内でPPTXをPDFへ変換できる。WebviewでPDF.jsによる全スライド表示、更新、エラー表示が動作する。既存CLI、既存smoke、画像配置後処理が壊れていない。Dev Container内テスト、実PPTX→PDF変換、可能なGUI確認、README/PROJECT_CONTEXT更新、PR報告が完了している。
+- 通常のDev Containerワークスペースで拡張が利用できる
+- F5やExtension Development Hostが不要
+- `Start Auto Preview`を実行できる
+- `Stop Auto Preview`を実行できる
+- 対象QMDの保存を検知できる
+- 保存後に既存のPPTXレンダリングが実行される
+- 初回成功時に右側へプレビューが開く
+- 2回目以降は同じタブが更新される
+- 保存時にQMDエディターからフォーカスを奪わない
+- 短時間の連続保存がデバウンスされる
+- レンダリング中の再保存は最後の1回だけ再実行される
+- レンダリング失敗時に前回成功表示が維持される
+- 停止後は保存しても処理されない
+- 設定で機能全体を無効化できる
+- 既存の手動PPTXプレビューが引き続き動作する
+- 既存の`slidegen new`と`slidegen render`が壊れていない
+- Dev Container再構築後も通常利用できる
+- 自動テストと実際のGUI操作確認が成功する
+- READMEとPROJECT_CONTEXTが実装内容と一致する
 
 ## 対象外
 
-Windows/macOSネイティブ実行、ホストOSへのLibreOffice導入、ホストOSへのNode.js/npm依存導入、Windows/macOS固有LibreOfficeパス探索、QMD保存時自動レンダリング、`slidegen render`自動連携、リアルタイムプレビュー、ファイル監視、編集、画像配置変更、サムネイルグリッド、拡大モーダル、ズーム、PDF/PNGエクスポート、複数比較、LibreOffice自動ダウンロード、外部変換API、VS Code Marketplace公開。
+- 入力中の文字変更ごとのリアルタイム更新
+- 保存前の未保存内容のプレビュー
+- 複数QMDの同時自動監視
+- 複数レンダリングの並列実行
+- プレビュー上での編集
+- スライド単位の部分レンダリング
+- プレビューのズームやサムネイルUI追加
+- Marketplace公開
+- クラウド実行
+- ブラウザ版
+- WindowsまたはmacOSでのネイティブ実行
+- Quartoの独自再実装
+- 既存QMD形式の破壊的変更
 
 ## 影響範囲
 
-Dockerfile、`.devcontainer/devcontainer.json`、Dev Containerセットアップスクリプト、`vscode-extension/`、LibreOffice検出処理、README、`.ai/PROJECT_CONTEXT.md`、`.ai/MILESTONE.md`、`.ai/TASKS.md`。既存CLI、テンプレート、レンダリングスクリプトは原則変更しない。
+- VS Code拡張のコマンド
+- QMD保存イベント監視
+- レンダリングプロセス管理
+- プレビューWebviewの再利用処理
+- Dev Containerセットアップ
+- 拡張の通常導入方法
+- VS Code設定
+- Output Channelおよびステータス表示
+- 拡張テスト
+- README
+- `.ai/PROJECT_CONTEXT.md`
 
 ## 今回固有の注意事項
 
-Dev Container前提へ修正し、既存実装のうち利用可能なWebview、PDF.js描画、更新処理、変換サービス、一時ファイル管理、入力検証は残す。全面的な作り直しや無関係なリファクタリングは行わない。テスト用PPTX/PDFやスクリーンショットなどの生成物は不要にGitへ追加しない。WindowsまたはmacOSの一方だけでGUI確認できた場合、未確認側を成功済みと報告しない。
+- 前マイルストーンの手動プレビュー機能を再利用する
+- レンダリング処理を重複実装しない
+- 保存ごとに新しいWebviewタブを作らない
+- QMD編集のフォーカスを奪わない
+- 自動処理によって無限ループを起こさない
+- 実際のDev Containerで一連操作を確認する
+- GUI確認完了前に状態を「完了」にしない
 
 ## 今回固有の停止条件
 
-有料ソフト/APIが必要、PPTX/PDF内容を外部サービスへ送信する必要、Dev Container前提で既存CLI公開IFを破壊しなければ実装できない、新しいネイティブ依存が必須、既存Docker/Dev Container構成を大幅に壊す必要がある場合は停止する。
+共通停止条件に加え、以下の場合は停止する。
+
+- 既存のPPTX用QMDから出力PPTXを安全に特定できない
+- 既存レンダリング経路を再利用できず、大規模な再実装が必要になる
+- 通常のDev Containerウィンドウへ拡張を導入するために、
+  VS CodeやDev Containerの大幅な構成変更が必要になる
+- 保存イベントの監視により既存のQuarto拡張等と重大な競合が発生する
+- 自動処理を止められない、または無限実行になる危険がある
 
 ## 状態
 
-実装中
+実装済み・実機GUI確認待ち

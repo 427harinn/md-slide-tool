@@ -10,7 +10,8 @@
         "cli",
         "templates",
         "scripts",
-        "completions"
+        "completions",
+        "!scripts/__pycache__"
     ],
     "scripts": {
         "start": "node ./cli/slidegen.js",

@@ -10,7 +10,9 @@
     "vscode": "^1.92.0"
   },
   "activationEvents": [
-    "onCommand:mdSlideTool.openPptxPreview"
+    "onCommand:mdSlideTool.openPptxPreview",
+    "onCommand:mdSlideTool.startAutoPreview",
+    "onCommand:mdSlideTool.stopAutoPreview"
   ],
   "categories": [
     "Other"
@@ -21,14 +23,39 @@
         "command": "mdSlideTool.openPptxPreview",
         "title": "Open PPTX Preview",
         "category": "md-slide-tool"
+      },
+      {
+        "command": "mdSlideTool.startAutoPreview",
+        "title": "Start Auto Preview",
+        "category": "md-slide-tool"
+      },
+      {
+        "command": "mdSlideTool.stopAutoPreview",
+        "title": "Stop Auto Preview",
+        "category": "md-slide-tool"
       }
     ],
+    "configuration": {
+      "title": "md-slide-tool",
+      "properties": {
+        "mdSlideTool.autoPreview.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable QMD save-triggered PPTX auto preview."
+        }
+      }
+    },
     "menus": {
       "explorer/context": [
         {
           "command": "mdSlideTool.openPptxPreview",
           "when": "resourceExtname == .pptx",
           "group": "navigation@50"
+        },
+        {
+          "command": "mdSlideTool.startAutoPreview",
+          "when": "resourceExtname == .qmd",
+          "group": "navigation@51"
         }
       ]
     }
@@ -38,10 +65,15 @@
     "watch": "node --watch ./scripts/verify-package.js",
     "test": "node --test test/*.test.js",
     "package:check": "npm run build && npm pack --dry-run",
+    "prepare:vsix": "node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\"",
+    "package:vsix": "npm run build && npm run prepare:vsix && vsce package --allow-missing-repository --out dist/md-slide-tool-pptx-preview.vsix",
     "copy:pdfjs": "node ./scripts/copy-pdfjs.js"
   },
   "dependencies": {
     "pdfjs-dist": "^4.10.38"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "3.2.2"
   },
   "files": [
     "src",

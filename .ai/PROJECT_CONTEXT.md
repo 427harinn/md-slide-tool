@@ -189,3 +189,47 @@ docker run --rm -v "$(pwd):/work" -w /work md-slide-tool npm run start -- --help
 * 実機確認でPDF fetchとPDF.js workerがCSPに拒否されたため、Webview CSPへ`connect-src ${webview.cspSource}`を追加した。
 * `default-src 'none'`、nonce付きscript、`${webview.cspSource}`によるローカルリソース制限、`worker-src ${webview.cspSource} blob:`、外部CDN不使用は維持した。
 * `pdf.mjs.map`などsource mapの取得失敗がプレビュー本体へ波及しないよう、ビルド時コピーで`sourceMappingURL`コメントを除去する。
+
+## QMD保存時自動PPTXプレビュー調査
+
+* 既存VS Code拡張の入口は`vscode-extension/src/extension.js`で、手動コマンドは`mdSlideTool.openPptxPreview` / `Open PPTX Preview`。
+* 既存`PreviewPanel`はPPTX絶対パスをキーに`panels` Mapで同じWebviewを再利用する。既存パネルがある場合は`refresh()`で同じタブを更新する。
+* 既存`PreviewPanel`はPPTX→PDF変換、PDF.js Webview描画、一時作業領域、Webview CSP、描画失敗時の古い成功表示維持に使える。
+* 現状の`PreviewPanel.open()`は既存パネル表示時に`reveal()`し、新規作成時も右側に作成するため、自動プレビューではフォーカスを戻す制御が必要。
+* `slidegen render <file.qmd>`は入力存在、ファイル種別、`.qmd`拡張子を検証し、`bash scripts/render-current.sh <absolute-qmd-path>`を`shell: false`で呼び出す。
+* `scripts/render-current.sh`は入力QMDと同じディレクトリへ一時`.${stem}.render.qmd`、`.${stem}.images.json`、`.${stem}.render.pptx`を生成し、最終PPTXを`<stem>.pptx`へコピーする。
+* QMDから対応PPTXを決定する既存規則は、QMDの拡張子を`.pptx`へ置き換えた同一ディレクトリのパス。
+* Dev Containerセットアップは`scripts/devcontainer-setup.sh`で`npm install`、`npm link`、`vscode-extension`依存導入、拡張ビルドを実行する。現状では通常ワークスペースへの拡張インストールまでは行っていない。
+* 自動プレビューの最小設計は、拡張側に1ファイルだけの監視状態を持ち、保存イベントを500msデバウンスし、`slidegen render`を直列実行してから既存`PreviewPanel`を更新する形が既存境界に合う。
+
+## QMD保存時自動PPTXプレビュー実装後の確認事項
+
+* `vscode-extension`に`mdSlideTool.startAutoPreview` / `Start Auto Preview`と`mdSlideTool.stopAutoPreview` / `Stop Auto Preview`を追加した。
+* VS Code設定`mdSlideTool.autoPreview.enabled`を追加し、初期値は`true`。無効時は開始せず案内を表示する。
+* 自動プレビューは同時に1つのQMDだけを対象にする。同じQMDで再開始しても重複登録せず、別QMDで開始すると対象を切り替える。
+* QMD保存イベントは対象ファイルだけを処理し、500msデバウンスする。停止時と破棄時にタイマーを破棄する。
+* レンダリングは`node <workspace>/cli/slidegen.js render <qmd>`を`shell: false`の子プロセスで呼び出し、既存の`slidegen render`経路を再利用する。
+* レンダリング中の再保存は`pending`フラグで最後の1回だけ保持する。現在の処理完了後、対象が変わっていない場合だけ再実行する。
+* `PreviewPanel.open()`に`preserveFocus`オプションを追加し、自動更新時は可能な範囲でQMDエディターのフォーカスを維持する。
+* 既存`PreviewPanel`はPPTX絶対パス単位で再利用されるため、同じPPTXの保存更新でタブを増やさない。
+* Webview側のPDF描画は、全ページ描画が成功してから既存スライドを差し替えるように変更し、PDF描画失敗時も前回成功表示を維持する。
+* Dev Containerセットアップは`npm --prefix /work/vscode-extension run package:vsix`でVSIXを作成し、`code --install-extension /work/vscode-extension/dist/md-slide-tool-pptx-preview.vsix --force`で通常ワークスペースへ導入する。
+* `vscode-extension/dist/`と`*.vsix`は生成物としてGit管理対象外にした。
+
+## 今回の環境制約付き検証結果（自動プレビュー）
+
+* 成功確認済み: `cd vscode-extension && npm test`、`cd vscode-extension && npm run build`、`cd vscode-extension && npm run package:vsix`。
+* 成功確認済み: `cd vscode-extension && npm run package:check`（Windowsのユーザーnpm cache権限問題を避けるため、`npm_config_cache`をワークスペース内一時ディレクトリへ向けて実行）。
+* 成功確認済み: `python -m unittest tests/test_postprocess_place.py`、`npm run start -- --help`、`npm run start -- list-templates`、`npm run start -- new codex-auto-smoke --type pptx`（生成物は削除）。
+* 成功確認済み: `npm pack --dry-run`（Windowsのユーザーnpm cache権限問題を避けるため、`npm_config_cache`をワークスペース内一時ディレクトリへ向けて実行）。この確認で`__pycache__`が配布対象へ混入しないよう`package.json`の`files`へ除外指定を追加した。
+* 成功確認済み: `C:\Program Files\Git\bin\bash.exe -n scripts/devcontainer-setup.sh`。
+* `npm test`（root）は`scripts`上の`python3`がこのWindows環境で起動できず失敗したため、`python -m unittest tests/test_postprocess_place.py`で代替確認した。
+* `scripts/smoke-test.sh`はWindowsの`bash`解決がWSLへ流れ、WSLディストリビューション未導入のため失敗した。スクリプト内の`--help`、`list-templates`、`npm pack --dry-run`は個別に成功確認した。
+* `slidegen render`は内部で`bash scripts/render-current.sh`を起動するため、このWindows環境ではWSL未導入により失敗した。QuartoもホストPATHになく、実レンダリングは未確認。
+* Docker Desktop起動後、承認付き`docker info --format '{{.ServerVersion}}'`でDocker daemon 28.5.1へ接続できた。
+* 成功確認済み: `docker build -t md-slide-tool .`。Dockerfile内の`libreoffice --version || soffice --version`は`LibreOffice 7.0.4.2`を返した。
+* 成功確認済み: Dockerコンテナ内の`node --version`は`v20.20.2`、`quarto --version`は`1.9.36`、`libreoffice --version`は`LibreOffice 7.0.4.2`。
+* 成功確認済み: Dockerコンテナ内で`npm test`、`bash scripts/smoke-test.sh`、`npm run start -- render projects/selfintroduction/selfintroduction_pptx.qmd`。
+* 成功確認済み: Dockerコンテナ内で`bash scripts/devcontainer-setup.sh`。ルート依存、`npm link`、拡張依存、拡張ビルド、VSIX作成まで成功した。plain DockerコンテナにはVS Code CLI `code`がないため、`code --install-extension`だけは想定どおりskipされた。
+* `@vscode/vsce`は`3.2.2`に固定した。Dev ContainerのNode.js 20でVSIX作成は成功するが、一部の推移依存がNode 22要求の`EBADENGINE`警告を出す。`@vscode/vsce` 2.xでは警告の代わりにaudit脆弱性が増えたため、脆弱性0件の3.2.2固定を採用した。
+* この実行環境ではVS Code `code` CLIがPATHになく、通常のWindows/macOS VS Code Dev Container GUIを操作できないため、`/work`ウィンドウでのコマンド表示、手動PPTXプレビュー、QMD保存からの自動更新、スクリーンショット保存は未確認。

@@ -4,10 +4,13 @@ import path from 'node:path';
 const containerExecutableNames = ['libreoffice', 'soffice'];
 
 export function getPathCandidates(envPath = process.env.PATH ?? '') {
+  const delimiter = path.delimiter === ':' || !envPath.includes(':') ? path.delimiter : ':';
   return envPath
-    .split(path.delimiter)
+    .split(delimiter)
     .filter(Boolean)
-    .flatMap((dir) => containerExecutableNames.map((name) => path.join(dir, name)));
+    .flatMap((dir) => containerExecutableNames.map((name) => (
+      dir.includes('/') ? path.posix.join(dir, name) : path.join(dir, name)
+    )));
 }
 
 async function executable(file, access = fs.access) {
