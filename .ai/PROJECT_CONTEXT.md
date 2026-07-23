@@ -147,3 +147,45 @@ docker run --rm -v "$(pwd):/work" -w /work md-slide-tool npm run start -- --help
 * QuartoとPython依存をローカルへ直接導入する標準手順。
 * docx、html、pdfレンダリングの今後の方針。
 * GUI E2E環境を導入する場合のツールと実行方法。
+
+## VS Code PPTX Preview MVP実装後の確認事項
+
+* `vscode-extension/`に独立したVS Code拡張MVPを追加した。
+* 拡張の入口は`vscode-extension/src/extension.js`で、`mdSlideTool.openPptxPreview` / `Open PPTX Preview`を登録する。
+* PPTX選択・検証、LibreOffice検出、PPTX to PDF変換、一時ディレクトリ管理、Webview管理、Webview描画を分離した。
+* LibreOffice検出はPATH、Windows標準候補、macOS標準候補を確認する。
+* PDF描画UIは`vscode-extension/webview/`配下のローカルリソースだけを参照し、外部CDNを使用しない。
+* `pdfjs-dist`を拡張の正式依存関係として宣言し、`npm run build`で実ファイルを`webview/`へコピーする。仮PDF.jsファイルが残っている場合は検証スクリプトが失敗する。`package:check`も`npm run build`を先に実行する。
+* 一時PDFは`context.globalStorageUri/pptx-preview`配下へ生成し、その固定ディレクトリをWebviewの`localResourceRoots`へ含める。
+* WebviewはPDF描画後に`renderComplete`または`renderFailed`を拡張へ返し、拡張側は描画完了まで更新をアイドル状態へ戻さない。
+* この環境ではnpm registryへのアクセスが403となったため、`pdfjs-dist`取得、実PDF.jsコピー、Windows/macOS実機GUI検証は未実施。静的検証とモックテストで代替した。
+* 確認済みコマンド: `npm test`、`cd vscode-extension && npm test`、`python3 -m unittest tests/test_postprocess_place.py`、`bash scripts/smoke-test.sh`、`npm run start -- --help`、`npm run start -- list-templates`。
+
+## Dev Container前提への修正事項
+
+* PR #10レビューを受け、PPTXプレビューMVPの正式実行経路をWindows/macOSホスト上のVS Code Dev Containerに変更した。
+* ホスト側Node.js、LibreOffice、pdfjs-dist、npm installは要求しない。
+* DockerfileへDebian公式パッケージのLibreOffice Impressを追加し、コンテナ内PATHの`libreoffice`または`soffice`でPPTX→PDF変換を行う方針にした。
+* `.devcontainer/devcontainer.json`の`postCreateCommand`は`/work/scripts/devcontainer-setup.sh`へ分離し、ルート依存、`slidegen`リンク、拡張依存、拡張ビルド、既存補完設定を再実行可能にした。
+* VS Code拡張のLibreOffice検出はWindows/macOS固有パスを探索せず、コンテナ内PATHの`libreoffice`、`soffice`に限定した。
+* 実GUI確認はこのLinuxコンテナからは未実施。変換処理は共通コンテナ内で行われるが、Windows/macOSホストでのDev Container GUI結果は未確認として扱う。
+
+## 今回の環境制約付き検証結果
+
+* この実行環境では`docker`コマンドが存在しないため、Dev Container rebuild、Dockerfile内LibreOfficeバージョン確認、コンテナ内PPTX→PDF実変換は未実施。
+* この実行環境では`quarto`、`libreoffice`、`soffice`がPATHになく、`slidegen render`と実LibreOffice変換は未完了。
+* この実行環境ではnpm registryが`pdfjs-dist`取得に403を返すため、拡張の`npm run build`と`npm run package:check`は実PDF.js不足ガードで失敗する。
+* 成功確認済み: `npm test`、`cd vscode-extension && npm test`、`python3 -m unittest tests/test_postprocess_place.py`、`bash scripts/smoke-test.sh`、`npm run start -- --help`、`npm run start -- list-templates`、`npm run start -- new pr10-smoke --type pptx`（`code`コマンドなし警告あり、生成物は削除）。
+* 未完了確認: `quarto --version`、`libreoffice --version || soffice --version`、Dev Container GUI確認、実PPTX→PDF変換、スクリーンショット保存。
+
+## VS Code拡張起動設定の修正
+
+* `vscode-extension/.vscode/launch.json`は、`vscode-extension`フォルダをワークスペースとして開く前提で`--extensionDevelopmentPath=${workspaceFolder}`を使う。
+* Extension Development Hostで開く対象として`/work`をargsへ追加した。
+* `vscode-extension/package.json`に`extensionKind: ["workspace"]`を追加し、Dev Containerのワークスペース側で拡張が動作することを明示した。
+
+## Webview CSPとPDF.js source map対応
+
+* 実機確認でPDF fetchとPDF.js workerがCSPに拒否されたため、Webview CSPへ`connect-src ${webview.cspSource}`を追加した。
+* `default-src 'none'`、nonce付きscript、`${webview.cspSource}`によるローカルリソース制限、`worker-src ${webview.cspSource} blob:`、外部CDN不使用は維持した。
+* `pdf.mjs.map`などsource mapの取得失敗がプレビュー本体へ波及しないよう、ビルド時コピーで`sourceMappingURL`コメントを除去する。

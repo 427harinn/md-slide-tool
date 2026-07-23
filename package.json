@@ -13,7 +13,8 @@
         "completions"
     ],
     "scripts": {
-        "start": "node ./cli/slidegen.js"
+        "start": "node ./cli/slidegen.js",
+        "test": "python3 -m unittest tests/test_postprocess_place.py"
     },
     "dependencies": {
         "adm-zip": "^0.5.16",

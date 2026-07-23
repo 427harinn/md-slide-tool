@@ -1,0 +1,55 @@
+{
+  "name": "md-slide-tool-pptx-preview",
+  "displayName": "md-slide-tool PPTX Preview",
+  "version": "0.1.0",
+  "publisher": "md-slide-tool",
+  "description": "Preview finished PPTX files in VS Code using LibreOffice and PDF.js.",
+  "main": "./src/extension.js",
+  "type": "module",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "activationEvents": [
+    "onCommand:mdSlideTool.openPptxPreview"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "mdSlideTool.openPptxPreview",
+        "title": "Open PPTX Preview",
+        "category": "md-slide-tool"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "mdSlideTool.openPptxPreview",
+          "when": "resourceExtname == .pptx",
+          "group": "navigation@50"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node ./scripts/copy-pdfjs.js && node ./scripts/verify-package.js",
+    "watch": "node --watch ./scripts/verify-package.js",
+    "test": "node --test test/*.test.js",
+    "package:check": "npm run build && npm pack --dry-run",
+    "copy:pdfjs": "node ./scripts/copy-pdfjs.js"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^4.10.38"
+  },
+  "files": [
+    "src",
+    "webview",
+    "package.json",
+    "README.md"
+  ],
+  "extensionKind": [
+    "workspace"
+  ]
+}
