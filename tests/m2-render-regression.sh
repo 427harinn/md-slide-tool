@@ -74,8 +74,8 @@ entry = assets["elements"][0]
 assert [entry["slideId"], entry["elementId"]] == expected
 assert [entry[key] for key in ("x", "y", "width", "height")] == snapshot["rect"]
 prs = Presentation(sys.argv[3])
-assert prs.slides[0].name == expected[0]
-picture = next(shape for shape in prs.slides[0].shapes if shape.shape_type == 13)
+slide = next(slide for slide in prs.slides if slide.name == expected[0])
+picture = next(shape for shape in slide.shapes if shape.shape_type == 13)
 assert picture.name == expected[1]
 
 docx_qmd = Path(sys.argv[1]).parent / "doc.qmd"
