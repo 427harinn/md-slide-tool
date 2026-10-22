@@ -21,7 +21,9 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 ### T-302: Managed presentation metadata / QMD baseline guard
 
 - M3-capable renderでmanaged marker / format version / document-idをPPTXへ保存
-- stable ID normalization後のQMD normal-slide body SHA-256を保存
+- assets schema v2のtop-level documentIdへ同じdocument-idを保存
+- stable ID normalization後のcanonical QMD normal-slide body SHA-256を保存
+- BOM / front matter境界 / LF-CRLF-CR正規化ルールを共通helperとして固定
 - same-stem QMD必須
 - unmarked legacy/arbitrary PPTXをrejectし、re-renderを案内
 - current QMD body hash mismatchは `QMD_CHANGED_SINCE_RENDER` としてpre-commit FAIL
@@ -43,7 +45,15 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 
 **状態:** 未着手
 
-### T-304: Text reconstruction
+### T-304: Text reconstruction / caption companion
+
+- md-slide-tool生成caption textboxへ `mdst-caption-<element-uuid>` markerを付与
+- caption markerはassociated picture `element-id` と1:1で対応
+- caption textをMarkdown image alt/captionへ復元
+- orphan/duplicate caption markerをFAIL
+- arbitrary unmarked textboxはunsupportedのまま
+
+### T-304b: Text reconstruction
 
 - title
 - ordinary paragraph
@@ -95,12 +105,14 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 
 ### T-308: Recoverable transaction / crash recovery
 
-- `.md-slide-tool/transactions/<txid>/` にmanifest/old/newをstage
-- replace対象のold/new SHA-256をmanifestへ記録
+- per-document lockをatomicに取得し、concurrent render/importは `DOCUMENT_BUSY`
+- `.md-slide-tool/transactions/<document-id>/<txid>/` にmanifest/old/newをstage
+- create / replace / delete operationとold/new SHA-256をmanifestへ記録
+- state machine: prepared -> committing -> committed -> cleanup / rolling_back -> rolled_back -> cleanup
 - per-file atomic replaceを使用
-- handled commit failureではrollbackしてからFAIL
-- progress/phaseを記録
-- render/import開始時にincomplete transactionを検出してrecovery
+- handled commit failureではcreate/replace/deleteをrollbackしてからFAIL
+- abrupt termination時はphase別にrecovery
+- committedならrollbackせずnew state検証後cleanup
 - current hashがold/newどちらでもない場合は自動上書きせずmanual-recovery error
 - failure injectionとsimulated abrupt terminationをテスト
 
