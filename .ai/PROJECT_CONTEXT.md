@@ -69,8 +69,8 @@ PowerPoint 系が安定した後、完成した PPTX/QMD の内容から Word �
 2. VS Code / PowerPoint 側には変換ロジックを持たせない
 3. QMD と PPTX は差分同期せず、保存された側からもう一方を再生成する
 4. 文字情報を中間 JSON に永続化しない
-5. 将来の永続 JSON は主に画像レイアウト情報を持つ
-6. slide / image に stable id を導入する
+5. 永続 JSON は主にvisual elementのlayout情報を持ち、文字情報の正本にはしない
+6. slide / element に stable id を導入する。M2ではelement type=imageのみ実装する
 7. 競合時は自動マージせず conflict QMD を生成して diff を表示する
 
 ## 今後のマイルストーン
@@ -121,7 +121,7 @@ CI smoke test は CLI help、template listing、npm package contents を確認�
 - VS Code に残る build task は手動実行。保存時自動実行の拡張・設定はない。
 - `compose.yml` と追跡済み `.DS_Store` を削除し、`.DS_Store` は Git ignore に追加済み。既存 project コンテンツは変更しない。
 - HTML template は残した。現行 template QMD は `style.css` を参照するが、同梱されていない。既存 HTML project の利用状況・修正方針は未確認のため、今回その template は変更していない。
-- PowerPoint 自動起動、PPTX -> QMD、assets.json、stable ID、Sync Engine、競合処理は未実装で、後続マイルストーンの対象。
+- PPTX -> QMD、assets.json、stable ID、Sync Engine、競合処理はM2以降の対象。M1のPowerPoint openは実装済み。
 
 ## M1実装状況
 
@@ -163,3 +163,22 @@ Remote/Dev Containerで外部アプリを開く場合、Workspace Extensionか�
 Dev Containersでは `${localWorkspaceFolder}` を `remoteEnv` 等でcontainerへ渡せるため、`/work` 配下の相対pathとhost workspace pathを組み合わせる方式をPoC候補とする。
 
 詳細は `docs/M1_POWERPOINT_OPEN.md`。
+
+
+## M2確定設計
+
+詳細は `docs/M2_STABLE_IDS_ASSETS.md`。
+
+- slide identityはQMDの `slide-id`。
+- visual element identityはQMDの `element-id`。画像専用の `image-id` は採用しない。
+- M2で実装するelement typeは `image` のみ。将来shape等へ拡張できるidentity modelにする。
+- IDのない既存QMDには不足IDだけをUUIDベースで自動付与し、既存IDは変更しない。
+- duplicate IDは自動修正せずFAIL。
+- `<stem>.assets.json` schema v1はslide sizeとimage elementの x/y/width/height をEMU整数で保持する。
+- title/body等の文字情報はassetsへ永続化しない。
+- render時は saved layout -> existing `place=` preference -> current auto layout の順で配置する。
+- auto layout結果もassetsへ保存し、次回renderでは同じlayoutを復元する。
+- slide title変更やimage path変更はstable IDが同じならidentity/layoutを維持する。
+- generated PPTXにも同じslide/element IDを埋め込み、M3のimportで利用できるようにする。
+- PowerPointで同一identified picture shapeの画像内容だけ差し替えた場合は同じelementとして扱える設計にする。削除後に新規挿入されたIDなしshapeは将来M3で新規elementとして扱い、置換だったと推測しない。
+- crop / rotation / z-order / shape persistence / PPTX -> QMD importはM2対象外。
