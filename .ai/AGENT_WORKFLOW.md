@@ -75,7 +75,7 @@ Responsibilities:
 - verify responsibility boundaries;
 - verify the implementation does not pull future-milestone work forward.
 
-For small tasks the Root Agent may combine Test Agent and Review Agent, but implementation and final independent review must remain separate.
+A trivial documentation-only change is limited to wording or formatting that changes no requirement, acceptance criterion, test, code, configuration, or user-facing behavior. For such a change, the Root Agent may omit Planning and Implementation subagents. Test and Review responsibilities may be combined in one subagent only if it did not author the change; this does not satisfy a request or repository rule that explicitly requires separate Test and Review agents. Any non-trivial change uses separate Test, Review, and Architecture subagents. The implementation author and final independent reviewer must always be different agents.
 
 ## Gate states
 
@@ -99,8 +99,8 @@ Rules:
 If Test, Review, or Architecture Agent reports FAIL:
 
 1. Root Agent summarizes the failure without hiding details.
-2. Root Agent sends the concrete finding back to the Implementation Agent.
-3. Implementation Agent makes the smallest correction.
+2. Root Agent sends the concrete finding back for correction.
+3. The correcting agent makes the smallest correction.
 4. Relevant automated gates run again.
 5. Independent review runs again.
 
