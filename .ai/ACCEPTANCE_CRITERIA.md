@@ -130,7 +130,7 @@ All AC-M2 gates have passed. AC-M2-04 includes the completed PowerPoint desktop 
 
 M3 acceptance criteria are UNVERIFIED until implementation evidence exists.
 
-- **AC-M3-01:** `slidegen import <pptx>` accepts only an M3-managed presentation with a valid presentation-level managed marker/version/document-id and existing same-stem QMD; an unmarked legacy/arbitrary PPTX is rejected and must be re-rendered first.
+- **AC-M3-01:** `slidegen import <pptx>` accepts only an M3-managed presentation with valid managed marker/version/document-id, an existing same-stem QMD, and assets schema v2 carrying the same `documentId`; body hash alone is never sufficient to pair files. Unmarked legacy/arbitrary PPTX or document-id mismatch is rejected and must be re-rendered/repaired first.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
 - **AC-M3-02:** Existing QMD YAML front matter remains byte-preserved while normal-slide content is rebuilt from the PPTX.
@@ -160,10 +160,10 @@ M3 acceptance criteria are UNVERIFIED until implementation evidence exists.
 - **AC-M3-10:** Deleting a supported image removes its QMD/assets representation only after full import validation succeeds.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M3-11:** Template/user content classification is structural and fixture-backed: inherited master/layout content is ignored, only supported placeholders/pictures are imported, and unknown slide-local content that could be lost causes pre-commit FAIL.
+- **AC-M3-11:** Template/user content classification is structural and fixture-backed: inherited master/layout content is ignored, supported placeholders/pictures and md-slide-tool caption companion textboxes are recognized deterministically, caption text roundtrips to the image caption, and unknown slide-local content that could be lost causes pre-commit FAIL.
   - Verification: AUTOMATED + Review/Architecture
   - Status: UNVERIFIED
-- **AC-M3-12:** Import provides recoverable multi-file transactional consistency across QMD, assets, extracted images, and PPTX metadata writeback. Handled commit failures roll back; simulated abrupt termination is recovered on the next render/import via a transaction journal and hash-checked backups.
+- **AC-M3-12:** Import provides recoverable multi-file transactional consistency across QMD, assets, extracted images, and PPTX metadata writeback. Per-document exclusion prevents concurrent render/import. Transaction state distinguishes prepared/committing/committed/rolling_back/rolled_back; create/replace/delete rollback is defined; handled commit failures roll back; simulated abrupt termination is recovered phase-specifically on the next render/import via journal and hash-checked backups.
   - Verification: AUTOMATED failure injection + crash-recovery simulation
   - Status: UNVERIFIED
 - **AC-M3-13:** No persistent intermediate JSON becomes a second canonical store for title/body text; transaction metadata contains only recovery/identity/state information.
@@ -175,10 +175,10 @@ M3 acceptance criteria are UNVERIFIED until implementation evidence exists.
 - **AC-M3-15:** M3 does not implement watchers, automatic sync, full dirty-state conflict merge, arbitrary shape support, rotation/z-order, Marketplace publication, or PPTX -> Word.
   - Verification: scope scan + independent Review/Architecture
   - Status: UNVERIFIED
-- **AC-M3-16:** M3-capable render writes a valid presentation-level managed marker, format version, document-id, and QMD normal-body SHA-256 baseline that survive the supported PPTX save/reopen path.
+- **AC-M3-16:** M3-capable render writes a valid presentation-level managed marker, format version, document-id, reserved title role/caption companion metadata, and QMD normal-body SHA-256 baseline that survive the supported PPTX save/reopen path; the same document-id is persisted in assets schema v2.
   - Verification: AUTOMATED where possible; HUMAN_REQUIRED only if desktop PowerPoint preservation cannot be proven otherwise
   - Status: UNVERIFIED
-- **AC-M3-17:** If the current QMD normal-slide body differs from the hash embedded at render time, import fails before staging/commit with an explicit changed-since-render error; M3 provides no force-merge override.
+- **AC-M3-17:** The QMD normal-body hash uses the documented canonical-byte algorithm (UTF-8 BOM handling, front-matter delimiter boundary, CRLF/CR -> LF only, no Unicode/whitespace normalization). If the current canonical body differs from the hash embedded at render time, import fails before staging/commit with an explicit changed-since-render error; M3 provides no force-merge override.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
 - **AC-M3-18:** The front-matter-generated title slide carries a reserved internal title-role marker independent of slide position. Moving/deleting it remains safe; duplicate marker or ambiguous marker loss causes FAIL. Fixtures cover new slides before/after the title slide.
