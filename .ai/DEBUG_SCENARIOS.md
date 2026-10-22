@@ -93,7 +93,6 @@ docker run --rm -v "$(pwd):/work" -w /work md-slide-tool npm run start -- --help
 見る場所:
 
 * `Dockerfile`
-* `compose.yml`
 * `.devcontainer/devcontainer.json`
 
 確認事項:
@@ -123,26 +122,6 @@ npm pack --dry-run
 * ローカルとCIのNode.jsバージョン差異。
 * npm packageへ必要ファイルが含まれているか。
 * OS依存コマンドをCIで実行していないか。
-
-## VS Code拡張・Webviewが起動しない
-
-確認候補:
-
-* Extension Hostのログ
-* VS CodeのDeveloper Toolsコンソール
-* コマンド登録
-* 拡張機能のactivation条件
-* 対象ワークスペースと対象ファイル
-* Webview HTML生成処理
-
-保存する情報:
-
-* VS Codeのバージョン
-* OS
-* 実行したコマンド
-* Extension Hostのエラー
-* Webviewコンソールエラー
-* 失敗時スクリーンショット
 
 ## 外部プロセスが失敗する
 

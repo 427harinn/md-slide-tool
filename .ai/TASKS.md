@@ -13,7 +13,7 @@ Codex は上から順番に実行する。
 - preview / auto-preview 実験が正式経路から呼ばれているか確認
 - 調査結果を `.ai/PROJECT_CONTEXT.md` へ反映
 
-**状態:** 未着手
+**状態:** 完了
 
 ### T-002: 不採用 Preview 実験を削除する
 
@@ -21,7 +21,7 @@ Codex は上から順番に実行する。
 
 docx、PPTX render、template 処理は削除しない。
 
-**状態:** 未着手
+**状態:** 完了
 
 ### T-003: Dev Container / 自動 build 経路を整理する
 
@@ -31,7 +31,7 @@ docx、PPTX render、template 処理は削除しない。
 - Preview 専用 LibreOffice が不要になった場合のみ Dockerfile から削除
 - 次マイルストーンで Sync Engine を追加しやすい状態へ整理
 
-**状態:** 未着手
+**状態:** 完了
 
 ### T-004: 不要ファイル・古い設定を整理する
 
@@ -40,7 +40,7 @@ docx、PPTX render、template 処理は削除しない。
 - 壊れた / 未完成 template 資産があれば利用状況を確認して扱いを決定
 - 生成物や fixture を誤って削除しない
 
-**状態:** 未着手
+**状態:** 完了
 
 ### T-005: CLI / render の責務を最小限整理する
 
@@ -50,7 +50,7 @@ docx、PPTX render、template 処理は削除しない。
 - Bash/Python/Quarto の全面書き換えはしない
 - 将来のためだけの過剰抽象化をしない
 
-**状態:** 未着手
+**状態:** 完了
 
 ### T-006: テストとCIを cleanup 後の正式機能へ合わせる
 
@@ -61,13 +61,13 @@ docx、PPTX render、template 処理は削除しない。
 - 削除した preview 用 test の整理
 - 必要最小限の regression test 追加
 
-**状態:** 未着手
+**状態:** 完了
 
 ### T-007: ドキュメントを現在状態へ更新する
 
 README / PROJECT_CONTEXT / 必要なDEBUG_SCENARIOS を更新し、過去マイルストーンの結果を現在仕様のように残さない。
 
-**状態:** 未着手
+**状態:** 完了
 
 ### T-008: 最終セルフレビューとPR作成
 
@@ -78,4 +78,4 @@ README / PROJECT_CONTEXT / 必要なDEBUG_SCENARIOS を更新し、過去マイ�
 - 削除内容と理由を PR に記載
 - PowerPoint 自動起動を先回り実装していないことを確認
 
-**状態:** 未着手
+**状態:** 完了（実コンテナ・GUI検証は環境制約により未確認）

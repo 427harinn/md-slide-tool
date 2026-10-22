@@ -8,7 +8,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     openjdk-17-jre \
     pandoc \
-    libreoffice-impress \
     locales \
     fonts-noto-cjk \
     libgbm1 \
@@ -43,6 +42,3 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 RUN quarto install chrome-headless-shell --no-prompt
 
 RUN pip3 install --no-cache-dir python-pptx Pillow
-
-
-RUN libreoffice --version || soffice --version
