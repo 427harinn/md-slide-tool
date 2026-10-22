@@ -3,9 +3,13 @@
 
 import argparse
 import json
+import sys
 import unicodedata
 from pathlib import Path
 from typing import List, Optional, Tuple
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from m2_identity import atomic_write_json, load_assets, valid_layout
 
 from PIL import Image
 from pptx import Presentation
@@ -663,7 +667,7 @@ def resolve_requested_place(images: List[dict]) -> Optional[str]:
     return selected_place
 
 
-def collect_target_images(slide_info: dict, base_dir: Path) -> List[dict]:
+def collect_target_images(slide_info: dict, base_dir: Path, assets_by_key: dict, slide_w: int, slide_h: int) -> List[dict]:
     images = slide_info.get("images", [])
     result = []
 
@@ -683,17 +687,21 @@ def collect_target_images(slide_info: dict, base_dir: Path) -> List[dict]:
             "resolved_path": resolved_path,
             "caption": str(image.get("caption", "")).strip(),
             "place": str(image.get("place", "")).strip().lower(),
+            "element_id": image.get("element_id", ""),
+            "slide_id": slide_info.get("slide_id", ""),
+            "saved_layout": assets_by_key.get((slide_info.get("slide_id", ""), image.get("element_id", ""))),
         })
 
     return result
 
 
-def add_offslide_images_near_target_slide(slide, images: List[dict], slide_w: int, anchor_top: int) -> None:
+def add_offslide_images_near_target_slide(slide, images: List[dict], slide_w: int, anchor_top: int) -> List[dict]:
     margin = emu(0.18)
     x = slide_w + emu(0.08)
     y = anchor_top
     max_w = emu(2.5)
     max_h = emu(1.8)
+    placements = []
 
     for image in images:
         caption_h = estimate_caption_box_height(image.get("caption", ""))
@@ -702,7 +710,9 @@ def add_offslide_images_near_target_slide(slide, images: List[dict], slide_w: in
         orig_w, orig_h = get_image_size_emu(image["resolved_path"])
         pic_w, pic_h = fit_size(orig_w, orig_h, max_w, usable_h)
 
-        slide.shapes.add_picture(str(image["resolved_path"]), x, y, width=pic_w, height=pic_h)
+        picture = slide.shapes.add_picture(str(image["resolved_path"]), x, y, width=pic_w, height=pic_h)
+        picture.name = image["element_id"]
+        placements.append({"slideId": image["slide_id"], "elementId": image["element_id"], "type": "image", "path": image["raw_path"], "x": int(picture.left), "y": int(picture.top), "width": int(picture.width), "height": int(picture.height)})
 
         if caption_h > 0:
             add_caption_textbox(
@@ -716,16 +726,41 @@ def add_offslide_images_near_target_slide(slide, images: List[dict], slide_w: in
 
         y += pic_h + caption_h + margin
 
+    return placements
 
-def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Path) -> None:
-    target_images = collect_target_images(slide_info, base_dir)
-    if not target_images:
-        return
 
+def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Path, assets_by_key: dict) -> List[dict]:
     slide_w = int(prs.slide_width)
     slide_h = int(prs.slide_height)
+    target_images = collect_target_images(slide_info, base_dir, assets_by_key, slide_w, slide_h)
+    if not target_images:
+        return []
 
+    layouts = []
+    auto_images = []
     occupied_rects = get_occupied_rects(slide, slide_w, slide_h)
+    for image in target_images:
+        saved = image.get("saved_layout")
+        if saved is not None:
+            if (isinstance(saved, dict) and saved.get("slideId") == image["slide_id"] and
+                    saved.get("elementId") == image["element_id"] and
+                    saved.get("type") == "image" and valid_layout(
+                        saved, slide_w, slide_h, len(slide_info.get("images", []))
+                    )):
+                picture = slide.shapes.add_picture(
+                    str(image["resolved_path"]), int(saved["x"]), int(saved["y"]),
+                    width=int(saved["width"]), height=int(saved["height"]),
+                )
+                picture.name = image["element_id"]
+                rect = (int(picture.left), int(picture.top), int(picture.width), int(picture.height))
+                occupied_rects.append(rect)
+                layouts.append({"slideId": image["slide_id"], "elementId": image["element_id"], "type": "image", "path": image["raw_path"], "x": rect[0], "y": rect[1], "width": rect[2], "height": rect[3]})
+                continue
+            print(f"[WARN] invalid saved layout for element {image['element_id']}; using automatic placement")
+        auto_images.append(image)
+
+    if not auto_images:
+        return layouts
 
     body_info = find_body_shape(slide, slide_h)
     if body_info:
@@ -746,7 +781,7 @@ def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Pa
         print(f"  requested place: {requested_place}")
 
     best_layout = choose_best_layout(
-        images=target_images,
+        images=auto_images,
         candidate_rects=candidate_rects,
         occupied_rects=occupied_rects,
         preferred_place=requested_place,
@@ -754,24 +789,26 @@ def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Pa
 
     if best_layout is None:
         print("  fallback: off-slide (no candidate fits)")
-        add_offslide_images_near_target_slide(
+        layouts.extend(add_offslide_images_near_target_slide(
             slide=slide,
-            images=target_images,
+            images=auto_images,
             slide_w=slide_w,
             anchor_top=offslide_anchor_top,
-        )
-        return
+        ))
+        return layouts
 
     print(f"  place: {best_layout['candidate_name']} / {best_layout['mode']}")
 
-    for image, placement in zip(target_images, best_layout["placements"]):
-        slide.shapes.add_picture(
+    for image, placement in zip(auto_images, best_layout["placements"]):
+        picture = slide.shapes.add_picture(
             str(image["resolved_path"]),
             placement["img_x"],
             placement["img_y"],
             width=placement["img_w"],
             height=placement["img_h"],
         )
+        picture.name = image["element_id"]
+        layouts.append({"slideId": image["slide_id"], "elementId": image["element_id"], "type": "image", "path": image["raw_path"], "x": int(picture.left), "y": int(picture.top), "width": int(picture.width), "height": int(picture.height)})
 
         if placement["caption_h"] > 0 and image.get("caption", "").strip():
             add_caption_textbox(
@@ -782,6 +819,7 @@ def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Pa
                 placement["caption_w"],
                 placement["caption_h"],
             )
+    return layouts
 
 
 # ----------------------------
@@ -792,6 +830,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--pptx", required=True, help="後処理対象のPPTXファイル")
     parser.add_argument("--images-json", required=True, help="画像情報JSON")
+    parser.add_argument("--assets", help="永続化するassets.json")
     args = parser.parse_args()
 
     pptx_path = Path(args.pptx).resolve()
@@ -805,6 +844,14 @@ def main() -> int:
 
     slide_infos = load_images_json(images_json_path)
     prs = Presentation(str(pptx_path))
+    assets_path = Path(args.assets).resolve() if args.assets else images_json_path.with_name(images_json_path.name.replace(".images.json", ".assets.json"))
+    assets = load_assets(assets_path)
+    assets_by_key = {}
+    for entry in assets.get("elements", []):
+        if isinstance(entry, dict):
+            assets_by_key[(entry.get("slideId"), entry.get("elementId"))] = entry
+    rendered_layouts = []
+    matched_slide_ids = set()
 
     print(f"PPTX slide count : {len(prs.slides)}")
     print(f"JSON slide count : {len(slide_infos)}")
@@ -814,17 +861,25 @@ def main() -> int:
 
     for i, slide_info in enumerate(slide_infos):
         target_title = normalize_text(slide_info.get("title", ""))
-        if not target_title:
-            print(f"[WARN] slide title empty at json index {i}")
-            continue
+        target_slide_id = slide_info.get("slide_id", "")
 
         matched_slide = None
 
         for slide in prs.slides:
-            ppt_title = normalize_text(get_slide_title(slide))
-            if ppt_title == target_title:
+            if getattr(slide, "name", "") == target_slide_id:
                 matched_slide = slide
                 break
+        if matched_slide is None:
+            # Quarto creates fresh slides on every render; title is only the initial association.
+            # Once matched, the stable ID is written into the public slide name metadata.
+            for slide in prs.slides:
+                ppt_slide_id = getattr(slide, "name", "")
+                if ppt_slide_id in matched_slide_ids or ppt_slide_id.startswith("slide-"):
+                    continue
+                ppt_title = normalize_text(get_slide_title(slide))
+                if ppt_title == target_title:
+                    matched_slide = slide
+                    break
 
         if matched_slide is None:
             print(f"[WARN] slide not found: {target_title}")
@@ -836,9 +891,24 @@ def main() -> int:
             f"images={len(slide_info.get('images', []))}"
         )
 
-        add_images_to_slide(prs, matched_slide, slide_info, base_dir)
+        matched_slide.name = target_slide_id
+        matched_slide_ids.add(target_slide_id)
+        rendered_layouts.extend(add_images_to_slide(prs, matched_slide, slide_info, base_dir, assets_by_key))
 
     prs.save(str(pptx_path))
+    current_keys = {
+        (slide_info.get("slide_id"), image.get("element_id"))
+        for slide_info in slide_infos for image in slide_info.get("images", [])
+    }
+    updated_by_key = {(entry["slideId"], entry["elementId"]): entry for entry in rendered_layouts}
+    for key, old_entry in assets_by_key.items():
+        if key in current_keys and key not in updated_by_key:
+            updated_by_key[key] = old_entry
+    atomic_write_json(assets_path, {
+        "schemaVersion": 1,
+        "slideSize": {"width": int(prs.slide_width), "height": int(prs.slide_height), "unit": "emu"},
+        "elements": list(updated_by_key.values()),
+    })
     print(f"saved: {pptx_path}")
     return 0
 

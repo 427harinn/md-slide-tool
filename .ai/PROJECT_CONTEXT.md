@@ -121,7 +121,7 @@ CI smoke test は CLI help、template listing、npm package contents を確認�
 - VS Code に残る build task は手動実行。保存時自動実行の拡張・設定はない。
 - `compose.yml` と追跡済み `.DS_Store` を削除し、`.DS_Store` は Git ignore に追加済み。既存 project コンテンツは変更しない。
 - HTML template は残した。現行 template QMD は `style.css` を参照するが、同梱されていない。既存 HTML project の利用状況・修正方針は未確認のため、今回その template は変更していない。
-- PPTX -> QMD、assets.json、stable ID、Sync Engine、競合処理はM2以降の対象。M1のPowerPoint openは実装済み。
+- M1のPowerPoint openは実装済み。M2 stable ID / image assets layoutは本ブランチで実装し、Draft PR検証中。
 
 ## M1実装状況
 
@@ -182,3 +182,10 @@ Dev Containersでは `${localWorkspaceFolder}` を `remoteEnv` 等でcontainer�
 - generated PPTXにも同じslide/element IDを埋め込み、M3のimportで利用できるようにする。
 - PowerPointで同一identified picture shapeの画像内容だけ差し替えた場合は同じelementとして扱える設計にする。削除後に新規挿入されたIDなしshapeは将来M3で新規elementとして扱い、置換だったと推測しない。
 - crop / rotation / z-order / shape persistence / PPTX -> QMD importはM2対象外。
+
+## M2実装状況
+
+- Python testsは18件PASS。PPTX metadataのpython-pptx save/reopen、ID/重複検証、assets layout restore/fallback/stale cleanupを含む。
+- GitHub Actionsはroot tests、既存smoke、Docker内の2回render/title+path変更/layout維持とdocx render回帰を実行する。
+- Windows実行環境ではQuarto / Docker / Bashが使えなかったため、PR #17 head CI run #60で代表render・docx回帰・smokeを実行しPASS。
+- PowerPoint desktopで編集・保存後のmetadata保持のみHUMAN_REQUIRED。

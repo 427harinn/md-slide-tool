@@ -79,4 +79,4 @@ QMD -> PPTX render
 
 ## 状態
 
-設計確定・未実装。
+実装・自動テスト・独立Test/Review/Architecture・PR #17 head CI run #62はPASS。H-M2-01のPowerPoint desktop保存後metadata保持もPASSし、必須ACはすべて完了。PR #17はDraft解除可能（mergeは別判断）。

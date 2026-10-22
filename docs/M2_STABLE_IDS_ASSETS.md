@@ -144,6 +144,10 @@ Design direction:
 
 The implementation must test the chosen metadata locations for save/reopen preservation. Do not use PowerPoint's package-internal numeric slide ID as the md-slide-tool stable ID.
 
+The current implementation uses `python-pptx` 0.6.23's public `Slide.name` and picture `Shape.name` properties. These persist as the slide's `p:cSld/@name` and picture's `p:cNvPr/@name`; save/reopen tests verify both values. The picture ID belongs to the shape node rather than the image bytes, so a newly inserted picture has no inherited ID. Preservation through Microsoft PowerPoint desktop editing/save remains a human verification gate.
+
+Quarto creates a fresh PPTX before image postprocessing, so those new slides have no md-slide-tool IDs at the initial association step. The postprocessor uses the existing title match only to associate that fresh output once, then writes the QMD `slide-id` to slide metadata. Saved layouts and any slide that already carries a stable ID are matched by stable ID; titles are not persisted as identity data.
+
 ### 9. Image replacement semantics
 
 Identity represents the logical element, not the image bytes or file path.
