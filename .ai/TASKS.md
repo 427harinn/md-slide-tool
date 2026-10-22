@@ -60,4 +60,4 @@
 - `.ai/REVIEW_CHECKLIST.md` に沿って差分を確認する。
 - テスト結果、Host Bridge、path 変換、未確認項目、M2 以降の対象外を PR に記載する。
 
-**状態:** 未着手
+**状態:** 完了（Draft PR #14 作成。Windows GUI 実機確認は未完了）
