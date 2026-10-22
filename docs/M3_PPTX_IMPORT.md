@@ -358,23 +358,57 @@ Default policy:
 
 A multi-file filesystem update cannot be truly atomic across QMD, assets, extracted images, and PPTX. M3 therefore promises **recoverable transactional consistency**.
 
-### Per-document exclusion
+### Per-document exclusion and bootstrap lock
 
 Render/import/recovery for one managed document must not run concurrently.
 
-Use an atomic per-document lock under:
+#### Bootstrap lock before document-id exists
+
+A legacy schema v1 project has no `documentId` yet, so the first M3-capable render cannot derive a document-id lock safely.
+
+Before reading/upgrading schema v1 assets or generating the first document-id, acquire a **bootstrap lock** derived only from the canonical same-stem project path:
 
 ```text
-.md-slide-tool/locks/<document-id>/
+.md-slide-tool/locks/bootstrap/<sha256(canonical-paired-qmd-path)>/
 ```
 
-The lock is acquired before transaction recovery, render mutation, or import mutation begins.
+Canonical paired QMD path means the absolute normalized path to the same-stem QMD after resolving `.` / `..` and platform path normalization appropriate to the runtime. The bootstrap key must not depend on a newly generated UUID.
 
-Rules:
+Bootstrap rules:
 
-- if the lock is already held by another live md-slide-tool process, fail with `DOCUMENT_BUSY`; do not interpret its transaction as abandoned;
+- every M3-capable render/import entrypoint resolves the same paired QMD path before any schema migration or document-id generation;
+- schema v1 / missing-documentId state acquires the bootstrap lock first;
+- while holding the bootstrap lock, re-read assets/PPTX metadata because another completed process may already have migrated the project;
+- if `documentId` is still absent, generate exactly one document-id, stage/write assets v2 and PPTX managed metadata under the same transaction;
+- after migration completes, release the bootstrap lock;
+- later commands use the normal document-id lock;
+- if migration is already complete after the re-read, do not generate another ID; switch to the existing document-id lock according to the lock-order rule below.
+
+#### Normal document lock
+
+For an already managed schema v2 document, use:
+
+```text
+.md-slide-tool/locks/document/<document-id>/
+```
+
+#### Lock ordering
+
+To avoid races during the transition:
+
+1. bootstrap state: acquire bootstrap lock;
+2. re-read pairing metadata;
+3. if still unmigrated, complete migration while bootstrap lock remains held;
+4. if migrated state is discovered, acquire the document lock before releasing bootstrap lock, then continue under document lock;
+5. never acquire bootstrap after already holding the document lock.
+
+This guarantees two concurrent first M3 renders for one schema v1 project serialize on the same bootstrap key and cannot generate competing document IDs.
+
+General rules:
+
+- if the required lock is already held by another live md-slide-tool process, fail with `DOCUMENT_BUSY`;
 - the lock records owner/process metadata for diagnostics, but correctness relies on atomic lock acquisition rather than timestamps;
-- recovery is attempted only after exclusive ownership of the document lock is obtained;
+- recovery is attempted only after exclusive ownership of the relevant lock is obtained;
 - implementation must use a platform/runtime locking primitive whose ownership is released on process termination, or an equivalent tested mechanism. A timestamp-only stale-lock heuristic is not acceptable.
 
 ### Transaction directory
