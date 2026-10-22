@@ -32,7 +32,7 @@ The user has confirmed the two-layer extension setup on Windows: Local UI packag
 | Acceptance criterion | Verification / check | Current state |
 | --- | --- | --- |
 | AC-M1-01 — Two-host build/open works | User-confirmed Windows E2E; no rerun required for docs-only changes | PASS |
-| AC-M1-02 — Automatic distribution on Reopen in Container | Deferred Release / Distribution; manual VSIX installation was used for the confirmed M1 E2E | DEFERRED; not an M1 gate |
+| AC-M1-02 — Automatic distribution on Reopen in Container | HUMAN_REQUIRED before formal release; manual VSIX installation was used for the confirmed M1 E2E | HUMAN_REQUIRED (deferred; not an M1 gate) |
 | AC-M1-03 — Supported extension metadata | Manifest inspection and official-specification review | PASS |
 | AC-M1-04 — Build through `slidegen render` and resolve expected PPTX | Extension behavior tests, smoke/render; Windows behavior user-confirmed | PASS |
 | AC-M1-05 — Build failure or missing PPTX does not open PowerPoint | Explicit failure/no-open tests | PASS |
@@ -41,7 +41,7 @@ The user has confirmed the two-layer extension setup on Windows: Local UI packag
 | AC-M1-08 — PPTX and docx regressions | Smoke, representative render, docx template generation/ZIP verification | PASS |
 | AC-M1-09 — No preview stack or future-scope implementation returns | Forbidden-scope scan and independent reviews | PASS |
 | AC-M1-10 — CI and automated checks pass | Latest PR head CI, local checks, `git diff --check` | PASS when latest PR head CI is green |
-| AC-M1-11 — Marketplace publication requires release decision | Deferred Release / Distribution; no publication in M1 | DEFERRED; not an M1 gate |
+| AC-M1-11 — Marketplace publication requires release decision | HUMAN_REQUIRED before formal release; no publication in M1 | HUMAN_REQUIRED (deferred; not an M1 gate) |
 
 ## Release / Distribution checks (before formal public release; not M1 gates)
 

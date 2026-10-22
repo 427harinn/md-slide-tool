@@ -11,7 +11,7 @@ Status: PASS | FAIL | UNVERIFIED | HUMAN_REQUIRED
 Evidence: <test, log, or human confirmation>
 ```
 
-`HUMAN_REQUIRED` is a verification method and also the status while the user-side gate is pending. A criterion is not complete while any required criterion is `FAIL`, `UNVERIFIED`, or `HUMAN_REQUIRED`.
+`HUMAN_REQUIRED` is a verification method and also the status while a human gate is pending. A criterion is not complete while any criterion required for the current milestone is `FAIL`, `UNVERIFIED`, or `HUMAN_REQUIRED`. Criteria explicitly marked DEFERRED are not required for the current milestone; their gate becomes active when the stated future phase begins.
 
 ## M1: QMD -> PPTX -> Microsoft PowerPoint
 
@@ -24,7 +24,7 @@ M1 is the build-and-open capability. Marketplace publication and automatic exten
 
 - **AC-M1-02 — DEFERRED (Release / Distribution):** Starting with the documented Windows + Docker Desktop + VS Code workflow and choosing **Reopen in Container** makes the public build-and-open command available without the user installing either VSIX or opening Extension Development Host. Both packages must land in their intended hosts: UI package on Windows Local, build package in the Dev Container Workspace host.
   - Verification: AUTOMATED configuration/package checks plus HUMAN_REQUIRED Windows Dev Containers GUI check before formal release.
-  - Status: DEFERRED; not an M1 completion criterion.
+  - Status: HUMAN_REQUIRED (DEFERRED until formal release; not an M1 completion criterion).
   - Evidence: Manual VSIX installation has been confirmed for M1 functionality. Automatic installation is a future release/distribution task; existing lifecycle `code --install-extension` attempts failed because `code` was absent, and `customizations.vscode.extensions` cannot point at a local VSIX.
 - **AC-M1-03:** Extension host metadata follows current VS Code Remote Extensions guidance and the implementation does not depend on unavailable lifecycle-hook `code` commands or unsupported local-VSIX entries in `customizations.vscode.extensions`.
   - Verification: AUTOMATED source/config tests and official-specification review.
@@ -60,7 +60,7 @@ M1 is the build-and-open capability. Marketplace publication and automatic exten
   - Evidence: Latest PR head CI is the required evidence; local Docker smoke and regression gates also pass. Do not pin a historical SHA or workflow run number here.
 - **AC-M1-11 — DEFERRED (Release / Distribution):** No extension is published to the Visual Studio Marketplace, and no public release/ownership decision is made without explicit human authorization.
   - Verification: HUMAN_REQUIRED at formal release time; automated review can confirm no publish command/workflow was run or added.
-  - Status: DEFERRED; not an M1 completion criterion.
+  - Status: HUMAN_REQUIRED (DEFERRED until formal release; not an M1 completion criterion).
   - Evidence: No publication action/workflow is part of M1. See the cross-cutting Release / Distribution gate in `docs/ROADMAP.md` and `.ai/HUMAN_GATES.md`.
 
 ## Release / Distribution (before formal public release; not an M1 gate)

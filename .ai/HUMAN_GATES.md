@@ -45,7 +45,7 @@ Steps:
 Expected:
 - An explicit release decision is recorded. No publication occurs as part of M1 or PR #14.
 
-Result: DEFERRED
+Result: HUMAN_REQUIRED (deferred until formal release)
 
 H-02: Verify standard automatic extension distribution before formal release
 Steps:
@@ -57,7 +57,7 @@ Expected:
 - The Local UI and Remote Workspace extensions are placed in their intended hosts by the declared distribution mechanism.
 - Build/open, path handling, failure behavior, and PowerPoint editing work as expected.
 
-Result: DEFERRED
+Result: HUMAN_REQUIRED (deferred until formal release)
 ```
 
 ## Typical md-slide-tool checks
