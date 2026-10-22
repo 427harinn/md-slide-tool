@@ -124,3 +124,54 @@ All AC-M2 gates have passed. AC-M2-04 includes the completed PowerPoint desktop 
   - Verification: scope scan + independent Review/Architecture
   - Status: PASS
   - Evidence: Scope scan and independent Review/Architecture confirmed no M3+ production implementation.
+
+
+## M3: PPTX -> QMD Import
+
+M3 acceptance criteria are UNVERIFIED until implementation evidence exists.
+
+- **AC-M3-01:** `slidegen import <pptx>` accepts a managed md-slide-tool PPTX with an existing same-stem QMD and rejects an unrelated unmanaged PPTX.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M3-02:** Existing QMD YAML front matter remains unchanged while normal slides are rebuilt from the PPTX.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M3-03:** Existing stable `slide-id` values identify managed slides; slide title changes, reorder, and deletion are reflected in normalized QMD without changing surviving IDs.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M3-04:** A newly added supported PowerPoint slide receives a new `slide-id` that is written to both rebuilt QMD and PPTX.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M3-05:** Supported text content (title, ordinary paragraphs, bullets, numbered lists) is reconstructed as normalized Markdown without claiming byte-for-byte source recovery.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M3-06:** Existing image elements preserve `element-id`; move/resize changes update EMU geometry in assets.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M3-07:** Image crop edited in PowerPoint is persisted per element and re-applied on the next render without destructively modifying the source image.
+  - Verification: AUTOMATED + representative PowerPoint-compatible roundtrip; HUMAN_REQUIRED only if desktop PowerPoint behavior cannot be proven by agent-executable fixtures.
+  - Status: UNVERIFIED
+- **AC-M3-08:** Replacing image contents while preserving the identified picture shape keeps the same `element-id`; newly inserted picture shapes receive new IDs rather than being guessed as replacements.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M3-09:** New/changed picture bytes are extracted safely under `img/imported/<element-id>.<ext>` when required, without overwriting a shared source image used by other elements.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M3-10:** Deleting a supported image from the successfully parsed PPTX removes its QMD/assets representation only after full validation succeeds.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M3-11:** Unsupported user content that would be lost on the next render causes import to fail before commit; unknown content is not silently ignored.
+  - Verification: AUTOMATED + Review/Architecture
+  - Status: UNVERIFIED
+- **AC-M3-12:** Import is atomic across QMD, assets, extracted images, and PPTX stable-ID writeback; simulated failures leave original files unchanged.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M3-13:** No persistent intermediate JSON becomes a second canonical store for title/body text.
+  - Verification: Architecture review + source scan
+  - Status: UNVERIFIED
+- **AC-M3-14:** Existing QMD -> PPTX render, M2 stable assets behavior, M1 open workflow, and docx generation remain functional.
+  - Verification: AUTOMATED regression
+  - Status: UNVERIFIED
+- **AC-M3-15:** M3 does not implement watchers, automatic sync, dirty-state conflict handling, arbitrary shape support, rotation/z-order, Marketplace publication, or PPTX -> Word.
+  - Verification: scope scan + independent Review/Architecture
+  - Status: UNVERIFIED
