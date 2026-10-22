@@ -96,3 +96,10 @@ Result: PASS — User opened the generated PPTX in desktop PowerPoint, overwrote
 
 Note: PowerPoint reported an empty `slide.name` for slide 1; the user confirmed stable slide and picture IDs on the identified image-bearing slides.
 ```
+
+
+## M3 status
+
+No manual action is required to approve the M3 design.
+
+During implementation, prefer automated PPTX/Open XML/python-pptx fixtures. If actual Microsoft PowerPoint behavior is required to prove crop preservation or picture-replacement identity, create only the minimum necessary M3 HUMAN_REQUIRED gate after all automated/Test/Review/Architecture gates pass.

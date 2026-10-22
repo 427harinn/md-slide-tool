@@ -2,69 +2,125 @@
 
 ## Purpose
 
-Current milestone: M2 Stable IDs and Element Layout.
+Current milestone: M3 PPTX -> QMD Import.
 
-Verify stable identity and persistent image layout while preserving existing M1 build/open behavior and docx functionality.
+Verify safe manual import from an M3-managed PPTX into its paired QMD/assets while preserving M1/M2 behavior and preventing accidental overwrite/data loss.
 
 ## Verification layers
 
 ### 1. Deterministic automated checks
 
-Use unit/integration/fixture tests for ID parsing/generation, duplicate detection, QMD preservation, assets schema, PPTX metadata, layout restore/fallback, cleanup, and regressions.
+Use constructed PPTX/QMD/assets fixtures for managed metadata, title-slide role, QMD baseline hashes, content import, crop, unsupported-content guards, and transaction recovery.
 
 ### 2. Independent agent review
 
-- Test Agent maps every AC-M2 ID to evidence.
-- Review Agent checks failure paths, stale-title matching, accidental data loss, and regression risk.
-- Architecture Agent checks that `element-id` remains general while M2 implements images only, and that M3+ features are not pulled forward.
+- Test Agent maps every AC-M3 criterion to concrete evidence.
+- Review Agent checks destructive failure modes, ambiguous classification, stale-QMD overwrite risk, transaction recovery, and regressions.
+- Architecture Agent checks source-of-truth boundaries, package-level managed metadata, title-slide role, assets v2 responsibilities, and that M4/M5 are not pulled forward.
 
 ### 3. HUMAN_REQUIRED
 
-Prefer automated PPTX package/save-reopen validation. If the selected PPTX metadata cannot be proven to survive an actual Microsoft PowerPoint save without a Windows GUI test, report only that specific preservation check as HUMAN_REQUIRED after all agent-executable gates pass.
+Prefer fully automated Open XML/python-pptx/package fixtures.
 
-## M2 required checks
+Use desktop PowerPoint only for a preservation behavior that cannot be proved otherwise, such as custom document properties, title-role marker, or crop/replacement semantics after real PowerPoint save.
 
-1. ID-free QMD -> add only missing slide/element IDs.
-2. Re-render -> IDs byte-for-byte stable.
-3. Duplicate IDs -> FAIL without auto-repair.
-4. ID augmentation preserves all non-ID QMD content.
-5. assets schema v1 validates integer EMU coordinates and supported `type=image`.
-6. First render -> existing auto layout -> assets persistence.
-7. Second render -> assets layout restored exactly.
-8. Title rename with same slide-id -> association preserved.
-9. Image path change with same element-id -> layout preserved.
-10. Invalid layout -> warning + per-element fallback.
-11. Stale entries -> cleaned only after successful render.
-12. PPTX metadata contains stable slide/element IDs and survives supported roundtrip.
-13. Existing placement tests, root tests, smoke, representative PPTX render, docx regression.
-14. Scope scan confirms no M3+ implementation.
+Do not request human checks until all agent-executable gates pass.
+
+## Pre-implementation feasibility gates
+
+Before production implementation proceeds beyond T-301:
+
+1. Generate representative PPTX files with every currently supported repository PPTX template.
+2. Enumerate slide-local shapes, placeholders, master/layout inheritance, and placeholder types.
+3. Confirm explicit structural classification rules cover current templates without position/name/color guessing.
+4. Confirm package-level managed custom properties and reserved title-role marker survive the selected save/reopen path.
+5. Confirm raw crop representation can be extracted and re-applied without visible drift.
+6. If any of these cannot be resolved deterministically, stop implementation and report UNVERIFIED rather than inventing heuristics.
+
+## M3 required checks
+
+1. M3-managed marker/version/document-id accepted only when assets schema v2 carries the same documentId.
+2. Same-body but different-documentId PPTX/QMD pair rejected.
+3. Unmarked legacy/arbitrary PPTX rejected with re-render guidance.
+4. Presentation remains managed if all old normal slide IDs are deleted.
+5. QMD body baseline hash match accepted.
+6. QMD body changed since render rejected before staging.
+7. Canonical body hash fixtures cover BOM, LF/CRLF/CR, front matter/no front matter, trailing newline and whitespace-only changes.
+8. Front matter byte-preserved.
+9. Title-slide role marker survives move.
+10. Title slide deletion leaves front matter untouched.
+11. Duplicate title marker fails.
+12. Missing/ambiguous title marker with ID-less title-layout slide fails.
+13. New supported normal slide before/after title slide gets new ID.
+14. Malformed/duplicate slide IDs fail.
+15. Title/paragraph/bullet/numbered list normalized.
+16. Slide reorder reflected.
+17. Slide deletion reflected.
+18. Existing image move/resize updates exact EMU geometry.
+19. Malformed/duplicate element IDs fail.
+20. Existing generated caption textbox is recognized by reserved marker and roundtrips to image caption.
+21. Orphan/duplicate caption marker fails; arbitrary textbox still fails.
+22. Crop schema v1 read compatibility.
+23. v1 -> v2 migration.
+24. Zero/positive/PowerPoint-valid negative crop preserved.
+25. Invalid crop rejected.
+26. PPTX -> assets v2 -> PPTX crop roundtrip.
+27. Same identified picture replacement keeps element ID.
+28. Newly inserted picture gets new element ID.
+29. New/changed image extraction under `img/imported/`.
+30. Shared source image is not destructively overwritten.
+31. Image deletion reflected only after full validation.
+32. Master/layout inherited content is not imported.
+33. Supported placeholders are imported structurally.
+34. Unknown slide-local shape/text/chart/SmartArt/etc. causes pre-commit FAIL.
+35. Two concurrent first M3 renders from schema v1 serialize on the same bootstrap lock and produce exactly one shared documentId.
+36. Bootstrap re-read detects migration completed by another process and reuses the existing documentId.
+37. Migrating process keeps bootstrap lock held until it acquires the newly created document lock; a second process attempting entry during this exact handoff cannot enter.
+38. Process that discovers an already-completed migration while holding bootstrap acquires the existing document lock before releasing bootstrap.
+39. Bootstrap -> document lock handoff follows the documented ordering without deadlock.
+40. Per-document concurrent second render/import fails with DOCUMENT_BUSY.
+41. Create/replace/delete handled failure after every file operation rolls back.
+42. Simulated abrupt termination leaves recoverable transaction journal.
+43. Recovery in prepared/committing/rolling_back/committed/rolled_back phases follows documented policy, including committed-cleanup completion without rollback.
+44. Recovery stops rather than overwrites if a target hash matches neither old nor new.
+45. Existing M1/M2/render/docx regressions pass.
+46. Scope scan confirms no watcher/sync/full conflict merge or unrelated feature implementation.
 
 ## AC-to-check mapping
 
 | AC | Planned evidence |
 | --- | --- |
-| AC-M2-01 | ID generation/stability/QMD preservation tests |
-| AC-M2-02 | duplicate-ID failure tests |
-| AC-M2-03 | model/manifest/source review + Architecture Agent |
-| AC-M2-04 | PPTX metadata roundtrip test; HUMAN_REQUIRED only if actual PowerPoint preservation remains unverified |
-| AC-M2-05 | first-render layout persistence fixture |
-| AC-M2-06 | second-render exact layout restore fixture |
-| AC-M2-07 | title rename fixture |
-| AC-M2-08 | path replacement fixture with same element-id |
-| AC-M2-09 | invalid-layout + stale-cleanup tests |
-| AC-M2-10 | assets schema/content assertions + Architecture Agent |
-| AC-M2-11 | existing regression suite, representative render, docx regression |
-| AC-M2-12 | repository scope scan + Review/Architecture |
+| AC-M3-01 | managed marker/version/document-id + assets documentId pairing + same-body wrong-pair + unmarked rejection fixtures |
+| AC-M3-02 | front matter byte-preservation fixture |
+| AC-M3-03 | stable slide ID title/reorder/delete + malformed/duplicate fixtures |
+| AC-M3-04 | new slide ID + title-layout ambiguity fixtures |
+| AC-M3-05 | paragraph/bullet/numbered-list normalization fixtures |
+| AC-M3-06 | image geometry + element-ID validation fixtures |
+| AC-M3-07 | schema v1/v2 crop migration + crop roundtrip |
+| AC-M3-08 | replacement-vs-new-picture identity fixtures |
+| AC-M3-09 | imported image extraction + shared-source safety |
+| AC-M3-10 | image deletion after complete validation |
+| AC-M3-11 | template structural fixtures + caption companion fixtures + unsupported slide-local FAIL |
+| AC-M3-12 | bootstrap-lock first-migration concurrency + gapless migrating/discovered-state lock handoff + document exclusion + create/replace/delete failure injection + phase-specific crash recovery |
+| AC-M3-13 | source scan + Architecture Agent |
+| AC-M3-14 | existing regression suite + representative render/docx |
+| AC-M3-15 | repository scope scan + Review/Architecture |
+| AC-M3-16 | managed custom properties/title/caption metadata save-reopen + assets documentId + concurrent first-migration single-ID evidence |
+| AC-M3-17 | canonical hash byte fixtures + QMD changed-since-render mismatch fixture |
+| AC-M3-18 | title-role move/delete/duplicate/ambiguity fixtures |
 
 ## Regression baseline
 
-For M2 implementation PRs run relevant:
+For implementation PRs run relevant:
 
 - `npm test`
 - `bash scripts/smoke-test.sh`
-- `python3 -m unittest tests/test_postprocess_place.py`
-- new M2 unit/integration tests
-- representative PPTX render
+- M2 Python tests
+- new M3 unit/integration tests
+- representative QMD -> PPTX render
+- representative PPTX -> QMD -> PPTX roundtrip
 - docx regression
 - `git diff --check`
 - latest PR head CI
+
+Any unavailable verification must be reported as UNVERIFIED or HUMAN_REQUIRED, never PASS.

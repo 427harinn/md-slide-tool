@@ -189,3 +189,33 @@ Dev Containersでは `${localWorkspaceFolder}` を `remoteEnv` 等でcontainer�
 - GitHub Actionsはroot tests、既存smoke、Docker内の2回render/title+path変更/layout維持とdocx render回帰を実行する。
 - Windows実行環境ではQuarto / Docker / Bashが使えなかったため、PR #17 head CI run #60で代表render・docx回帰・smokeを実行しPASS。
 - PowerPoint desktopで編集・保存後のmetadata保持のみHUMAN_REQUIRED。
+
+
+## M3確定設計
+
+詳細は `docs/M3_PPTX_IMPORT.md`。
+
+- M3はarbitrary PPTX converterではなく、M3-capable renderがpresentation-level managed markerを埋め込んだmanaged PPTXを対象にする。
+- presentation metadataとして managed flag / format version / document-id / QMD normal-body SHA-256 baselineを保持する。
+- assets schema v2にもtop-level `documentId` を持たせ、PPTX document-idとの一致をpairing条件にする。stem/hashだけではpairingしない。
+- body hashはUTF-8 BOM除外、front matter delimiter境界、CRLF/CR -> LFのみをcanonicalizationとし、Unicode/空白は正規化しない。
+- legacy M2 PPTXをheuristic importせず、一度M3-capable renderしてupgradeしてからimportする。
+- current QMD normal-slide body hashがrender baselineと異なる場合は `QMD_CHANGED_SINCE_RENDER` としてpre-commit FAILする。force mergeはM3に入れない。
+- front matterはbyte-preserveし、front-matter title slideはreserved internal title-role markerでpositionと独立に識別する。
+- title slide移動/削除は安全に扱い、duplicate markerやID-less title-layout ambiguityはFAILする。
+- normal slideは `slide-id`、visual elementは `element-id` で識別する。malformed/duplicate IDはFAIL。
+- 新規supported slide/imageにはIDを発行しQMDだけでなくstaged PPTXにも書き戻す。
+- text復元はtitle / paragraph / bullet / numbered listをnormalized Markdownとして扱う。
+- template/user classificationはplaceholder/master/layout等のexplicit structural ruleで行い、unknown slide-local contentを見た目で無視しない。
+- rendererが生成するimage caption textboxは `mdst-caption-<element-uuid>` markerでpicture elementと1:1対応させ、通常のarbitrary textboxとは区別する。
+- image move/resizeはassetsのEMU geometryへ反映する。
+- PowerPoint画像cropはM3正式対応。assets schema v2へmigrationし、cropはraw OOXML percentage整数（100000 = 100%）でper-element保存する。
+- schema v1はno-cropとして読む。invalid/non-positive effective cropはFAILし、次renderでv2 cropを再適用する。
+- same identified picture shapeの画像差し替えはsame elementとして扱う。shape削除後のnew pictureはnew elementとし、類似性で推測しない。
+- changed/new imageは必要に応じ `img/imported/<element-id>.<ext>` へ抽出し、共有source画像を直接上書きしない。
+- importはper-document lockと `.md-slide-tool/transactions/<document-id>/<txid>/` のmanifest/old/newを使うrecoverable transactionとする。
+- transactionはprepared/committing/committed/rolling_back/rolled_backのphaseを持ち、create/replace/deleteごとのrollbackを定義する。
+- handled commit failureはrollbackし、abrupt termination後は次回render/import前にphase-aware hash-checked recoveryを行う。committed後のcleanup中断はrollbackせずcleanupを完了する。
+- recovery時にcurrent fileがold/newどちらのhashにも一致しない場合はunknown user editを上書きせずmanual-recovery errorで停止する。
+- watcher/syncはM4、full dirty conflict handlingはM5。M3では手動importとstale-QMD guardまで。
+- 将来課題としてinternal ID表示の隠蔽、incremental build、build state UI、build中の編集/多重build制御を追跡する。

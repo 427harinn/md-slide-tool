@@ -2,81 +2,81 @@
 
 ## マイルストーン名
 
-M2: Stable IDs and Element Layout
+M3: PPTX -> QMD Import
 
 ## 背景
 
-M0 Repository Cleanup と M1 QMD -> PPTX -> Microsoft PowerPoint は完了した。
+M0 Repository Cleanup、M1 QMD -> PPTX -> Microsoft PowerPoint、M2 Stable IDs and Element Layout は完了した。
 
-現在のPPTX後処理は主に slide title でQMD側のスライド情報と生成済みPPTXを対応付けている。この方式ではタイトル変更、同名タイトル、将来のPPTX -> QMD往復に弱い。
+M2でQMD/PPTX/assetsの間に `slide-id` / `element-id` を導入し、画像のx/y/width/heightを永続化できるようになった。PowerPoint desktop保存後もstable IDが保持されることを実機確認済み。
 
-M2では、QMD / PPTX / persistent layout の間で同じstable IDを使い、画像の配置を再render後も保持できる土台を作る。
+M3では、このidentityを利用して、md-slide-toolが生成したPPTXをPowerPointで編集した結果を既存QMD/assetsへ安全に戻す。
 
-詳細仕様は `docs/M2_STABLE_IDS_ASSETS.md`。
+詳細仕様は `docs/M3_PPTX_IMPORT.md`。
 
 ## 目的
 
 ```text
-QMD
-  slide-id
-  element-id
-     |
-     v
-QMD -> PPTX render
-     |
-     +-> PPTXへstable IDを埋め込む
-     |
-     +-> assets.jsonにlayoutあり -> 再適用
-     |
-     +-> layoutなし -> 現在のauto layout -> assets.jsonへ保存
+QMD + assets
+  -> slidegen render
+  -> managed PPTX
+  -> PowerPoint edit/save
+  -> slidegen import
+  -> rebuilt QMD + updated assets
 ```
 
 ## 設計原則
 
-- slide title、slide order、image pathをstable identityとして使わない。
-- slideは `slide-id`、要素は `element-id` で識別する。
-- `element-id` は将来のshape等にも使える一般IDとする。
-- M2実装対象のelement typeはimageのみ。
-- QMDがstable IDの正本。
-- IDがない既存QMDには不足分だけ自動発行する。
-- 既存IDはrender時に変更しない。
-- duplicate IDは自動修正せずFAIL。
-- persistent JSONは文字情報の正本にしない。
-- image layoutはEMU整数で保存する。
-- assets layoutがあれば優先し、なければ既存auto layoutを使う。
-- 既存 `place=` は初回/fallback preferenceとして維持する。
-- docxを壊さない。
-- M3のPPTX -> QMD importを先取り実装しない。
+- arbitrary PPTXを推測変換せず、presentation-level managed markerを持つM3-managed PPTXだけをimportする。
+- M3-capable renderはmanaged marker / format-version / document-id / QMD body SHA-256 baselineをPPTXへ埋め込む。
+- QMD normal-slide bodyがrender後に変更されていたらimportをpre-commit FAILし、意図しない上書きを防ぐ。
+- front matterは既存QMDからbyte-preserveする。
+- front-matter title slideはreserved internal role markerで位置と独立に識別する。
+- normal slideはstable `slide-id`、visual elementは `element-id` で識別する。
+- 新規supported slide/imageにはIDを発行しPPTXにも書き戻す。
+- title/bodyはnormalized QMDへ書き戻し、persistent intermediate text JSONは作らない。
+- image geometryとcropはassetsへ保存する。
+- crop導入でassets schema v2へmigrationし、v1はno-cropとして後方互換で読む。
+- unsupported slide-local user contentを黙って捨てない。
+- importはtransaction journal + backup + recoveryによりrecoverable consistencyを保証する。
+- M4 watcher/sync、M5 full conflict handlingを先取りしない。
 
 ## 対象外
 
-- PPTX -> QMD import
-- QMD/PPTX file watcher
-- automatic sync
-- conflict handling
+- arbitrary external PPTX conversion
+- heuristic legacy M2 import（M3-capable renderを一度実行する）
+- automatic file watch / sync
+- full dirty-state conflict merge
+- force import over changed QMD
+- arbitrary shapes / SmartArt / charts / free-position text boxes
+- rotation / z-order
+- title slide/front matter reverse import
 - PowerPoint Add-in
-- shape layout persistence
-- crop / rotation / z-order
-- text-box layout persistence
 - Marketplace publication
 - PPTX -> Word
 
 ## 完了条件
 
-- IDなしQMDへ不足している `slide-id` / `element-id` を安全に付与できる。
-- 既存IDは繰り返しrenderしても変わらない。
-- duplicate slide/element IDを検出してFAILできる。
-- generated PPTXへslide/element stable IDを埋め込める。
-- 初回画像は現在のauto layoutを使用できる。
-- 初回/fallback layoutを `<stem>.assets.json` に保存できる。
-- 次回renderではsaved layoutを優先して同じ画像矩形を復元できる。
-- slide title変更後もstable IDで正しいslideへ画像を配置できる。
-- image path変更後も同じ `element-id` ならlayoutを維持できる。
-- stale assetsを成功render時に整理できる。
-- invalid layoutは対象要素だけWARN + auto layoutへfallbackできる。
-- PPTX / docx回帰テストがPASSする。
-- M3以降の機能を先取りしていない。
+- managed marker/version/document-idによってmanaged PPTXを明確に判定できる。
+- current QMD bodyがrender baselineと違う場合にimportを止められる。
+- title slideをpositionではなくreserved role markerで識別できる。
+- title marker移動/削除/duplicate/ambiguous lossを安全に扱える。
+- `slidegen import <pptx>` がsame-stem QMDを対象に動作する。
+- QMD front matterを維持する。
+- title / paragraph / bullet / numbered listをnormalized QMDへ復元できる。
+- slide reorder/delete/new slideをstable IDで反映できる。
+- existing imageのmove/resizeをassetsへ反映できる。
+- assets v1を読み、v2へ安全にmigrationできる。
+- image cropをv2 assetsへ保存し、次renderで見た目を再現できる。
+- same identified shapeの画像差し替えでelement-idを維持できる。
+- 新規imageへelement-idを発行し、画像を安全に抽出してQMD/PPTX/assetsへ反映できる。
+- image削除をQMD/assetsへ反映できる。
+- template/master/layoutとuser contentをexplicit structural ruleで分類できる。
+- unsupported destructive contentを検出した場合はcommit前にFAILする。
+- handled commit failureはrollbackし、simulated crashは次回commandでrecoverできる。
+- unknown post-crash editsをrecoveryが勝手に上書きしない。
+- existing render / M1 open / M2 assets / docx regressionを壊さない。
 
 ## 状態
 
-実装・自動テスト・独立Test/Review/Architecture・PR #17 head CI run #62はPASS。H-M2-01のPowerPoint desktop保存後metadata保持もPASSし、必須ACはすべて完了。PR #17はDraft解除可能（mergeは別判断）。
+設計レビュー指摘を反映済み。再Review / Architecture待ち。未実装。

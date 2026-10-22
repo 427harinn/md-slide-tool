@@ -131,7 +131,7 @@ Marketplace公開、publisher設定、通常のReopen in Containerでの自動ex
 
 ## M2: Stable IDs and Element Layout
 
-状態: 実装済み。Draft PR CI はPASS。PowerPoint desktop 保存確認が残っている。
+状態: 完了。stable ID、image assets layout、PowerPoint desktop保存後のmetadata保持まで確認済み。
 
 目的:
 将来の往復変換に必要なstable identityとvisual element layout保存を導入する。
@@ -153,24 +153,36 @@ Marketplace公開、publisher設定、通常のReopen in Containerでの自動ex
 
 ## M3: PPTX -> QMD Import
 
-目的:
-PowerPoint で保存した PPTX を QMD に再構築できるようにする。
+状態: 設計レビュー指摘を反映済み・未実装。
 
-CLI 候補:
+詳細: `docs/M3_PPTX_IMPORT.md`
+
+目的:
+md-slide-toolで生成したmanaged PPTXをPowerPointで編集・保存した結果を、stable IDとpresentation-level metadataを使って既存QMD/assetsへ安全に戻せるようにする。
+
+初期CLI:
 
 ```bash
 slidegen import presentation.pptx
 ```
 
-内容:
+主要方針:
 
-- title / body / images の抽出
-- template 固有要素とユーザーコンテンツの分離
-- image layout を assets.json へ保存
-- ID のない PowerPoint 追加要素には新しい element id を発行
-- 文字情報は中間 JSON として永続化しない
-
-M3 ではまず手動コマンドとして完成させ、自動監視を先に実装しない。
+- arbitrary PPTXはimportせず、managed marker / format version / document-idを持つPPTXだけを対象
+- same-stem QMD必須
+- render時にQMD normal-body SHA-256をPPTXへ保存し、未render QMD編集があればimportを止める
+- front matterを維持
+- front-matter title slideはreserved internal role markerでpositionと独立に識別
+- title / paragraph / bullet / numbered listをnormalized Markdownへ再構築
+- slide reorder / delete / new slideをstable IDで反映
+- image add / delete / replacementを `element-id` で追跡
+- changed/new imageは `img/imported/<element-id>.<ext>` へ安全に抽出
+- image x/y/width/heightをassetsへ保存
+- assets schema v2でPowerPoint image cropをraw OOXML percentage整数として保存し、次renderで再適用
+- schema v1はno-cropとして後方互換で読む
+- template/master/layoutとuser contentはexplicit structural ruleで分類し、unknown slide-local contentはFAIL
+- QMD/assets/images/PPTX ID writebackはjournal + backup + hash recoveryを使うrecoverable transaction
+- watch/syncはM4、full dirty conflict handlingはM5
 
 ## M4: Docker Sync Engine
 
