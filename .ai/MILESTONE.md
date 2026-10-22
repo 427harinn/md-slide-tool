@@ -94,4 +94,4 @@ QMD -> PPTX -> Microsoft PowerPoint
 
 ## 状態
 
-計画済み・未着手
+完了（実コンテナ・GUI検証は環境制約により未確認）

@@ -43,29 +43,12 @@ docx は現在も利用している正式機能。削除・縮小しない。
 
 PowerPoint 系が安定した後、完成した PPTX/QMD の内容から Word 文書を生成する機能も将来候補とする。
 
-## 現在存在する実験実装
+## 削除した実験経路
 
-### VS Code PPTX Preview
-
-main には次の Preview MVP が存在する。
-
-```text
-PPTX -> LibreOffice -> PDF -> PDF.js -> VS Code Webview
-```
-
-今後は Microsoft PowerPoint 自体を実編集環境として利用する方針になったため、Repository Cleanup の削除候補。
-
-### Auto Preview
-
-`pptx_autostartup` branch には QMD save -> render -> preview refresh の実験がある。
-
-main へそのまま merge する予定はない。debounce / running / pending / error handling の考え方は将来の Sync Engine の参考にできる。
-
-## 現在の自動 build 経路
-
-Dev Container settings には `triggerTaskOnSave` を利用した QMD save -> `Quarto Build` task の設定がある。
-
-将来 Docker Sync Engine を導入すると経路が重複するため、Repository Cleanup で整理対象とする。
+- VS Code 内 PPTX -> PDF preview と PDF.js Webview は不採用。関連拡張コードと `pdfjs-dist` 依存を削除した。
+- Preview 専用だった LibreOffice は Dockerfile から削除した。PPTX build に必要な Quarto / Pandoc / Python / python-pptx / Pillow は維持する。
+- `triggerTaskOnSave` による保存時 build は削除した。`.vscode/tasks.json` の `Quarto Build` は手動 task として残す。
+- `pptx_autostartup` 等の Auto Preview 実験は main に取り込んでいない。
 
 ## 主な技術
 
@@ -75,7 +58,7 @@ Dev Container settings には `triggerTaskOnSave` を利用した QMD save -> `Q
 - Python 3 / python-pptx / Pillow
 - Quarto / Pandoc
 - Docker / Dev Container
-- VS Code Extension
+- VS Code task integration (manual tasks only)
 
 ## 今後の設計原則
 
@@ -119,7 +102,7 @@ Human -> merge
 - `bash scripts/smoke-test.sh`
 - GitHub Actions: npm ci -> smoke test
 
-Repository Cleanup で正式機能に合わせてテスト範囲を見直す。
+CI smoke test は CLI help、template listing、npm package contents を確認する。Python unittest は PPTX image placement 後処理を確認する。Preview 専用テストは削除した。
 
 ## Cleanup 時の注意
 
@@ -128,3 +111,20 @@ Repository Cleanup で正式機能に合わせてテスト範囲を見直す。
 - PPTX image placement の現在動作を壊さない
 - 実験コードを削除する前に正式経路から参照されていないことを確認する
 - cleanup と次マイルストーンの新機能を同一 PR に混ぜない
+- `projects/` 配下の既存データは、個別に対象指定されない限り削除しない
+
+## Cleanup後の確認済み状態
+
+- 正式 build 経路は `slidegen render` -> `scripts/render-current.sh` -> QMD前処理 -> Quarto -> PPTX画像後処理。
+- `slidegen new` は `pptx` / `docx` / `html` の各 template を生成する。docx は正式機能として維持する。
+- VS Code に残る build task は手動実行。保存時自動実行の拡張・設定はない。
+- `compose.yml` と追跡済み `.DS_Store` を削除し、`.DS_Store` は Git ignore に追加済み。既存 project コンテンツは変更しない。
+- HTML template は残した。現行 template QMD は `style.css` を参照するが、同梱されていない。既存 HTML project の利用状況・修正方針は未確認のため、今回その template は変更していない。
+- PowerPoint 自動起動、PPTX -> QMD、assets.json、stable ID、Sync Engine、競合処理は未実装で、後続マイルストーンの対象。
+
+## Repository Cleanup 検証記録 (2026-10-22)
+
+- `npm test` は 10 件成功。CLI help / template listing、docx template からの一時 project 生成、`npm pack --dry-run` も確認した。
+- `scripts/smoke-test.sh` はこの Windows 実行環境から直接起動できなかったため、構成コマンドを個別に確認した。Git Bash と `python3` の WindowsApps shim が実行権限エラーとなる。
+- PPTX render 実行は Python 起動時に権限エラーで停止した。Quarto は PATH 上になく、Docker daemon もアクセス拒否のため、実コンテナ / 実PPTX生成は未確認。
+- VS Code GUI、Dev Container GUI、PowerPoint 実機は未確認。

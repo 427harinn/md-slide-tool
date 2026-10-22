@@ -13,16 +13,8 @@
             "extensions": [
                 "quarto.quarto",
                 "yzhang.markdown-all-in-one",
-                "Gruntfuggly.triggertaskonsave",
                 "augustocdias.tasks-shell-input"
-            ],
-            "settings": {
-                "triggerTaskOnSave.tasks": {
-                    "Quarto Build": [
-                        "projects/**/*.qmd"
-                    ]
-                }
-            }
+            ]
         }
     }
 }

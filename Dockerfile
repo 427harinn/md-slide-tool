@@ -1,4 +1,4 @@
-FROM node:20-bullseye
+FROM node:20-bookworm
 
 WORKDIR /work
 
@@ -8,7 +8,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     openjdk-17-jre \
     pandoc \
-    libreoffice-impress \
     locales \
     fonts-noto-cjk \
     libgbm1 \
@@ -20,6 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
     locale-gen
+
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
 
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
@@ -42,7 +44,4 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 
 RUN quarto install chrome-headless-shell --no-prompt
 
-RUN pip3 install --no-cache-dir python-pptx Pillow
-
-
-RUN libreoffice --version || soffice --version
+RUN python3 -m pip install --no-cache-dir python-pptx Pillow
