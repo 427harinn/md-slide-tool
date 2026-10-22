@@ -50,7 +50,7 @@ M1 では実装しない:
 
 ## Architecture principle
 
-\`\`\`text
+```text
 Dev Container / Core
   - slidegen render
   - output PPTX resolution
@@ -65,7 +65,7 @@ Host Bridge
         |
         v
 Microsoft PowerPoint
-\`\`\`
+```
 
 Host Bridge は「PPTXを開く」以外の責務を持たない。
 
@@ -76,15 +76,15 @@ Remote / Dev Container 環境では Workspace Extension は container 側で動�
 VS Code の公式方針に沿い、最初に以下を検証する。
 
 1. UI Extension をホスト側で動かす
-2. \`vscode.env.openExternal\` で host-side PPTX を既定アプリで開く
-3. Dev Container の \`\${localWorkspaceFolder}\` を host path として bridge に渡せることを確認する
-4. \`/work/.../file.pptx\` と host workspace path + relative path の対応を確認する
+2. `vscode.env.openExternal` で host-side PPTX を既定アプリで開く
+3. Dev Container の `${localWorkspaceFolder}` を host path として bridge に渡せることを確認する
+4. `/work/.../file.pptx` と host workspace path + relative path の対応を確認する
 5. Windows の path separator / spaces / non-ASCII filenames を確認する
 
 参考:
 - VS Code Remote extensions: UI extensions run locally; workspace extensions run remotely.
-- VS Code recommends \`vscode.env.openExternal\` for opening a local browser/application from remote development.
-- Dev Containers supports passing \`\${localWorkspaceFolder}\` into the container via \`remoteEnv\`.
+- VS Code recommends `vscode.env.openExternal` for opening a local browser/application from remote development.
+- Dev Containers supports passing `${localWorkspaceFolder}` into the container via `remoteEnv`.
 
 ## Preferred implementation direction
 
@@ -101,19 +101,19 @@ PoC で成立する場合は、以下の責務分離を優先する。
 
 - receive host path or workspace-relative PPTX path
 - validate .pptx
-- call \`vscode.env.openExternal\`
+- call `vscode.env.openExternal`
 - show host-open errors
 
 Host/UI sideに Quarto、Python、QMD parsing、render logic を置かない。
 
 ## CLI behavior
 
-既存の \`slidegen render <qmd>\` は壊さない。
+既存の `slidegen render <qmd>` は壊さない。
 
 M1 では以下のどちらかを PoC 結果に応じて選ぶ。
 
-- A: \`slidegen render\` 成功後に host bridge が利用可能なら自動 open
-- B: \`Build and Open PowerPoint\` という VS Code command/task を追加し、その中で既存 render を呼ぶ
+- A: `slidegen render` 成功後に host bridge が利用可能なら自動 open
+- B: `Build and Open PowerPoint` という VS Code command/task を追加し、その中で既存 render を呼ぶ
 
 将来 M4 で QMD save -> render -> open に接続しやすい方式を選ぶ。
 
@@ -132,7 +132,7 @@ CLI単体利用時にホスト bridge が存在しない場合でも、render �
 Windows + Docker Desktop + VS Code + Reopen in Container の標準環境で:
 
 1. Dev Container build succeeds
-2. \`slidegen render\` の既存 render が成功する
+2. `slidegen render` の既存 render が成功する
 3. build 後に対象 PPTX が Windows 側で開く
 4. PowerPoint で正しいファイルが開かれる
 5. 日本語/空白を含む path でも動く
