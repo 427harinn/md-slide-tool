@@ -2,7 +2,7 @@
 
 ## 実行方式
 
-VS Code extension の `Build and Open in Microsoft PowerPoint` command が、workspace extension host (Dev Container) 内で既存の `scripts/render-current.sh` を実行します。build 成功後だけ `vscode.env.openExternal` に `file:` URI を渡します。VS Code / OS の file association が `.pptx` を既に起動している PowerPoint に渡します。
+VS Code extension の `Build and Open in Microsoft PowerPoint` command が、workspace extension host (Dev Container) 内で既存の `slidegen render` を実行します。build 成功後だけ `vscode.env.openExternal` に `file:` URI を渡します。VS Code / OS の file association が `.pptx` を PowerPoint に渡します。
 
 変換処理や PPTX の編集・監視は extension に実装していません。既存の `slidegen render` と同じ render script を使います。
 

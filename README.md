@@ -325,7 +325,7 @@ templates/pptx/my_template/
 
 ## Build and Open in Microsoft PowerPoint (M1)
 
-The VS Code extension command **Build and Open in Microsoft PowerPoint** runs the existing `scripts/render-current.sh` from the Dev Container. After a successful build, it maps the `/work` output path to the host workspace path and calls `vscode.env.openExternal` with a `file:` URI, asking Windows file association to open the PPTX in Microsoft PowerPoint.
+The VS Code extension command **Build and Open in Microsoft PowerPoint** runs `slidegen render` from the Dev Container. After a successful build, it maps the `/work` output path to the host workspace path and calls `vscode.env.openExternal` with a `file:` URI, asking Windows file association to open the PPTX in Microsoft PowerPoint.
 
 The current checkout's extension can be launched using **Run Extension** in `vscode-extension/.vscode/launch.json`. In the Extension Development Host, open a QMD file, then select the command from its Explorer context menu or the Command Palette. If building fails, PowerPoint is not opened. If the host bridge fails, the PPTX build remains successful and the extension reports the output path.
 

@@ -8,7 +8,7 @@ QMD の build は Docker / Dev Container 内で実行し、生成した PPTX を
 
 ### 確定方針
 
-- 既存の `slidegen render` と `scripts/render-current.sh` を build の正規経路として維持する。
+- 既存の `slidegen render` を build の正規経路として維持する。
 - VS Code の `vscode.env.openExternal` でホスト側の `file:` URI を開く feasibility PoC を行う。
 - Dev Container の `${localWorkspaceFolder}` を `MD_SLIDE_TOOL_HOST_WORKSPACE` として container extension へ渡し、`/work` からの相対位置でホストパスを作る。
 - build が失敗した場合は PowerPoint を開かない。

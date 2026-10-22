@@ -9,8 +9,8 @@ import fs from 'node:fs/promises';
 
 function runRender(qmdPath, workspaceRoot) {
   return new Promise((resolve, reject) => {
-    const renderScript = path.posix.join(workspaceRoot, 'scripts', 'render-current.sh');
-    const child = spawn('bash', [renderScript, qmdPath], { cwd: workspaceRoot, stdio: 'inherit' });
+    const slidegenCli = path.posix.join(workspaceRoot, 'cli', 'slidegen.js');
+    const child = spawn('node', [slidegenCli, 'render', qmdPath], { cwd: workspaceRoot, stdio: 'inherit' });
     child.once('error', reject);
     child.once('close', (code, signal) => {
       if (signal) reject(new Error(`PPTX build stopped by signal: ${signal}`));
@@ -37,7 +37,7 @@ export function activate(context) {
         workspaceRoot: workspace.uri.fsPath,
         hostWorkspace: process.env.MD_SLIDE_TOOL_HOST_WORKSPACE,
         runBuild: (qmdPath) => runRender(qmdPath, workspace.uri.fsPath),
-        outputExists: async (pptxPath) => fs.access(pptxPath).then(() => true, () => false),
+        outputExists: async (pptxPath) => fs.stat(pptxPath).then((stat) => stat.isFile(), () => false),
         openExternal: (fileUri) => vscode.env.openExternal(vscode.Uri.parse(fileUri)),
       });
       if (result.status === 'built-host-bridge-unavailable') {
