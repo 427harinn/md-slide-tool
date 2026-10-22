@@ -134,19 +134,19 @@ CI smoke test は CLI help、template listing、npm package contents を確認�
 
 ユーザーの標準操作は以下。
 
-\`\`\`text
+```text
 Windows
   -> Docker Desktop起動
   -> VS Codeでrepositoryを開く
   -> Dev Containers: Reopen in Container
   -> Dev Container内でslidegen / Quarto / Pythonを実行
   -> PowerPointのみWindows host側で利用
-\`\`\`
+```
 
 M1ではこの経路を第一検証対象にする。
 
-Remote/Dev Containerで外部アプリを開く場合、Workspace Extensionからhostアプリを直接spawnする設計を避ける。VS Code公式ドキュメントでは、ローカルアプリを開く用途に \`vscode.env.openExternal\` を推奨し、local resourceが必要な処理にはUI extensionを使える。
+Remote/Dev Containerで外部アプリを開く場合、Workspace Extensionからhostアプリを直接spawnする設計を避ける。VS Code公式ドキュメントでは、ローカルアプリを開く用途に `vscode.env.openExternal` を推奨し、local resourceが必要な処理にはUI extensionを使える。
 
-Dev Containersでは \`\${localWorkspaceFolder}\` を \`remoteEnv\` 等でcontainerへ渡せるため、\`/work\` 配下の相対pathとhost workspace pathを組み合わせる方式をPoC候補とする。
+Dev Containersでは `${localWorkspaceFolder}` を `remoteEnv` 等でcontainerへ渡せるため、`/work` 配下の相対pathとhost workspace pathを組み合わせる方式をPoC候補とする。
 
-詳細は \`docs/M1_POWERPOINT_OPEN.md\`。
+詳細は `docs/M1_POWERPOINT_OPEN.md`。
