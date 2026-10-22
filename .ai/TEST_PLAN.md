@@ -75,14 +75,16 @@ Before production implementation proceeds beyond T-301:
 34. Unknown slide-local shape/text/chart/SmartArt/etc. causes pre-commit FAIL.
 35. Two concurrent first M3 renders from schema v1 serialize on the same bootstrap lock and produce exactly one shared documentId.
 36. Bootstrap re-read detects migration completed by another process and reuses the existing documentId.
-37. Bootstrap -> document lock handoff follows the documented ordering without deadlock.
-38. Per-document concurrent second render/import fails with DOCUMENT_BUSY.
-39. Create/replace/delete handled failure after every file operation rolls back.
-40. Simulated abrupt termination leaves recoverable transaction journal.
-41. Recovery in prepared/committing/rolling_back/committed/rolled_back phases follows documented policy, including committed-cleanup completion without rollback.
-42. Recovery stops rather than overwrites if a target hash matches neither old nor new.
-43. Existing M1/M2/render/docx regressions pass.
-44. Scope scan confirms no watcher/sync/full conflict merge or unrelated feature implementation.
+37. Migrating process keeps bootstrap lock held until it acquires the newly created document lock; a second process attempting entry during this exact handoff cannot enter.
+38. Process that discovers an already-completed migration while holding bootstrap acquires the existing document lock before releasing bootstrap.
+39. Bootstrap -> document lock handoff follows the documented ordering without deadlock.
+40. Per-document concurrent second render/import fails with DOCUMENT_BUSY.
+41. Create/replace/delete handled failure after every file operation rolls back.
+42. Simulated abrupt termination leaves recoverable transaction journal.
+43. Recovery in prepared/committing/rolling_back/committed/rolled_back phases follows documented policy, including committed-cleanup completion without rollback.
+44. Recovery stops rather than overwrites if a target hash matches neither old nor new.
+45. Existing M1/M2/render/docx regressions pass.
+46. Scope scan confirms no watcher/sync/full conflict merge or unrelated feature implementation.
 
 ## AC-to-check mapping
 
@@ -99,7 +101,7 @@ Before production implementation proceeds beyond T-301:
 | AC-M3-09 | imported image extraction + shared-source safety |
 | AC-M3-10 | image deletion after complete validation |
 | AC-M3-11 | template structural fixtures + caption companion fixtures + unsupported slide-local FAIL |
-| AC-M3-12 | bootstrap-lock first-migration concurrency + lock handoff + document exclusion + create/replace/delete failure injection + phase-specific crash recovery |
+| AC-M3-12 | bootstrap-lock first-migration concurrency + gapless migrating/discovered-state lock handoff + document exclusion + create/replace/delete failure injection + phase-specific crash recovery |
 | AC-M3-13 | source scan + Architecture Agent |
 | AC-M3-14 | existing regression suite + representative render/docx |
 | AC-M3-15 | repository scope scan + Review/Architecture |
