@@ -13,6 +13,9 @@ md-slide-tool は、Quarto ベースの QMD から PowerPoint / Word などの�
 - PPTX に画像を後処理で配置
 - docx project/template を利用
 - Docker / Dev Container で実行環境を揃える
+- VS Code extension の `Build and Open in Microsoft PowerPoint` command から既存 render script を実行し、成功後に host bridge で PPTX を開く（M1）
+
+M1 の unit tests と Dev Container build regression は通過。Windows VS Code Remote から `vscode.env.openExternal` が実際の PowerPoint へ配送されるかは Windows GUI 実機で要確認。
 
 ## 現在の正式機能
 
@@ -45,15 +48,15 @@ PowerPoint 系が安定した後、完成した PPTX/QMD の内容から Word �
 
 ## 現在存在する実験実装
 
-### VS Code PPTX Preview
+### VS Code PPTX Preview (legacy)
 
-main には次の Preview MVP が存在する。
+既存 Preview MVP のコードは repository に残存しているが、M1 workflow では利用しない。
 
 ```text
 PPTX -> LibreOffice -> PDF -> PDF.js -> VS Code Webview
 ```
 
-今後は Microsoft PowerPoint 自体を実編集環境として利用する方針になったため、Repository Cleanup の削除候補。
+Microsoft PowerPoint 自体を実編集環境として利用する。Preview UI は M1 で使わず、cleanup の別タスクとして扱う。
 
 ### Auto Preview
 
@@ -64,6 +67,8 @@ main へそのまま merge する予定はない。debounce / running / pending 
 ## 現在の自動 build 経路
 
 Dev Container settings には `triggerTaskOnSave` を利用した QMD save -> `Quarto Build` task の設定がある。
+
+M1 では QMD save の自動 build は有効化しない。`Build and Open in Microsoft PowerPoint` はユーザーが明示的に起動する command。
 
 将来 Docker Sync Engine を導入すると経路が重複するため、Repository Cleanup で整理対象とする。
 
@@ -91,8 +96,7 @@ Dev Container settings には `triggerTaskOnSave` を利用した QMD save -> `Q
 
 ## 今後のマイルストーン
 
-- M0: Repository Cleanup
-- M1: QMD -> PPTX -> Microsoft PowerPoint
+- M1: QMD -> PPTX -> Microsoft PowerPoint (実装済み、Windows GUI 実機確認待ち)
 - M2: Stable IDs and Image Layout
 - M3: PPTX -> QMD Import
 - M4: Docker Sync Engine
@@ -118,8 +122,9 @@ Human -> merge
 - `python3 -m unittest tests/test_postprocess_place.py`
 - `bash scripts/smoke-test.sh`
 - GitHub Actions: npm ci -> smoke test
+- VS Code extension: `npm --prefix vscode-extension test`
 
-Repository Cleanup で正式機能に合わせてテスト範囲を見直す。
+M1 は Docker image 内で smoke、PPTX render、docx regression を確認する。
 
 ## Cleanup 時の注意
 

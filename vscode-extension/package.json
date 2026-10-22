@@ -1,16 +1,17 @@
 {
-  "name": "md-slide-tool-pptx-preview",
-  "displayName": "md-slide-tool PPTX Preview",
+  "name": "md-slide-tool-powerpoint",
+  "displayName": "md-slide-tool PowerPoint",
   "version": "0.1.0",
   "publisher": "md-slide-tool",
-  "description": "Preview finished PPTX files in VS Code using LibreOffice and PDF.js.",
+  "description": "Build PPTX files in the Dev Container and open them in the host PowerPoint app.",
   "main": "./src/extension.js",
   "type": "module",
   "engines": {
     "vscode": "^1.92.0"
   },
   "activationEvents": [
-    "onCommand:mdSlideTool.openPptxPreview"
+    "onCommand:mdSlideTool.openPptxPreview",
+    "onCommand:mdSlideTool.buildAndOpenPowerPoint"
   ],
   "categories": [
     "Other"
@@ -21,6 +22,11 @@
         "command": "mdSlideTool.openPptxPreview",
         "title": "Open PPTX Preview",
         "category": "md-slide-tool"
+      },
+      {
+        "command": "mdSlideTool.buildAndOpenPowerPoint",
+        "title": "Build and Open in Microsoft PowerPoint",
+        "category": "md-slide-tool"
       }
     ],
     "menus": {
@@ -28,6 +34,11 @@
         {
           "command": "mdSlideTool.openPptxPreview",
           "when": "resourceExtname == .pptx",
+          "group": "navigation@50"
+        },
+        {
+          "command": "mdSlideTool.buildAndOpenPowerPoint",
+          "when": "resourceExtname == .qmd",
           "group": "navigation@50"
         }
       ]

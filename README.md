@@ -323,55 +323,12 @@ templates/pptx/my_template/
 - Dockerfile 内の Quarto インストールは 1.9.36 に固定されています。
 - PPTX 画像処理では `place` 属性を配置候補の優先指定として扱いますが、強制配置ではなく、置けない場合は自動選択に fallback します。
 
-## VS Code PPTX Preview MVP
+## Build and Open in Microsoft PowerPoint (M1)
 
-This repository includes an independent VS Code extension under `vscode-extension/` for previewing finished `.pptx` files in a VS Code Webview tab.
+The VS Code extension command **Build and Open in Microsoft PowerPoint** runs the existing `scripts/render-current.sh` from the Dev Container. After a successful build, it maps the `/work` output path to the host workspace path and calls `vscode.env.openExternal` with a `file:` URI, asking Windows file association to open the PPTX in Microsoft PowerPoint.
 
-### Supported execution model
+The current checkout's extension can be launched using **Run Extension** in `vscode-extension/.vscode/launch.json`. In the Extension Development Host, open a QMD file, then select the command from its Explorer context menu or the Command Palette. If building fails, PowerPoint is not opened. If the host bridge fails, the PPTX build remains successful and the extension reports the output path.
 
-- Host OS: Windows or macOS.
-- Runtime: VS Code Dev Container.
-- Required host tools: Docker Desktop, VS Code, and the VS Code Dev Containers extension.
-- Host-side Node.js, LibreOffice, `pdfjs-dist`, and `npm install` are not required for this preview workflow.
-- LibreOffice is installed in the container image and PPTX-to-PDF conversion runs inside the container.
-- `pdfjs-dist` is installed in `vscode-extension/node_modules` during Dev Container setup and copied into `vscode-extension/webview/` during extension build.
-- Windows/macOS native extension execution and host-specific LibreOffice path discovery are outside this MVP.
+The Dev Container passes `${localWorkspaceFolder}` as `MD_SLIDE_TOOL_HOST_WORKSPACE`. The bridge maps a path relative to `/work` into that host workspace and encodes spaces and Japanese characters in the file URI. Automatic build on QMD save and PPTX save monitoring are not enabled.
 
-### Dev Container startup and rebuild
-
-Open this repository in VS Code and run **Dev Containers: Rebuild and Reopen in Container**. The container setup script runs:
-
-```bash
-npm install
-npm link
-npm --prefix /work/vscode-extension install
-npm --prefix /work/vscode-extension run build
-```
-
-The setup also keeps the existing `slidegen` shell completion entry in `~/.bashrc`. The command is idempotent and lives in `scripts/devcontainer-setup.sh`.
-
-To verify the container manually:
-
-```bash
-node --version
-quarto --version
-python3 --version
-libreoffice --version || soffice --version
-```
-
-### Extension development startup
-
-Inside the Dev Container, use the launch configuration in `vscode-extension/.vscode/launch.json` to start an Extension Development Host. The extension runs on the workspace/container side so it can access `/work`, container temporary directories, and container LibreOffice.
-
-### Usage
-
-- Run **Open PPTX Preview** from the command palette, then select a `.pptx` file if one was not passed by URI or active selection.
-- Right-click a `.pptx` file in the Explorer and choose **Open PPTX Preview**.
-- The extension converts the PPTX to a temporary PDF with container LibreOffice headless mode and displays the PDF pages as slides in order.
-- Click **Refresh** to reconvert the same PPTX. Refresh is disabled while conversion/rendering is in progress.
-
-### Known limitations and validation status
-
-- Windows/macOS native execution is not a supported path for this MVP.
-- This container session could update static code and tests, but could not launch a Windows/macOS Dev Container GUI session, so GUI screenshots are not recorded as successful.
-- QMD auto-rendering, file watching, zoom, thumbnail grid, modal enlargement, export, and slide editing are out of scope.
+See [M1 PowerPoint workflow](docs/M1_POWERPOINT_OPEN.md) for validation details and Windows manual checks. Delivery from the VS Code Remote extension host to Windows, including reuse of an already-running PowerPoint instance, still requires confirmation on the target machine.

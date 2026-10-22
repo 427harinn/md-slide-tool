@@ -120,6 +120,8 @@ QMD save/build
 - Windows / macOS の差異は host adapter に閉じ込める
 - VS Code 内 PDF preview は前提にしない
 
+実装詳細と検証状況は [M1_POWERPOINT_OPEN.md](M1_POWERPOINT_OPEN.md) を参照する。
+
 ## M2: Stable IDs and Image Layout
 
 目的:
