@@ -105,7 +105,11 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 
 ### T-308: Recoverable transaction / crash recovery
 
-- per-document lockをatomicに取得し、concurrent render/importは `DOCUMENT_BUSY`
+- documentId未生成のschema v1ではcanonical same-stem QMD path由来のbootstrap lockを先に取得
+- bootstrap lock保持中にassets/PPTX metadataを再読込し、既にmigration済みなら既存documentIdを再利用
+- unmigratedならbootstrap lock下でdocumentIdを1つだけ生成しschema v2/PPTX metadata migrationを完了
+- migrated stateへ移る際はbootstrap -> document lockの順でhandoffし、逆順取得は禁止
+- 通常はper-document lockをatomicに取得し、concurrent render/importは `DOCUMENT_BUSY`
 - `.md-slide-tool/transactions/<document-id>/<txid>/` にmanifest/old/newをstage
 - create / replace / delete operationとold/new SHA-256をmanifestへ記録
 - state machine: prepared -> committing -> committed -> cleanup / rolling_back -> rolled_back -> cleanup
@@ -123,6 +127,8 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 最低限:
 
 - managed marker valid/missing/invalid
+- concurrent first M3 render from schema v1 produces exactly one documentId
+- bootstrap re-read/reuse and bootstrap->document lock handoff
 - document-id / format version validation
 - QMD body hash match/mismatch
 - title marker move/delete/duplicate/loss ambiguity
