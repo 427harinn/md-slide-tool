@@ -128,3 +128,25 @@ CI smoke test は CLI help、template listing、npm package contents を確認�
 - `scripts/smoke-test.sh` はこの Windows 実行環境から直接起動できなかったため、構成コマンドを個別に確認した。Git Bash と `python3` の WindowsApps shim が実行権限エラーとなる。
 - PPTX render 実行は Python 起動時に権限エラーで停止した。Quarto は PATH 上になく、Docker daemon もアクセス拒否のため、実コンテナ / 実PPTX生成は未確認。
 - VS Code GUI、Dev Container GUI、PowerPoint 実機は未確認。
+
+
+## M1開始時点の標準実行環境
+
+ユーザーの標準操作は以下。
+
+\`\`\`text
+Windows
+  -> Docker Desktop起動
+  -> VS Codeでrepositoryを開く
+  -> Dev Containers: Reopen in Container
+  -> Dev Container内でslidegen / Quarto / Pythonを実行
+  -> PowerPointのみWindows host側で利用
+\`\`\`
+
+M1ではこの経路を第一検証対象にする。
+
+Remote/Dev Containerで外部アプリを開く場合、Workspace Extensionからhostアプリを直接spawnする設計を避ける。VS Code公式ドキュメントでは、ローカルアプリを開く用途に \`vscode.env.openExternal\` を推奨し、local resourceが必要な処理にはUI extensionを使える。
+
+Dev Containersでは \`\${localWorkspaceFolder}\` を \`remoteEnv\` 等でcontainerへ渡せるため、\`/work\` 配下の相対pathとhost workspace pathを組み合わせる方式をPoC候補とする。
+
+詳細は \`docs/M1_POWERPOINT_OPEN.md\`。
