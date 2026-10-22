@@ -1,92 +1,81 @@
 # TASKS
 
-## タスク一覧
+## M0: Repository Cleanup
 
-### T-001: Dev Container前提への仕様更新
+Codex は上から順番に実行する。
 
-**目的**
-Windows/macOSネイティブ実行前提をDev Container実行前提へ修正する。
+### T-001: 現在の正式経路を確定する
 
-**実装内容**
-`.ai/MILESTONE.md`と`.ai/TASKS.md`からネイティブLibreOffice探索前提を削除し、ホストOSはWindows/macOS、実行環境はDev Container、LibreOffice/PDF.js/Node.jsはコンテナ内で利用する方針へ更新する。
+- CLI commands の確認
+- QMD -> PPTX render path の確認
+- docx template/project path の確認
+- VS Code task / extension / Dev Container setup の参照関係確認
+- preview / auto-preview 実験が正式経路から呼ばれているか確認
+- 調査結果を `.ai/PROJECT_CONTEXT.md` へ反映
 
-**状態**
-完了
+**状態:** 未着手
 
----
+### T-002: 不採用 Preview 実験を削除する
 
-### T-002: DockerfileへLibreOfficeを追加
+正式経路から未使用であることを確認してから、PDF.js / Webview / PPTX->PDF Preview / Preview専用extension code・tests・build scripts・依存を整理する。
 
-**目的**
-既存のNode.js、Quarto、Pandoc、Python、フォントを維持しつつ、コンテナ内PPTX→PDF変換に必要なLibreOfficeを追加する。
+docx、PPTX render、template 処理は削除しない。
 
-**実装内容**
-Debian公式パッケージを優先してLibreOfficeを最小限追加し、aptキャッシュを残さず、日本語フォントとheadless利用を維持する。
+**状態:** 未着手
 
-**状態**
-完了
+### T-003: Dev Container / 自動 build 経路を整理する
 
----
+- `triggerTaskOnSave` の利用状況確認
+- `.vscode/tasks.json` の役割確認
+- `scripts/devcontainer-setup.sh` の不要処理削除
+- Preview 専用 LibreOffice が不要になった場合のみ Dockerfile から削除
+- 次マイルストーンで Sync Engine を追加しやすい状態へ整理
 
-### T-003: Dev Containerセットアップを更新
+**状態:** 未着手
 
-**目的**
-コンテナ作成後にルート依存、`slidegen`リンク、拡張依存、拡張ビルドを利用可能にする。
+### T-004: 不要ファイル・古い設定を整理する
 
-**実装内容**
-長い`postCreateCommand`を再実行可能なセットアップスクリプトへ分離し、既存シェル補完設定を維持する。
+- tracked `.DS_Store` 削除と ignore 確認
+- 空の `compose.yml` 削除
+- 壊れた / 未完成 template 資産があれば利用状況を確認して扱いを決定
+- 生成物や fixture を誤って削除しない
 
-**状態**
-完了
+**状態:** 未着手
 
----
+### T-005: CLI / render の責務を最小限整理する
 
-### T-004: LibreOffice検出をコンテナPATH前提へ簡略化
+- `cli/slidegen.js` の責務確認
+- CLI parsing と処理本体が過度に密結合している箇所のみ分離
+- `slidegen render` の公開挙動は維持
+- Bash/Python/Quarto の全面書き換えはしない
+- 将来のためだけの過剰抽象化をしない
 
-**目的**
-Windows/macOS固有パス探索を今回の実行経路から削除し、コンテナ内PATHの`libreoffice`または`soffice`を使う。
+**状態:** 未着手
 
-**実装内容**
-検出順を`libreoffice`、`soffice`に限定し、未検出時はDev Containerイメージ不備として案内する。テストも更新する。
+### T-006: テストとCIを cleanup 後の正式機能へ合わせる
 
-**状態**
-完了
+- PPTX画像後処理テスト
+- CLI smoke
+- template listing
+- docx template が残っていること
+- 削除した preview 用 test の整理
+- 必要最小限の regression test 追加
 
----
+**状態:** 未着手
 
-### T-005: Dev Container前提の拡張・PDF.js・Webviewを確認
+### T-007: ドキュメントを現在状態へ更新する
 
-**目的**
-既存Webview、PDF.js描画、更新処理、変換サービス、一時ファイル管理、入力検証をDev Container前提で維持する。
+README / PROJECT_CONTEXT / 必要なDEBUG_SCENARIOS を更新し、過去マイルストーンの結果を現在仕様のように残さない。
 
-**実装内容**
-`pdfjs-dist`をコンテナ内でインストールし、ビルド時コピーとpackage checkを維持する。Webviewからコンテナ内生成PDFを安全に読める構成を維持する。
+**状態:** 未着手
 
-**状態**
-完了
+### T-008: 最終セルフレビューとPR作成
 
----
+- 全テスト実行
+- `.ai/REVIEW_CHECKLIST.md` に沿ってレビュー
+- docx が維持されていることを確認
+- PPTX render の回帰確認
+- 削除内容と理由を PR に記載
+- PowerPoint 自動起動を先回り実装していないことを確認
 
-### T-006: READMEとPROJECT_CONTEXT更新
-
-**目的**
-Docker / Dev Containerが正式な実行前提であることを文書化する。
-
-**実装内容**
-ホスト側Node.js/LibreOffice/npm install不要、必要なホストツール、Dev Container再ビルド、拡張起動、LibreOffice/PDF.jsのコンテナ内導入、ネイティブ実行対象外、既知の制限、実機確認状況を記載する。
-
-**状態**
-完了
-
----
-
-### T-007: Dev Container検証・実変換・GUI確認・PR更新
-
-**目的**
-回帰確認、実PPTX→PDF変換、可能なGUI確認、PR報告を行う。
-
-**実装内容**
-指定コマンド、既存CLI回帰、Docker/Dev Container確認、実PPTX→PDF変換、GUI主要状態確認、スクリーンショット保存、未確認事項記録、PR更新を行う。
-
-**状態**
-完了
+**状態:** 未着手
