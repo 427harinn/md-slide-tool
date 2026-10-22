@@ -98,7 +98,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前にAcceptance CriteriaとT
 - docx regression
 - smoke / CI
 
-**状態:** 完了。Python 18件、代表Quarto/PPTX render、DOCX回帰、smoke、PR #17 CI run #60がPASS。
+**状態:** 完了。Python 18件、代表Quarto/PPTX render、DOCX回帰、smoke、PR #17 CI run #62がPASS。
 
 ### T-209: Documentation / final independent review
 
@@ -109,4 +109,4 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前にAcceptance CriteriaとT
 - M3機能を先取りしていないことを確認
 - FAILがあればImplementationへ差し戻して再レビュー
 
-**状態:** 完了。Review/Architecture、PR #17 CI run #60がPASS。PowerPoint desktop保存保持はHUMAN_REQUIRED。
+**状態:** 完了。最終Test/Review/Architecture、PR #17 CI run #62、H-M2-01のPowerPoint desktop保存保持確認がPASS。

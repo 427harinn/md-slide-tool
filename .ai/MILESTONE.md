@@ -79,4 +79,4 @@ QMD -> PPTX render
 
 ## 状態
 
-実装・自動テスト・独立Review/Architecture・PR #17 head CI run #60はPASS。PowerPoint desktop保存後のmetadata保持をHUMAN_REQUIRED gateとして残しているため、Draft PRを維持。
+実装・自動テスト・独立Test/Review/Architecture・PR #17 head CI run #62はPASS。H-M2-01のPowerPoint desktop保存後metadata保持もPASSし、必須ACはすべて完了。PR #17はDraft解除可能（mergeは別判断）。

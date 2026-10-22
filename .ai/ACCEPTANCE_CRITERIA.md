@@ -74,7 +74,7 @@ Do not implement QMD save watcher, PPTX save watcher, PPTX -> QMD, `assets.json`
 
 ## M2: Stable IDs and Element Layout
 
-M2 gate status is tracked below; AC-M2-04 retains the PowerPoint desktop save check.
+All AC-M2 gates have passed. AC-M2-04 includes the completed PowerPoint desktop save check recorded below.
 
 - **AC-M2-01:** Missing stable IDs are generated only where needed, written back safely to QMD, and existing valid IDs remain unchanged.
   - Verification: AUTOMATED
@@ -90,8 +90,8 @@ M2 gate status is tracked below; AC-M2-04 retains the PowerPoint desktop save ch
   - Evidence: `elementId` / `type=image` model, source scan, and independent Architecture review.
 - **AC-M2-04:** Generated PPTX carries the same slide/element stable IDs in metadata that survives the supported save/reopen path.
   - Verification: AUTOMATED where possible; HUMAN_REQUIRED only if actual PowerPoint save behavior cannot be reproduced reliably by the agent environment.
-  - Status: HUMAN_REQUIRED
-  - Evidence: python-pptx 0.6.23 save/reopen tests preserve slide and picture names. Microsoft PowerPoint desktop edit/save preservation remains to be confirmed.
+  - Status: PASS
+  - Evidence: python-pptx 0.6.23 save/reopen tests pass. User confirmed Microsoft PowerPoint desktop overwrite-save, close, and reopen retained `slide.name` and picture `shape.name` IDs on the identified image slides; see H-M2-01 in `.ai/HUMAN_GATES.md`.
 - **AC-M2-05:** First render with no saved layout uses the current placement engine and persists the resulting image rectangle to `<stem>.assets.json`.
   - Verification: AUTOMATED
   - Status: PASS
@@ -119,7 +119,7 @@ M2 gate status is tracked below; AC-M2-04 retains the PowerPoint desktop save ch
 - **AC-M2-11:** Existing image placement behavior, representative PPTX render, and docx generation remain functional.
   - Verification: AUTOMATED regression
   - Status: PASS
-  - Evidence: PR #17 head CI run #60 passed root tests, existing smoke, Docker image build, representative two-pass Quarto/PPTX render with title/path/layout preservation, and DOCX render.
+  - Evidence: PR #17 head CI run #62 passed root tests, existing smoke, Docker image build, representative two-pass Quarto/PPTX render with title/path/layout preservation, and DOCX render.
 - **AC-M2-12:** M2 does not implement PPTX -> QMD import, watchers, sync, conflict handling, shape persistence, crop/rotation/z-order, Marketplace publication, or PPTX -> Word.
   - Verification: scope scan + independent Review/Architecture
   - Status: PASS
