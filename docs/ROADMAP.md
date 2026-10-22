@@ -153,12 +153,12 @@ Marketplace公開、publisher設定、通常のReopen in Containerでの自動ex
 
 ## M3: PPTX -> QMD Import
 
-状態: 設計確定・未実装。
+状態: 設計レビュー指摘を反映済み・未実装。
 
 詳細: `docs/M3_PPTX_IMPORT.md`
 
 目的:
-md-slide-toolで生成したPPTXをPowerPointで編集・保存した結果を、stable IDを使って既存QMD/assetsへ安全に戻せるようにする。
+md-slide-toolで生成したmanaged PPTXをPowerPointで編集・保存した結果を、stable IDとpresentation-level metadataを使って既存QMD/assetsへ安全に戻せるようにする。
 
 初期CLI:
 
@@ -166,21 +166,23 @@ md-slide-toolで生成したPPTXをPowerPointで編集・保存した結果を�
 slidegen import presentation.pptx
 ```
 
-内容:
+主要方針:
 
-- arbitrary PPTX変換ではなくmanaged PPTX + same-stem QMDを対象
-- existing QMD front matterを維持
+- arbitrary PPTXはimportせず、managed marker / format version / document-idを持つPPTXだけを対象
+- same-stem QMD必須
+- render時にQMD normal-body SHA-256をPPTXへ保存し、未render QMD編集があればimportを止める
+- front matterを維持
+- front-matter title slideはreserved internal role markerでpositionと独立に識別
 - title / paragraph / bullet / numbered listをnormalized Markdownへ再構築
 - slide reorder / delete / new slideをstable IDで反映
 - image add / delete / replacementを `element-id` で追跡
 - changed/new imageは `img/imported/<element-id>.<ext>` へ安全に抽出
 - image x/y/width/heightをassetsへ保存
-- PowerPoint image cropをper-element assets metadataとして保存し次renderで再適用
-- unsupported user contentを黙って捨てず、loss riskがあればcommit前FAIL
-- QMD/assets/images/PPTX ID writebackをatomicにcommit
-- 文字情報はpersistent intermediate JSONへ複製しない
-
-M3では手動importまでを完成させる。watch/syncはM4、dirty conflictはM5で扱う。
+- assets schema v2でPowerPoint image cropをraw OOXML percentage整数として保存し、次renderで再適用
+- schema v1はno-cropとして後方互換で読む
+- template/master/layoutとuser contentはexplicit structural ruleで分類し、unknown slide-local contentはFAIL
+- QMD/assets/images/PPTX ID writebackはjournal + backup + hash recoveryを使うrecoverable transaction
+- watch/syncはM4、full dirty conflict handlingはM5
 
 ## M4: Docker Sync Engine
 
