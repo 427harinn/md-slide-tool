@@ -31,9 +31,9 @@ QMD と PPTX の内容をフィールド単位で双方向マージしない。
 
 文字情報は中間 JSON に複製しない。
 
-### 3. 画像レイアウトだけを永続化する
+### 3. Visual elementのレイアウトだけを永続化する
 
-QMD では保持しにくい画像のレイアウト情報だけを専用ファイルに保存する。
+QMD では保持しにくいvisual elementのレイアウト情報だけを専用ファイルに保存する。M2では画像のみを実装対象にする。
 
 想定:
 
@@ -47,8 +47,9 @@ img/
 `assets.json` の初期責務:
 
 - slide id
-- image id
-- source path
+- element id
+- element type
+- source path（imageの場合）
 - x / y
 - width / height
 
@@ -63,9 +64,9 @@ img/
 導入候補:
 
 - slide id
-- image id
+- element id
 
-QMD、PPTX shape、assets.json の間で同じ ID を利用する。
+QMD、PPTX shape、assets.json の間で同じ ID を利用する。M2では `element-id` を画像に適用し、将来のshape等でも同じidentity modelを使えるようにする。
 
 ### 5. Word 対応は正式機能として維持する
 
@@ -128,19 +129,25 @@ QMD save/build
 
 Marketplace公開、publisher設定、通常のReopen in Containerでの自動extension配置、公開後E2EはM1 completion gateに含めず、正式リリース前の横断Release / Distribution gateで扱う。
 
-## M2: Stable IDs and Image Layout
+## M2: Stable IDs and Element Layout
 
 目的:
-将来の往復変換に必要な ID と画像レイアウト保存を導入する。
+将来の往復変換に必要なstable identityとvisual element layout保存を導入する。
+
+詳細: `docs/M2_STABLE_IDS_ASSETS.md`
 
 内容:
 
-- slide id
-- image id
-- `assets.json`
-- 既存画像に layout があれば再適用
-- layout がなければ現在の画像自動配置を利用
-- 現在の画像自動配置機能を初期レイアウトエンジンとして再利用
+- `slide-id`
+- `element-id`
+- M2 element typeはimageのみ
+- `assets.json` schema v1
+- EMU座標の x / y / width / height
+- 既存layoutがあればstable IDで再適用
+- layoutがなければ現在の画像自動配置を利用して保存
+- title/path変更でもIDが同じならidentity/layoutを維持
+- generated PPTXへ同じstable IDを埋め込み、M3のimportに備える
+- 将来のshape等へ拡張できるが、shape persistence自体はM2で実装しない
 
 ## M3: PPTX -> QMD Import
 
@@ -158,7 +165,7 @@ slidegen import presentation.pptx
 - title / body / images の抽出
 - template 固有要素とユーザーコンテンツの分離
 - image layout を assets.json へ保存
-- ID のない PowerPoint 追加画像には新しい image id を発行
+- ID のない PowerPoint 追加要素には新しい element id を発行
 - 文字情報は中間 JSON として永続化しない
 
 M3 ではまず手動コマンドとして完成させ、自動監視を先に実装しない。

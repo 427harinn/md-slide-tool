@@ -70,3 +70,45 @@ Retain AC-M1-02 and AC-M1-11 as future release criteria. Marketplace publisher d
 ## Scope constraints
 
 Do not implement QMD save watcher, PPTX save watcher, PPTX -> QMD, `assets.json`, stable IDs, conflict handling, PowerPoint Add-in, or PPTX -> Word. Preserve docx and existing `slidegen render`. Do not restore Preview/PDF.js/LibreOffice preview code.
+
+
+## M2: Stable IDs and Element Layout
+
+M2 acceptance criteria are UNVERIFIED until implementation evidence exists.
+
+- **AC-M2-01:** Missing stable IDs are generated only where needed, written back safely to QMD, and existing valid IDs remain unchanged.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M2-02:** Duplicate `slide-id` or `element-id` causes a deterministic failure and is not silently repaired.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M2-03:** The element identity model is `element-id`; M2 implements image elements without creating a separate incompatible image-only identity system.
+  - Verification: AUTOMATED + Architecture review
+  - Status: UNVERIFIED
+- **AC-M2-04:** Generated PPTX carries the same slide/element stable IDs in metadata that survives the supported save/reopen path.
+  - Verification: AUTOMATED where possible; HUMAN_REQUIRED only if actual PowerPoint save behavior cannot be reproduced reliably by the agent environment.
+  - Status: UNVERIFIED
+- **AC-M2-05:** First render with no saved layout uses the current placement engine and persists the resulting image rectangle to `<stem>.assets.json`.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M2-06:** Later render with valid saved layout applies the stored EMU rectangle before considering automatic placement.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M2-07:** Changing the slide title while retaining `slide-id` does not break image association/layout.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M2-08:** Changing the image source path while retaining `element-id` preserves the element's saved layout.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M2-09:** Invalid layout falls back for that element with a warning; stale entries are removed only after a successful render.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M2-10:** `assets.json` stores schema/version, slide size and image-element layout only; title/body text is not duplicated as canonical persistent state.
+  - Verification: AUTOMATED + Architecture review
+  - Status: UNVERIFIED
+- **AC-M2-11:** Existing image placement behavior, representative PPTX render, and docx generation remain functional.
+  - Verification: AUTOMATED regression
+  - Status: UNVERIFIED
+- **AC-M2-12:** M2 does not implement PPTX -> QMD import, watchers, sync, conflict handling, shape persistence, crop/rotation/z-order, Marketplace publication, or PPTX -> Word.
+  - Verification: scope scan + independent Review/Architecture
+  - Status: UNVERIFIED
