@@ -127,4 +127,4 @@ Docker Desktop
 - PowerPoint起動方法/host bridge責務を説明
 - 未確認事項を明記
 
-**状態:** PR #14 Draft。独立Review/Architecture、Docker自動テスト/回帰、最新PR headのGitHub Actions CI run #50はPASS。Marketplace公開判断と通常Reopen flowの自動配布E2EはHUMAN_REQUIREDのためDraftを維持。
+**状態:** PR #14 Draft。独立Review/Architecture、Docker自動テスト/回帰、GitHub Actions CI run #52（PR head `39178f4`）はPASS。Marketplace公開判断と通常Reopen flowの自動配布E2EはHUMAN_REQUIREDのためDraftを維持。

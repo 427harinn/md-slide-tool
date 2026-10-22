@@ -41,7 +41,7 @@ Only VS Code's Windows + Dev Containers GUI install/activation behavior, which c
 | AC-M1-07 — Host path mapping handles nested, spaced, Japanese paths | AUTOMATED; tested Windows route is existing evidence | Path fixtures in extension unit tests (check 4); do not repeat real Windows mapping test unless mapping code changes. | PASS for automated fixtures; no bridge GUI rerun |
 | AC-M1-08 — Existing `slidegen render`, PPTX output, and docx remain functional | AUTOMATED | `npm test`; `bash scripts/smoke-test.sh`; `python3 -m unittest tests/test_postprocess_place.py`; representative PPTX render and docx regression (check 5). | PASS |
 | AC-M1-09 — No M0 preview stack or out-of-scope future feature returns | AUTOMATED + independent review | Forbidden-scope scan (check 6), diff review, Architecture Agent review. | PASS |
-| AC-M1-10 — Relevant CI and all automated checks pass | AUTOMATED | CI on PR branch, local check results, `git diff --check` (check 7). | PASS — PR #14 head `7152053`, GitHub Actions CI run #50 succeeded |
+| AC-M1-10 — Relevant CI and all automated checks pass | AUTOMATED | CI on PR branch, local check results, `git diff --check` (check 7). | PASS — PR #14 head `39178f4`, GitHub Actions CI run #52 succeeded |
 | AC-M1-11 — No Marketplace publication without authorization; publication decision handled by human if required | AUTOMATED + HUMAN_REQUIRED if publication is necessary | Inspect commands/workflows and PR activity to confirm nothing was published; if official distribution requires listing/publication, report exact required decision as H-01 and stop short of publication. | HUMAN_REQUIRED |
 
 ## Human gate boundary
