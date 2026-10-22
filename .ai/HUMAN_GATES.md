@@ -72,3 +72,10 @@ Depending on the milestone and release gate:
 - PowerPoint editing and save behavior.
 
 These are examples, not automatic requirements for every task.
+
+
+## M2 status
+
+No manual action is required merely to approve the M2 design.
+
+During implementation, prefer automated PPTX metadata roundtrip tests. If the chosen slide/shape metadata can only be verified reliably by saving through desktop Microsoft PowerPoint, create a single M2 HUMAN_REQUIRED gate for that preservation check after all automated/Test/Review/Architecture gates pass.
