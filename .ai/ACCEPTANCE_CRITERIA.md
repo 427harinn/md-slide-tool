@@ -130,48 +130,57 @@ All AC-M2 gates have passed. AC-M2-04 includes the completed PowerPoint desktop 
 
 M3 acceptance criteria are UNVERIFIED until implementation evidence exists.
 
-- **AC-M3-01:** `slidegen import <pptx>` accepts a managed md-slide-tool PPTX with an existing same-stem QMD and rejects an unrelated unmanaged PPTX.
+- **AC-M3-01:** `slidegen import <pptx>` accepts only an M3-managed presentation with a valid presentation-level managed marker/version/document-id and existing same-stem QMD; an unmarked legacy/arbitrary PPTX is rejected and must be re-rendered first.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M3-02:** Existing QMD YAML front matter remains unchanged while normal slides are rebuilt from the PPTX.
+- **AC-M3-02:** Existing QMD YAML front matter remains byte-preserved while normal-slide content is rebuilt from the PPTX.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M3-03:** Existing stable `slide-id` values identify managed slides; slide title changes, reorder, and deletion are reflected in normalized QMD without changing surviving IDs.
+- **AC-M3-03:** Existing valid `slide-id` values identify managed normal slides; title edits, reorder, and deletion are reflected without changing surviving IDs. Malformed or duplicate IDs cause FAIL.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M3-04:** A newly added supported PowerPoint slide receives a new `slide-id` that is written to both rebuilt QMD and PPTX.
+- **AC-M3-04:** A newly added supported normal PowerPoint slide receives a new `slide-id` written to both rebuilt QMD and staged PPTX, while ambiguous ID-less title-layout slides cause FAIL instead of heuristic classification.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
 - **AC-M3-05:** Supported text content (title, ordinary paragraphs, bullets, numbered lists) is reconstructed as normalized Markdown without claiming byte-for-byte source recovery.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M3-06:** Existing image elements preserve `element-id`; move/resize changes update EMU geometry in assets.
+- **AC-M3-06:** Existing image elements preserve `element-id`; move/resize changes update exact EMU geometry in assets; malformed or duplicate element IDs cause FAIL.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M3-07:** Image crop edited in PowerPoint is persisted per element and re-applied on the next render without destructively modifying the source image.
+- **AC-M3-07:** Assets schema v2 represents image crop with integer OOXML percentage values, reads schema v1 as no-crop, migrates safely to v2, rejects invalid crop, and re-applies crop on the next render without destructively modifying source images.
   - Verification: AUTOMATED + representative PowerPoint-compatible roundtrip; HUMAN_REQUIRED only if desktop PowerPoint behavior cannot be proven by agent-executable fixtures.
   - Status: UNVERIFIED
-- **AC-M3-08:** Replacing image contents while preserving the identified picture shape keeps the same `element-id`; newly inserted picture shapes receive new IDs rather than being guessed as replacements.
+- **AC-M3-08:** Replacing image contents while preserving the identified picture shape keeps the same `element-id`; a newly inserted picture shape receives a new ID rather than being guessed as a replacement.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M3-09:** New/changed picture bytes are extracted safely under `img/imported/<element-id>.<ext>` when required, without overwriting a shared source image used by other elements.
+- **AC-M3-09:** New/changed picture bytes are extracted safely under `img/imported/<element-id>.<ext>` when required without overwriting a shared source image used by another element.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M3-10:** Deleting a supported image from the successfully parsed PPTX removes its QMD/assets representation only after full validation succeeds.
+- **AC-M3-10:** Deleting a supported image removes its QMD/assets representation only after full import validation succeeds.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M3-11:** Unsupported user content that would be lost on the next render causes import to fail before commit; unknown content is not silently ignored.
+- **AC-M3-11:** Template/user content classification is structural and fixture-backed: inherited master/layout content is ignored, only supported placeholders/pictures are imported, and unknown slide-local content that could be lost causes pre-commit FAIL.
   - Verification: AUTOMATED + Review/Architecture
   - Status: UNVERIFIED
-- **AC-M3-12:** Import is atomic across QMD, assets, extracted images, and PPTX stable-ID writeback; simulated failures leave original files unchanged.
-  - Verification: AUTOMATED
+- **AC-M3-12:** Import provides recoverable multi-file transactional consistency across QMD, assets, extracted images, and PPTX metadata writeback. Handled commit failures roll back; simulated abrupt termination is recovered on the next render/import via a transaction journal and hash-checked backups.
+  - Verification: AUTOMATED failure injection + crash-recovery simulation
   - Status: UNVERIFIED
-- **AC-M3-13:** No persistent intermediate JSON becomes a second canonical store for title/body text.
+- **AC-M3-13:** No persistent intermediate JSON becomes a second canonical store for title/body text; transaction metadata contains only recovery/identity/state information.
   - Verification: Architecture review + source scan
   - Status: UNVERIFIED
 - **AC-M3-14:** Existing QMD -> PPTX render, M2 stable assets behavior, M1 open workflow, and docx generation remain functional.
   - Verification: AUTOMATED regression
   - Status: UNVERIFIED
-- **AC-M3-15:** M3 does not implement watchers, automatic sync, dirty-state conflict handling, arbitrary shape support, rotation/z-order, Marketplace publication, or PPTX -> Word.
+- **AC-M3-15:** M3 does not implement watchers, automatic sync, full dirty-state conflict merge, arbitrary shape support, rotation/z-order, Marketplace publication, or PPTX -> Word.
   - Verification: scope scan + independent Review/Architecture
+  - Status: UNVERIFIED
+- **AC-M3-16:** M3-capable render writes a valid presentation-level managed marker, format version, document-id, and QMD normal-body SHA-256 baseline that survive the supported PPTX save/reopen path.
+  - Verification: AUTOMATED where possible; HUMAN_REQUIRED only if desktop PowerPoint preservation cannot be proven otherwise
+  - Status: UNVERIFIED
+- **AC-M3-17:** If the current QMD normal-slide body differs from the hash embedded at render time, import fails before staging/commit with an explicit changed-since-render error; M3 provides no force-merge override.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M3-18:** The front-matter-generated title slide carries a reserved internal title-role marker independent of slide position. Moving/deleting it remains safe; duplicate marker or ambiguous marker loss causes FAIL. Fixtures cover new slides before/after the title slide.
+  - Verification: AUTOMATED + Architecture review
   - Status: UNVERIFIED
