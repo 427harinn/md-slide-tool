@@ -32,10 +32,36 @@ The exact package representation may be implemented in `docProps/custom.xml` or 
 A PPTX is accepted by M3 only when:
 
 1. the same-stem QMD exists;
-2. the managed marker exists and is valid;
-3. the document-id is valid and unique for the presentation;
-4. stable slide/element IDs that are present are syntactically valid and non-duplicated;
-5. the current QMD normal-slide body hash matches the render baseline described below.
+2. the same-stem assets file is readable as schema v1 or v2;
+3. the managed marker exists and is valid;
+4. the PPTX document-id is valid;
+5. the paired assets schema v2 documentId equals the PPTX document-id;
+6. stable slide/element IDs that are present are syntactically valid and non-duplicated;
+7. the current QMD normal-slide body hash matches the render baseline described below.
+
+### PPTX/QMD pairing contract
+
+M3 does not pair a PPTX with a QMD by stem name or body hash alone.
+
+Assets schema v2 adds a top-level document identity:
+
+```json
+{
+  "schemaVersion": 2,
+  "documentId": "document-<uuid>",
+  "slideSize": { "...": "..." },
+  "elements": []
+}
+```
+
+An M3-capable render establishes or reuses one document-id and writes the same value to:
+
+- PPTX presentation-level `md-slide-tool.document-id`;
+- same-stem `assets.json.documentId`.
+
+Import requires exact equality. A same-body QMD paired with a different managed PPTX therefore fails with a document-pair mismatch instead of passing only because the text hash happens to match.
+
+For legacy assets schema v1, the first M3-capable render generates a document-id, upgrades assets to schema v2, and writes that document-id into both assets and PPTX. `slidegen import` never upgrades an unpaired v1 presentation heuristically.
 
 A PPTX produced before M3 and lacking the presentation-level marker is **not imported heuristically**. The user must render it once with an M3-capable version first. This deliberately avoids ambiguous legacy classification.
 
@@ -50,8 +76,24 @@ Importing a PPTX rebuilds the QMD normal-slide body. Therefore M3 must prevent a
 During every M3-capable QMD -> PPTX render:
 
 1. stable IDs are normalized/added first;
-2. compute SHA-256 over the exact QMD normal-slide body bytes after front matter and after ID normalization;
+2. compute SHA-256 over the canonical QMD normal-slide body defined below;
 3. store that hash as `md-slide-tool.qmd-body-sha256` in the PPTX.
+
+### Canonical body-hash bytes
+
+The hash algorithm is deterministic and shared by render/import:
+
+1. read the QMD as UTF-8; a leading UTF-8 BOM is accepted and removed for hashing;
+2. identify YAML front matter only when the document begins (after optional BOM) with a delimiter line exactly `---` followed by LF or CRLF;
+3. the closing delimiter is the next delimiter line exactly `---`; the normal-slide body starts immediately after that delimiter's line ending;
+4. if no valid front matter exists, the normal-slide body begins at the first document byte;
+5. normalize CRLF and bare CR line endings in the body to LF;
+6. do **not** Unicode-normalize, trim whitespace, collapse blank lines, or add/remove a trailing newline;
+7. encode the normalized body as UTF-8 and hash those bytes with SHA-256.
+
+Front matter bytes are preserved separately and excluded from the body hash.
+
+Tests must cover UTF-8 BOM, LF, CRLF, bare CR, no-front-matter documents, empty body, trailing newline/no trailing newline, and whitespace-only body changes.
 
 Before `slidegen import` changes any file:
 
@@ -64,9 +106,7 @@ If the hashes differ, import FAILS before staging/commit with an explicit `QMD_C
 
 M3 does not add a force-merge path. The user must intentionally reconcile or re-render first. Full dirty-state conflict UX belongs to M5.
 
-Front matter is excluded from this body hash because M3 preserves it rather than rebuilding it.
-
-After a successful import, update the PPTX baseline hash to the newly committed QMD body hash.
+After a successful import, update the PPTX baseline hash to the newly committed canonical QMD body hash.
 
 ## 3. Source of truth during import
 
@@ -160,10 +200,33 @@ Initial classification contract:
 - Supported title placeholders (for example title/center-title placeholder roles) are interpreted as slide title only on supported normal slides.
 - Supported body/content placeholders are interpreted as paragraph/list content only when their paragraph structure is within the M3 supported subset.
 - Picture shapes are supported image elements as described below.
-- Slide-local autoshapes, arbitrary text boxes, groups, tables, charts, SmartArt/diagram content, OLE/media, and other unclassified slide-local objects are unsupported and cause pre-commit FAIL unless a future design explicitly adds support.
+- md-slide-tool-generated image caption textboxes are supported internal companion objects and are classified by a reserved deterministic marker, not by position/text appearance.
+- All other slide-local autoshapes, arbitrary text boxes, groups, tables, charts, SmartArt/diagram content, OLE/media, and other unclassified slide-local objects are unsupported and cause pre-commit FAIL unless a future design explicitly adds support.
 - Unknown slide-local content is never ignored because it looks decorative.
 
-Before implementation proceeds past the feasibility task, fixtures must enumerate the actual `slide.shapes` produced by the repository's supported PPTX templates and verify that inherited master/layout decoration is absent from the slide-local import model or explicitly classifiable. If a supported current template generates additional slide-local decorative objects, the design must add a deterministic marker/structural rule for them before implementation continues. Position/color/name heuristics alone are not acceptable.
+### Caption companion contract
+
+The current renderer creates image captions as slide-local textboxes. M3 must make those boxes distinguishable from arbitrary user textboxes.
+
+An M3-capable render names each generated caption textbox:
+
+```text
+mdst-caption-<element-uuid>
+```
+
+where the suffix is the associated picture's stable `element-id` without inventing a second identity system.
+
+Rules:
+
+- at most one caption companion may exist for a given picture element;
+- a caption companion without a matching picture element is invalid and causes FAIL;
+- duplicate caption companions for one element cause FAIL;
+- caption text is imported as the Markdown image alt/caption text for that image;
+- moving or styling the caption textbox does not create an independently persisted layout element in M3;
+- a user-created arbitrary textbox that lacks the reserved marker remains unsupported;
+- legacy M2-generated caption textboxes have no marker, so an M3-capable render must regenerate/upgrade the PPTX before M3 import is allowed.
+
+Before implementation proceeds past the feasibility task, fixtures must enumerate the actual `slide.shapes` produced by the repository's supported PPTX templates, including slides with captions, and verify that inherited master/layout decoration is absent from the slide-local import model or explicitly classifiable. If a supported current template generates additional slide-local decorative objects, the design must add a deterministic marker/structural rule for them before implementation continues. Position/color/name heuristics alone are not acceptable.
 
 ## 8. Supported image identity
 
@@ -223,6 +286,7 @@ M3 upgrades persistent assets to:
 ```json
 {
   "schemaVersion": 2,
+  "documentId": "document-...",
   "slideSize": {
     "width": 12192000,
     "height": 6858000,
@@ -290,47 +354,108 @@ Default policy:
 - only content positively classified by the structural rules in section 7 may be ignored;
 - unknown content is never classified as harmless by guesswork.
 
-## 16. Recoverable multi-file transaction
+## 16. Recoverable multi-file transaction and exclusion
 
-A multi-file filesystem update cannot be truly atomic across QMD, assets, extracted images, and PPTX. M3 therefore promises **recoverable transactional consistency**, not an impossible single syscall across all files.
+A multi-file filesystem update cannot be truly atomic across QMD, assets, extracted images, and PPTX. M3 therefore promises **recoverable transactional consistency**.
 
-Transaction directory:
+### Per-document exclusion
+
+Render/import/recovery for one managed document must not run concurrently.
+
+Use an atomic per-document lock under:
 
 ```text
-.md-slide-tool/transactions/<transaction-id>/
+.md-slide-tool/locks/<document-id>/
+```
+
+The lock is acquired before transaction recovery, render mutation, or import mutation begins.
+
+Rules:
+
+- if the lock is already held by another live md-slide-tool process, fail with `DOCUMENT_BUSY`; do not interpret its transaction as abandoned;
+- the lock records owner/process metadata for diagnostics, but correctness relies on atomic lock acquisition rather than timestamps;
+- recovery is attempted only after exclusive ownership of the document lock is obtained;
+- implementation must use a platform/runtime locking primitive whose ownership is released on process termination, or an equivalent tested mechanism. A timestamp-only stale-lock heuristic is not acceptable.
+
+### Transaction directory
+
+```text
+.md-slide-tool/transactions/<document-id>/<transaction-id>/
   manifest.json
   old/
   new/
 ```
 
-Before replacing any target file:
+Each manifest target records:
+
+- final target path;
+- whether the target existed before the transaction;
+- old hash when it existed;
+- new hash when the committed state contains a file;
+- operation: create / replace / delete.
+
+### State machine
+
+```text
+prepared -> committing -> committed -> cleanup
+                  \
+                   -> rolling_back -> rolled_back -> cleanup
+```
+
+Before replacing any target:
 
 1. parse and validate the entire import;
 2. stage every new output;
-3. copy/back up every existing target that may be replaced/deleted;
-4. record target paths plus old/new SHA-256 hashes in `manifest.json`;
-5. mark the transaction `prepared`.
+3. back up every pre-existing target that may be replaced/deleted;
+4. record all create/replace/delete operations and hashes;
+5. fsync/flush the manifest as required by the chosen runtime;
+6. mark the transaction `prepared`.
 
 Commit:
 
-1. replace targets one at a time using per-file atomic replace where supported;
-2. update transaction phase/progress durably enough for recovery;
-3. after all targets match their expected new hashes, mark `committed`;
-4. remove the transaction directory only after successful completion.
+1. mark `committing`;
+2. perform target operations one at a time with per-file atomic replace where supported;
+3. record durable progress sufficient for failure injection/recovery;
+4. verify every final target matches its expected committed state;
+5. mark `committed`;
+6. cleanup transaction data.
 
-Guarantees:
+### Rollback semantics
 
-- A handled commit-time error triggers rollback from `old/` before the command returns failure.
-- Failure-injection tests must cover an error after each commit step.
-- If the process is terminated or the machine stops mid-commit, a transaction directory may remain and files may temporarily be mixed.
-- Before any later `slidegen render` or `slidegen import` touches that presentation, md-slide-tool must detect an incomplete transaction and run recovery first.
-- Recovery compares each current target hash with the recorded old/new hashes:
-  - current == old: already rolled back / untouched;
-  - current == new: safe to restore old during rollback;
-  - current matches neither: stop automatic recovery, preserve the transaction backup, and report a manual-recovery error instead of overwriting unknown post-crash user edits.
-- After successful recovery, the pre-import state is restored and the transaction is cleared.
+For each operation:
 
-The original QMD, assets, source images, and PPTX must therefore be recoverable after injected exceptions and simulated abrupt termination.
+- replace: if current == new, restore backed-up old; if current == old, leave it;
+- delete: if target is absent, restore backed-up old; if current == old, leave it;
+- create: if current == new, delete the newly created file; if target is absent, leave it.
+
+If any current target matches neither its recorded old nor new state, automatic rollback stops with a manual-recovery error and preserves backups.
+
+Handled commit-time failures transition to `rolling_back`, restore the pre-transaction state, mark `rolled_back`, then cleanup.
+
+### Crash recovery
+
+After acquiring the document lock, any later render/import checks for an existing transaction before touching presentation files.
+
+Recovery policy is phase-specific:
+
+- `prepared`: no target mutations are expected; verify old states, then discard staged transaction data.
+- `committing` or `rolling_back`: roll back to the pre-transaction state using the operation rules above.
+- `committed`: **do not roll back**. Verify every target matches the recorded new committed state and finish cleanup.
+- `rolled_back`: verify pre-transaction state and finish cleanup.
+- unknown/corrupt phase: stop with manual-recovery error.
+
+This distinction ensures a crash after all replacements and after the durable `committed` record does not undo a successful import merely because cleanup was interrupted.
+
+Failure-injection tests must cover:
+
+- create/replace/delete rollback;
+- failure after each individual target operation;
+- crash before `committing`;
+- crash during `committing`;
+- crash after all target replacements but before `committed`;
+- crash after durable `committed` but before transaction cleanup;
+- concurrent second render/import receiving `DOCUMENT_BUSY`;
+- recovery refusing to overwrite an unknown post-crash file state.
 
 ## 17. Text is not persisted in intermediate JSON
 
