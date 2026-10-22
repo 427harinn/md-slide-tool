@@ -108,7 +108,9 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 - documentId未生成のschema v1ではcanonical same-stem QMD path由来のbootstrap lockを先に取得
 - bootstrap lock保持中にassets/PPTX metadataを再読込し、既にmigration済みなら既存documentIdを再利用
 - unmigratedならbootstrap lock下でdocumentIdを1つだけ生成しschema v2/PPTX metadata migrationを完了
-- migrated stateへ移る際はbootstrap -> document lockの順でhandoffし、逆順取得は禁止
+- migrationを実行したprocess自身もbootstrap lockを保持したまま新document lockを取得し、その取得後にのみbootstrapを解放
+- re-readでmigration済みを発見したprocessもbootstrap保持中にexisting document lockを取得してからbootstrapを解放
+- bootstrap -> document lockのhandoffにunlock gapを作らず、逆順取得は禁止
 - 通常はper-document lockをatomicに取得し、concurrent render/importは `DOCUMENT_BUSY`
 - `.md-slide-tool/transactions/<document-id>/<txid>/` にmanifest/old/newをstage
 - create / replace / delete operationとold/new SHA-256をmanifestへ記録
