@@ -12,7 +12,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前にAcceptance CriteriaとT
 - PowerPointで通常saveした後も選択したmetadataが残ることを検証可能にする
 - `assets.json` schema v1を実装前にfixture化する
 
-**状態:** 未着手
+**状態:** 完了。既存パイプライン、assets schema v1、`Slide.name` / picture `Shape.name` のsave/reopen可否を確認。
 
 ### T-202: Stable ID parser / validation
 
@@ -23,7 +23,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前にAcceptance CriteriaとT
 - source QMDへの書き戻しはatomic
 - ID追加以外のQMD本文を変更しない
 
-**状態:** 未着手
+**状態:** 完了。UUID形式、duplicate検出、atomic QMD更新を実装・テスト。
 
 ### T-203: General element model, image implementation
 
@@ -32,7 +32,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前にAcceptance CriteriaとT
 - `image-id` という別identity体系を作らない
 - current image path / caption / place parsingを維持
 
-**状態:** 未着手
+**状態:** 完了。共通identityを `element-id` とし、M2ではimageのみ実装。
 
 ### T-204: assets.json schema v1
 
@@ -43,7 +43,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前にAcceptance CriteriaとT
 - title/body等の文字情報を保存しない
 - schema validation / invalid layout handlingを追加
 
-**状態:** 未着手
+**状態:** 完了。schema v1、EMU座標、atomic write、invalid layout validationを実装・テスト。
 
 ### T-205: Stable ID embedding into PPTX
 
@@ -52,7 +52,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前にAcceptance CriteriaとT
 - PowerPoint内部numeric slide IDをmd-slide-tool stable IDとして流用しない
 - save/reopenでmetadataが維持される方式を選ぶ
 
-**状態:** 未着手
+**状態:** 完了。slide / picture名へstable IDを設定し、python-pptx save/reopenをテスト。
 
 ### T-206: Layout restore and fallback
 
@@ -67,7 +67,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前にAcceptance CriteriaとT
 - resulting rectangleをassetsへ保存
 - invalid single-element layoutはWARN + auto fallback
 
-**状態:** 未着手
+**状態:** 完了。saved -> `place=` -> autoの優先順、auto/off-slide layout保存と復元を実装・テスト。
 
 ### T-207: Stale assets cleanup
 
@@ -75,7 +75,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前にAcceptance CriteriaとT
 - failed renderでは正常な既存assetsを不用意に破壊しない
 - path変更のみではsame elementIdのlayoutを保持
 
-**状態:** 未着手
+**状態:** 完了。successful postprocess後にatomic更新し、stale entryを整理。
 
 ### T-208: Tests / regression
 
@@ -98,7 +98,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前にAcceptance CriteriaとT
 - docx regression
 - smoke / CI
 
-**状態:** 未着手
+**状態:** 実装済み。Python 18件と独立した失敗系検証はPASS。Quarto代表render/docx回帰はDraft PR CIで確認予定。
 
 ### T-209: Documentation / final independent review
 
@@ -109,4 +109,4 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前にAcceptance CriteriaとT
 - M3機能を先取りしていないことを確認
 - FAILがあればImplementationへ差し戻して再レビュー
 
-**状態:** 未着手
+**状態:** 実装・Review/Architecture完了。PowerPoint desktop保存保持はHUMAN_REQUIRED。PR-head CI実行待ち。

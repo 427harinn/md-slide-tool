@@ -13,6 +13,7 @@ Quarto ベースの Markdown / スライド / ドキュメントプロジェク�
 - テンプレート内の `{{TITLE}}` をプロジェクト名で置き換える
 - `.qmd` 以外のテンプレート補助ファイルを生成先へコピーする
 - PPTX 向け QMD を `slidegen render` でレンダリングする
+- PPTX 向け QMDに不足する `slide-id` / `element-id` を付与し、画像配置を `<stem>.assets.json` に保存・再利用する
 - Docker 環境で Quarto、Pandoc、Chrome Headless Shell、Python ベースの PPTX 後処理を使う
 
 現在できないこと:
@@ -178,7 +179,11 @@ slidegen render projects/selfintroduction/selfintroduction_pptx.qmd
 
 #### PPTX 画像自動配置
 
-PPTX レンダリングでは、QMD 内の単独行 Markdown 画像を抽出し、Quarto レンダリング後に PPTX へ自動配置します。対象は単独行の `![caption](path)` 形式です。画像は直前の `##` 見出しのスライドに紐づき、alt テキストは画像下のキャプションとして使われます。
+PPTX レンダリングでは、各 `##` 見出しに `slide-id`、単独行 Markdown 画像に `element-id` が必要です。不足分はUUID形式でQMDへ追加され、既存IDは維持されます。重複IDはrenderを失敗させます。
+
+画像は直前の `##` 見出しのスライドに紐づき、alt テキストは画像下のキャプションとして使われます。画像layoutは `<qmd-stem>.assets.json` にEMU整数で保存し、同じstable IDがある次回renderで再利用します。layoutがまだなければ `{place=...}` と従来の自動配置が使われます。assetsにはtitle/body/captionを保存しません。
+
+対象は単独行の `![caption](path)` 形式です。
 
 `{place=...}` 属性は、PPTX 後処理で配置候補の優先指定として使えます。対応値は `right` / `bottom` / `bottom_right` です。強制配置ではないため、指定候補に置けない場合は従来の自動選択に fallback します。詳細な仕様、制限、トラブルシュートは [PPTX image placement](docs/image-placement.md) を参照してください。
 
@@ -193,11 +198,12 @@ bash scripts/render-current.sh projects/selfintroduction/selfintroduction_pptx.q
 内部では主に次の処理を行います。
 
 1. 入力 `.qmd` をレンダリング用の一時 `.render.qmd` に変換する
-2. 単独行の Markdown 画像を抽出し、後処理用の `.images.json` を作る
+2. 不足IDをQMDへatomicに追加し、単独行のMarkdown画像とIDを一時 `.images.json` に抽出する
 3. PPTX テンプレートがあれば `scripts/normalize-pptx-template.js` でレイアウト名を正規化する
 4. `quarto render` を実行する
-5. 生成された PPTX に抽出済み画像を後処理で追加する
-6. 一時ファイルを削除する
+5. QuartoのスライドをQMDの各スライドに対応付けてstable IDを設定し、保存layoutまたは従来の自動配置で画像を追加する
+6. slide/pictureのstable IDとEMU画像layoutをPPTX / `.assets.json` に保存する
+7. 成功後に一時ファイルを削除する
 
 実行には Bash、Quarto、Node.js、Python 3、`python-pptx`、Pillow などが必要です。Windows では Git Bash または Dev Container / Docker 環境での利用を推奨します。
 

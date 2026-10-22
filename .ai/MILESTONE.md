@@ -79,4 +79,4 @@ QMD -> PPTX render
 
 ## 状態
 
-設計確定・未実装。
+実装・自動テストと独立Review/Architectureは完了。Draft PRのCIでQuarto/PPTX renderとdocx回帰を確認し、PowerPoint desktop保存保持のHUMAN_REQUIRED gateを残している。

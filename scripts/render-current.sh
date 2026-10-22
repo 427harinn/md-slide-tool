@@ -18,6 +18,7 @@ STEM="${BASENAME%.*}"
 
 RENDER_QMD="$DIR/.${STEM}.render.qmd"
 IMAGES_JSON="$DIR/.${STEM}.images.json"
+ASSETS_JSON="$DIR/${STEM}.assets.json"
 RENDER_BASENAME="$(basename "$RENDER_QMD")"
 RENDER_STEM="${RENDER_BASENAME%.*}"
 RENDER_PPTX="$DIR/${RENDER_STEM}.pptx"
@@ -73,7 +74,8 @@ fi
 echo "画像後処理: $FINAL_PPTX"
 python3 "$REPO_ROOT/scripts/postprocess-pptx.py" \
   --pptx "$FINAL_PPTX" \
-  --images-json "$IMAGES_JSON"
+  --images-json "$IMAGES_JSON" \
+  --assets "$ASSETS_JSON"
 
 # ----------------------------
 # ⑥ cleanup（ここ追加）

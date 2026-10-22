@@ -74,41 +74,53 @@ Do not implement QMD save watcher, PPTX save watcher, PPTX -> QMD, `assets.json`
 
 ## M2: Stable IDs and Element Layout
 
-M2 acceptance criteria are UNVERIFIED until implementation evidence exists.
+M2 gate status is tracked below; AC-M2-11 still depends on Draft PR CI, and AC-M2-04 retains the PowerPoint desktop save check.
 
 - **AC-M2-01:** Missing stable IDs are generated only where needed, written back safely to QMD, and existing valid IDs remain unchanged.
   - Verification: AUTOMATED
-  - Status: UNVERIFIED
+  - Status: PASS
+  - Evidence: `tests/test_m2_stable_ids_assets.py` verifies only missing IDs are added, existing IDs remain stable, and non-ID QMD content is preserved; atomic write helper is used.
 - **AC-M2-02:** Duplicate `slide-id` or `element-id` causes a deterministic failure and is not silently repaired.
   - Verification: AUTOMATED
-  - Status: UNVERIFIED
+  - Status: PASS
+  - Evidence: Duplicate slide/element fixtures fail before source write and leave QMD unchanged.
 - **AC-M2-03:** The element identity model is `element-id`; M2 implements image elements without creating a separate incompatible image-only identity system.
   - Verification: AUTOMATED + Architecture review
-  - Status: UNVERIFIED
+  - Status: PASS
+  - Evidence: `elementId` / `type=image` model, source scan, and independent Architecture review.
 - **AC-M2-04:** Generated PPTX carries the same slide/element stable IDs in metadata that survives the supported save/reopen path.
   - Verification: AUTOMATED where possible; HUMAN_REQUIRED only if actual PowerPoint save behavior cannot be reproduced reliably by the agent environment.
-  - Status: UNVERIFIED
+  - Status: HUMAN_REQUIRED
+  - Evidence: python-pptx 0.6.23 save/reopen tests preserve slide and picture names. Microsoft PowerPoint desktop edit/save preservation remains to be confirmed.
 - **AC-M2-05:** First render with no saved layout uses the current placement engine and persists the resulting image rectangle to `<stem>.assets.json`.
   - Verification: AUTOMATED
-  - Status: UNVERIFIED
+  - Status: PASS
+  - Evidence: First postprocess creates schema v1 assets with integer auto-placement rectangle; CI integration fixture also exercises first render.
 - **AC-M2-06:** Later render with valid saved layout applies the stored EMU rectangle before considering automatic placement.
   - Verification: AUTOMATED
-  - Status: UNVERIFIED
+  - Status: PASS
+  - Evidence: Second-run unit fixture verifies exact rectangle restoration, including engine-generated off-slide placement; CI integration asserts unchanged EMU rectangle.
 - **AC-M2-07:** Changing the slide title while retaining `slide-id` does not break image association/layout.
   - Verification: AUTOMATED
-  - Status: UNVERIFIED
+  - Status: PASS
+  - Evidence: Stable slide ID matches the slide after title rename; covered by unit and CI integration fixtures.
 - **AC-M2-08:** Changing the image source path while retaining `element-id` preserves the element's saved layout.
   - Verification: AUTOMATED
-  - Status: UNVERIFIED
+  - Status: PASS
+  - Evidence: Same element ID with changed source path restores the previous rectangle; covered by unit and CI integration fixtures.
 - **AC-M2-09:** Invalid layout falls back for that element with a warning; stale entries are removed only after a successful render.
   - Verification: AUTOMATED
-  - Status: UNVERIFIED
+  - Status: PASS
+  - Evidence: Invalid values warn and fall back per element; sibling layouts remain intact; stale entries are pruned after successful postprocess only.
 - **AC-M2-10:** `assets.json` stores schema/version, slide size and image-element layout only; title/body text is not duplicated as canonical persistent state.
   - Verification: AUTOMATED + Architecture review
-  - Status: UNVERIFIED
+  - Status: PASS
+  - Evidence: Assets assertions check schema v1, slide size, integer geometry, and absence of title/caption; independent Architecture review passed.
 - **AC-M2-11:** Existing image placement behavior, representative PPTX render, and docx generation remain functional.
   - Verification: AUTOMATED regression
   - Status: UNVERIFIED
+  - Evidence: Existing image placement and Python regression suites pass. Representative Quarto PPTX render, DOCX render, smoke, and PR-head CI have not run locally; Draft PR CI is configured to run them.
 - **AC-M2-12:** M2 does not implement PPTX -> QMD import, watchers, sync, conflict handling, shape persistence, crop/rotation/z-order, Marketplace publication, or PPTX -> Word.
   - Verification: scope scan + independent Review/Architecture
-  - Status: UNVERIFIED
+  - Status: PASS
+  - Evidence: Scope scan and independent Review/Architecture confirmed no M3+ production implementation.
