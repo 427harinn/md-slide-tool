@@ -126,11 +126,13 @@ CI smoke test は CLI help、template listing、npm package contents を確認�
 ## M1実装状況
 
 - M0で削除した Preview / PDF.js / Preview専用LibreOffice は復活させない。
-- M1 command は workspace extension としてDev Container内で動き、buildは既存 `slidegen render` を使用する。
+- M1 extension はworkspace build packageとlocal UI packageの2つ。build packageはDev Container内で既存 `slidegen render` を実行し、UI packageだけがhost上で `vscode.Uri.file` / `vscode.env.openExternal` を呼ぶ。
+- UI と workspace package は `vscode.commands.executeCommand` でQMD URI文字列と小さなJSON結果をやり取りする。Tasks API案は検討したが、remote buildの結果pathを返す追加channelが必要になるため採用しなかった。
 - `.devcontainer/devcontainer.json` の `remoteEnv.MD_SLIDE_TOOL_HOST_WORKSPACE` が `${localWorkspaceFolder}` を渡す。
 - Dev Container lifecycle hookから `code --install-extension` を呼ぶ方式はWindows実機でCLIがPATHに存在せず失敗したため撤回した。
-- `customizations.vscode.extensions` はMarketplace形式のextension IDのみを扱い、ローカルVSIX pathを指定できない。現在のextensionは未公開のため、通常のReopen in Containerだけでcommandを利用する配布経路は未解決。
-- 次候補はMarketplace公開後にextension IDを `customizations.vscode.extensions` へ追加する方法。公開は未承認・未実施。標準フローが成立するまでM1は未完了。
+- Windows実機でworkspace extensionから`openExternal(file://C:/...)`を呼ぶと `vscode-remote` link扱いになったため、local UI packageへopen責務を移した。二層間の実機command routingは未確認。
+- `customizations.vscode.extensions` はMarketplace形式のextension IDのみを扱い、ローカルVSIX pathを指定できない。2 packageとも未公開のため、通常のReopen in Containerだけで利用する配布経路は未解決。
+- Marketplace公開とextension ID追加はWindows E2E後に判断する。公開は未承認・未実施。配布とHost Bridgeの両Gateが成立するまでM1は未完了。
 
 ## Repository Cleanup 検証記録 (2026-10-22)
 

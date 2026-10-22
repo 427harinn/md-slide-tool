@@ -16,6 +16,8 @@ Dev Container 内で QMD を PPTX に build し、build 成功後に Windows/mac
 4. Dev Container 内で QMD を build
 5. build 成功後、ホスト OS の Microsoft PowerPoint で生成 PPTX を開く
 
+**現状:** build/open実装とVSIX packageはあるが、未公開2 packageを標準フローで自動配布する方法は未解決。通常フローでcommandはまだ利用できず、M1 GateはFAIL。
+
 PowerPoint 以外の build / conversion logic は Dev Container 側に置く。
 
 ## Scope
@@ -51,40 +53,39 @@ M1 では実装しない:
 ## Architecture principle
 
 ```text
-Dev Container / Core
+Dev Container / Workspace extension
   - slidegen render
   - output PPTX resolution
   - build result
         |
         | open request only
         v
-Host Bridge
-  - no build logic
-  - no QMD parsing
-  - open the requested host-side PPTX
+VS Code command bridge
+  - workspace command returns a small JSON result
+  - no build logic on UI side
+        |
+        v
+Local UI extension
+  - create a local `file:` URI from the Windows host path
+  - call `vscode.env.openExternal`
         |
         v
 Microsoft PowerPoint
 ```
 
-Host Bridge は「PPTXを開く」以外の責務を持たない。
+Local UI extension は「受け取ったhost pathのPPTXを開く」以外の責務を持たない。Workspace extensionはbuildとcontainer-to-host path mappingを担当し、PowerPointをspawnしない。
 
-## Feasibility spike first
+## Feasibility spike result and architecture decision
 
 Remote / Dev Container 環境では Workspace Extension は container 側で動くため、ホスト OS の PowerPoint を直接 spawn しない。
 
-VS Code の公式方針に沿い、最初に以下を検証する。
+最初に試したworkspace-only PoCはWindows実機で失敗した。remote extension hostから `vscode.env.openExternal(file://C:/...)` を呼ぶと、Windowsで `vscode-remote` linkとして処理されることを確認した。Marketplaceへ公開してもこのURI所有元の問題は解決しない。
 
-1. UI Extension をホスト側で動かす
-2. `vscode.env.openExternal` で host-side PPTX を既定アプリで開く
-3. Dev Container の `${localWorkspaceFolder}` を host path として bridge に渡せることを確認する
-4. `/work/.../file.pptx` と host workspace path + relative path の対応を確認する
-5. Windows の path separator / spaces / non-ASCII filenames を確認する
+二層構成を選択した。Workspace extensionが既存buildを実行し、`/work/...` の出力pathを `${localWorkspaceFolder}` から渡されたhost workspace pathへ変換する。登録commandの戻り値でhost pathをlocal UI extensionへ返す。UI extensionは `vscode.Uri.file(hostPath)` でローカルURIを作り、local extension host上から `vscode.env.openExternal` を呼ぶ。
 
-参考:
-- VS Code Remote extensions: UI extensions run locally; workspace extensions run remotely.
-- VS Code recommends `vscode.env.openExternal` for opening a local browser/application from remote development.
-- Dev Containers supports passing `${localWorkspaceFolder}` into the container via `remoteEnv`.
+UI extension単体 + VS Code Tasks API案も検討した。Task APIはremote側のprocess task実行と終了/exit status通知には使えるが、workspace extension側で確定したhost pathをUI extensionへ構造化結果として返すにはtask output等の別channelが必要となる。VS Code command間の小さなJSON結果を使う二層案の方がpath mapping責務をworkspace側に保てるため採用した。
+
+VS Code Remote Extensions guidanceではUI extensionがlocal、workspace extensionがremoteで実行され、extension間commandは場所に応じてrouteされる。Dev Containerの `remoteEnv` には `${localWorkspaceFolder}` を設定し `/work` とWindows host workspaceの対応を渡す。
 
 ## Preferred implementation direction
 
@@ -95,12 +96,13 @@ PoC で成立する場合は、以下の責務分離を優先する。
 - build
 - output path determination
 - relative path generation
-- open request generation
+- host path mapping
+- registered command result generation
 
 ### Host/UI side
 
-- receive host path or workspace-relative PPTX path
-- validate .pptx
+- receive the workspace command result
+- create a local file URI from the host path
 - call `vscode.env.openExternal`
 - show host-open errors
 
@@ -143,21 +145,49 @@ Windows + Docker Desktop + VS Code + Reopen in Container の標準環境で:
 
 ## Manual validation
 
-人間が実機で確認する項目:
+## Automated checks and Windows HUMAN_REQUIRED gate
 
-- Docker Desktop起動
-- Reopen in Container
-- 既知の QMD を build
-- 正しい PPTX が PowerPoint で自動的に開く
-- PowerPoint で編集可能
-- 同名の別 PPTX が誤って開かれない
-- 日本語ファイル名/パス
-- PowerPointが既に起動中の場合
+自動テストで確認する項目:
+
+- remote build failure時にopen可能な結果を返さない
+- missing output時にopen可能な結果を返さない
+- `/work` からWindows/POSIX host pathへのmapping
+- 日本語、空白、nested path
+- workspace外pathの拒否
+- UI extensionが `vscode.Uri.file(hostPath)` 相当のlocal `file:` URIを作る
+- `openExternal` / mapping failureでもbuild成功結果を保持
+- smoke test、PPTX render、docx regression
+
+Windows実機で人間が確認する項目（M1 GateをPASSにする前に必要）:
+
+- Dev Containerへ接続したwindowにlocal UI packageとremote workspace packageが配置される
+- Extension Development Hostや最終利用者の手動操作なしでcommandが表示される
+- cross-host VS Code command routingが成功する
+- 実QMDから正しいPPTXがWindows側PowerPointで開く
+- PowerPoint起動済み、日本語/空白を含む実workspace path
+- 意図的build failureではPowerPointが起動しない
+- PowerPointで生成ファイルを通常編集・保存できる
 
 ## PR #14 implementation status
 
-The M1 workspace extension's build/open code is implemented, but automatic distribution through the regular **Reopen in Container** flow is blocked. Windows validation showed that the remote `code` CLI is not on `PATH` in either `postStartCommand` or `postAttachCommand`, so lifecycle-hook VSIX installation was removed. The VS Code Dev Container schema accepts Marketplace-style extension IDs in `customizations.vscode.extensions`; it does not accept a local VSIX path. The extension is not yet published, so the standard flow currently does not install it.
+### Architecture decision (Windows E2E follow-up)
 
-The command runs the existing `slidegen render` CLI in the container. It checks for the final same-stem `.pptx` output, maps its path relative to `/work` onto the host workspace, and calls `vscode.env.openExternal`. A build error or missing output prevents opening. Host mapping or `openExternal` failure leaves the generated PPTX build intact and reports a warning.
+The workspace-only Host Bridge failed on Windows: calling `vscode.env.openExternal` with a `file://C:/...` URI from the remote extension host was surfaced as a `vscode-remote` link. Publishing that design would not fix the URI ownership problem.
 
-The extension package contains only the M1 command, its host path mapping, and tests. It does not contain Preview/Webview/PDF.js code or `pdfjs-dist` dependencies. The next candidate is to publish the extension to the VS Code Marketplace and add its ID to `customizations.vscode.extensions`; this requires publisher setup and explicit approval for public release. Until an approved distribution method is implemented and verified, the standard-flow M1 gate remains failed and PR #14 stays Draft.
+Use two small extension packages with explicit responsibilities:
+
+- Workspace extension: run `slidegen render`, verify the final same-stem PPTX, map its `/work`-relative path with `MD_SLIDE_TOOL_HOST_WORKSPACE`, and return the resulting Windows host path through a registered VS Code command. It never opens a URI.
+- UI extension: expose **Build and Open in Microsoft PowerPoint**, invoke the workspace command, construct a local `vscode.Uri.file(hostPath)`, and call `vscode.env.openExternal` from the local extension host.
+- Communication: the UI command invokes the workspace extension's internal command through `vscode.commands.executeCommand`; the workspace command returns a small result object with build status and host path/error.
+
+The single UI extension + Tasks API alternative was considered. VS Code can execute process tasks in remote contexts, but the task API exposes task completion/exit status rather than a structured return value containing the remote process's resolved host path. Returning that result through task output or a temporary file would add a second result channel. The two-extension command result keeps the remote path mapping beside `remoteEnv` and gives the local opener a plain host path.
+
+### Verification split
+
+Automated tests cover remote build failure/output validation, host path mapping, command result handling, and that the UI side creates a local `file:` URI before `openExternal`. Windows HUMAN_REQUIRED covers actual extension-host placement and cross-host command dispatch, Windows file association/PowerPoint opening, an already-running PowerPoint, Japanese/space paths, and editable output.
+
+The M1 build/open code is implemented as separate workspace and UI extension packages, and both VSIX packages build locally. Automatic distribution through the regular **Reopen in Container** flow remains blocked. Windows validation showed that the remote `code` CLI is not on `PATH` in lifecycle hooks, so lifecycle-hook VSIX installation was removed. The VS Code Dev Container schema accepts Marketplace-style extension IDs in `customizations.vscode.extensions`; it does not accept a local VSIX path. Neither package is published, so the standard flow currently does not install them. Manual VSIX installation is diagnostic-only and is not the final workflow.
+
+The remote command runs the existing `slidegen render` CLI in the container. It checks for the final same-stem `.pptx` output and maps its path relative to `/work` onto `MD_SLIDE_TOOL_HOST_WORKSPACE`. The local command invokes the remote command through `vscode.commands.executeCommand`, then creates `vscode.Uri.file(hostPath)` and calls `vscode.env.openExternal`. A build error or missing output prevents opening. Host mapping or `openExternal` failure leaves the generated PPTX build intact and reports a warning.
+
+The extension packages contain only the M1 build/open responsibilities and path mapping. They do not contain Preview/Webview/PDF.js code or `pdfjs-dist` dependencies. Automated checks are separate from the Windows HUMAN_REQUIRED gate above. Marketplace publication is deferred until the two-host Host Bridge passes Windows E2E. After that, publish both IDs and add them to `customizations.vscode.extensions`; this requires publisher setup and explicit approval for public release. Until both the bridge and an approved automatic distribution method are verified, the standard-flow M1 gate remains failed and PR #14 stays Draft.

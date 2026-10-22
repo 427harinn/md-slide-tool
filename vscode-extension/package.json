@@ -1,48 +1,12 @@
 {
-  "name": "md-slide-tool-powerpoint",
-  "displayName": "md-slide-tool PowerPoint",
-  "description": "Build PPTX in the Dev Container and open it on the host.",
+  "name": "md-slide-tool-extension-tools",
   "version": "0.1.0",
-  "publisher": "md-slide-tool",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/427harinn/md-slide-tool.git"
-  },
+  "private": true,
   "type": "module",
-  "engines": {
-    "vscode": "^1.92.0"
-  },
-  "categories": [
-    "Other"
-  ],
-  "extensionKind": [
-    "workspace"
-  ],
-  "main": "./src/extension.js",
-  "activationEvents": [
-    "onCommand:mdSlideTool.buildAndOpenPowerPoint"
-  ],
-  "contributes": {
-    "commands": [
-      {
-        "command": "mdSlideTool.buildAndOpenPowerPoint",
-        "title": "Build and Open in Microsoft PowerPoint",
-        "category": "md-slide-tool"
-      }
-    ],
-    "menus": {
-      "explorer/context": [
-        {
-          "command": "mdSlideTool.buildAndOpenPowerPoint",
-          "when": "resourceExtname == .qmd",
-          "group": "navigation@50"
-        }
-      ]
-    }
-  },
+  "description": "Tests and packages the md-slide-tool VS Code extensions.",
   "scripts": {
     "test": "node --test test/*.test.js",
-    "package": "vsce package --no-dependencies"
+    "package": "node ./scripts/package-extensions.js"
   },
   "devDependencies": {
     "@vscode/vsce": "3.3.2"

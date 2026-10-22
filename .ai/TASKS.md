@@ -29,7 +29,7 @@ PoCは最小コードで行い、成功条件をテストまたは実機確認�
 
 成立しない場合は代替案を勝手に大規模実装せず、原因と候補をPR/タスクへ記録する。
 
-**状態:** remote extension + `vscode.env.openExternal` の最小PoCを実装。Windows実機での配送確認は未完了のためDraftを維持。
+**状態:** workspace-only PoCはWindows実機でFAIL（remote hostから開いた`file:` URIが`vscode-remote` link扱い）。後続確認からUI extension + workspace extensionの二層構成を選定し、自動テストを追加。二層間command routingのWindows実機確認はHUMAN_REQUIRED。
 
 ### T-103: Host Bridgeを最小実装する
 
@@ -51,7 +51,7 @@ Host側の責務:
 - file watch
 - PowerPoint edit/save logic
 
-**状態:** Host Bridge実装済み。Dev Container lifecycle hookからのVSIX installはWindows実機で `code` CLI不在により失敗したため撤回。通常フロー用の配布方法が未解決。
+**状態:** workspace extensionで既存renderとhost path mapping、local UI extensionでlocal file URI生成とopenを実装。cross-host command routingのWindows実機確認と通常フロー用の自動配布は未解決。
 
 ### T-104: build成功後のopen flowを接続する
 
@@ -78,7 +78,7 @@ Host側の責務:
 
 macOSは実装が自然に対応できる場合は対応する。実機未確認なら未確認と明記する。
 
-**状態:** unit testsで確認。PowerPoint起動済みとWindows GUI pathは実機確認待ち。
+**状態:** unit testsでWindows/POSIX mapping、日本語/空白pathを確認。実機でのcross-host routing、PowerPoint起動済みの動作、Windows GUI pathはHUMAN_REQUIRED。
 
 ### T-106: tests
 
@@ -93,7 +93,7 @@ macOSは実装が自然に対応できる場合は対応する。実機未確認
 - smoke test
 - docx regression
 
-**状態:** 自動テスト、smoke、PPTX/DOCX regressionを実行済み。
+**状態:** extension unit testsとVSIX packagingを実行。smoke、実PPTX render、docx regressionはこの修正後に再実行待ち。
 
 ### T-107: documentation
 
@@ -115,7 +115,7 @@ Docker Desktop
 -> Microsoft PowerPoint
 ```
 
-**状態:** README / PROJECT_CONTEXT / MILESTONE / TASKS / M1 docを更新。
+**状態:** README / PROJECT_CONTEXT / MILESTONE / TASKS / M1 docを二層architectureとseparate automated/HUMAN_REQUIRED gatesに合わせて更新。
 
 ### T-108: final self-review and PR
 
@@ -127,4 +127,4 @@ Docker Desktop
 - PowerPoint起動方法/host bridge責務を説明
 - 未確認事項を明記
 
-**状態:** PR #14 Draft。Windows実機で通常フロー後もcommandが表示されないことを確認。Marketplace形式IDしか受け付けないDev Container設定と未公開extensionの配布制約を記録し、M1 GateはFAILのまま。
+**状態:** PR #14 Draft。workspace-only host openの失敗を修正する二層packageを追加。VSIX手動installは診断のみ許容されるが、二層command routingを含むWindows E2EとMarketplace前の自動配布経路は未確認。M1 GateはFAILのまま。

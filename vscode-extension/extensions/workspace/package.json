@@ -1,0 +1,14 @@
+{
+  "name": "md-slide-tool-powerpoint-workspace",
+  "displayName": "md-slide-tool PowerPoint Workspace",
+  "description": "Builds PPTX files in the md-slide-tool workspace and maps their host paths.",
+  "version": "0.1.0",
+  "publisher": "md-slide-tool",
+  "repository": { "type": "git", "url": "https://github.com/427harinn/md-slide-tool.git" },
+  "type": "module",
+  "engines": { "vscode": "^1.92.0" },
+  "categories": ["Other"],
+  "extensionKind": ["workspace"],
+  "main": "./src/extension.js",
+  "activationEvents": ["onCommand:mdSlideTool.buildRemotePptx"]
+}

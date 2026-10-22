@@ -4,21 +4,7 @@ function isWindowsPath(value) {
   return /^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value);
 }
 
-function toFileUri(hostPath) {
-  if (isWindowsPath(hostPath)) {
-    const normalized = hostPath.replaceAll('\\', '/');
-    if (normalized.startsWith('//')) {
-      const [authority, ...segments] = normalized.slice(2).split('/');
-      return `file://${authority}/${segments.map(encodeURIComponent).join('/')}`;
-    }
-    const [drive, ...segments] = normalized.split('/');
-    return `file:///${drive}/${segments.map(encodeURIComponent).join('/')}`;
-  }
-  const encodedPath = hostPath.split('/').map(encodeURIComponent).join('/');
-  return `file://${encodedPath.startsWith('/') ? '' : '/'}${encodedPath}`;
-}
-
-export function mapContainerPathToHostUri(containerPath, containerWorkspace, hostWorkspace) {
+export function mapContainerPathToHostPath(containerPath, containerWorkspace, hostWorkspace) {
   if (!containerPath || !containerWorkspace || !hostWorkspace) {
     throw new Error('Host workspace path mapping is not configured. Reopen this project in the Dev Container.');
   }
@@ -31,20 +17,12 @@ export function mapContainerPathToHostUri(containerPath, containerWorkspace, hos
   }
 
   const segments = relativePath ? relativePath.split('/') : [];
-  const hostPath = isWindowsPath(hostWorkspace)
+  return isWindowsPath(hostWorkspace)
     ? path.win32.resolve(hostWorkspace, ...segments)
     : path.posix.resolve(hostWorkspace, ...segments);
-  return { hostPath, uri: toFileUri(hostPath) };
 }
 
-export async function buildAndOpenPowerPoint({
-  qmdPath,
-  workspacePath,
-  hostWorkspace,
-  runBuild,
-  outputExists,
-  openExternal,
-}) {
+export async function buildPptxForHost({ qmdPath, workspacePath, hostWorkspace, runBuild, outputExists }) {
   const inputPath = path.posix.resolve(qmdPath);
   const rootPath = path.posix.resolve(workspacePath);
   const relativeInput = path.posix.relative(rootPath, inputPath);
@@ -63,11 +41,12 @@ export async function buildAndOpenPowerPoint({
   }
 
   try {
-    const mapped = mapContainerPathToHostUri(pptxPath, workspacePath, hostWorkspace);
-    const opened = await openExternal(mapped.uri);
-    if (!opened) return { status: 'built-host-bridge-unavailable', pptxPath, hostPath: mapped.hostPath };
-    return { status: 'built-and-opened', pptxPath, hostPath: mapped.hostPath };
+    return {
+      status: 'built',
+      pptxPath,
+      hostPath: mapContainerPathToHostPath(pptxPath, workspacePath, hostWorkspace),
+    };
   } catch (error) {
-    return { status: 'built-host-bridge-unavailable', pptxPath, error };
+    return { status: 'built-host-bridge-unavailable', pptxPath, error: error.message };
   }
 }

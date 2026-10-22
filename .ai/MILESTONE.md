@@ -79,4 +79,6 @@ PoCが成立しない場合は、代替案を調査結果とともに止めて�
 
 ## 状態
 
-未完了。Build/OpenとHost Bridgeは実装済みだが、未公開workspace extensionを通常のDev Container起動だけでinstallする方法が未解決。lifecycle hookからの `code --install-extension` はWindows実機でCLI不在により失敗したため撤回。Marketplace公開などの配布方法が決まるまでDraftを維持する。
+未完了。remote workspace buildとlocal UI openを2つの小さなVS Code extension packageに分割した。workspace-only構成ではWindows実機でremote `openExternal(file://C:/...)` が `vscode-remote` linkとして扱われることを確認したため、local UI extensionが `vscode.Uri.file` と `vscode.env.openExternal` を担う。2 package間の実機command routingおよびWindows PowerPoint E2Eは未確認。
+
+自動配布も未解決。lifecycle hookからの `code --install-extension` はWindows実機でCLI不在により失敗し撤回済み。Dev Container設定へローカルVSIX pathを指定できず、extensionも未公開のため通常のReopen in Containerだけではcommandが使えない。PR #14はDraftを維持し、M1 GateはFAIL。

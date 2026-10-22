@@ -1,0 +1,32 @@
+{
+  "name": "md-slide-tool-powerpoint-ui",
+  "displayName": "md-slide-tool PowerPoint",
+  "description": "Builds a workspace QMD and opens its PPTX in the local host application.",
+  "version": "0.1.0",
+  "publisher": "md-slide-tool",
+  "repository": { "type": "git", "url": "https://github.com/427harinn/md-slide-tool.git" },
+  "type": "module",
+  "engines": { "vscode": "^1.92.0" },
+  "categories": ["Other"],
+  "extensionKind": ["ui"],
+  "main": "./src/extension.js",
+  "activationEvents": ["onCommand:mdSlideTool.buildAndOpenPowerPoint"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "mdSlideTool.buildAndOpenPowerPoint",
+        "title": "Build and Open in Microsoft PowerPoint",
+        "category": "md-slide-tool"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "mdSlideTool.buildAndOpenPowerPoint",
+          "when": "resourceExtname == .qmd",
+          "group": "navigation@50"
+        }
+      ]
+    }
+  }
+}
