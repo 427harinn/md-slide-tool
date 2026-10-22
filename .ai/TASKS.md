@@ -1,81 +1,130 @@
 # TASKS
 
-## M0: Repository Cleanup
+## M1: QMD -> PPTX -> Microsoft PowerPoint
 
 Codex は上から順番に実行する。
 
-### T-001: 現在の正式経路を確定する
+### T-101: 現在のbuild出力規則を確認する
 
-- CLI commands の確認
-- QMD -> PPTX render path の確認
-- docx template/project path の確認
-- VS Code task / extension / Dev Container setup の参照関係確認
-- preview / auto-preview 実験が正式経路から呼ばれているか確認
-- 調査結果を `.ai/PROJECT_CONTEXT.md` へ反映
+- `slidegen render` の成功/失敗判定を確認
+- input QMD から最終 PPTX path をどう決定しているか確認
+- template / postprocess 後の最終ファイルを特定
+- Windows bind mount と `/work` の対応を確認
 
-**状態:** 完了
+**状態:** 未着手
 
-### T-002: 不採用 Preview 実験を削除する
+### T-102: Host Bridge feasibility PoC
 
-正式経路から未使用であることを確認してから、PDF.js / Webview / PPTX->PDF Preview / Preview専用extension code・tests・build scripts・依存を整理する。
+VS Code公式のRemote Development方針を優先する。
 
-docx、PPTX render、template 処理は削除しない。
+確認すること:
 
-**状態:** 完了
+- UI/local extension host
+- `vscode.env.openExternal`
+- host-side PPTX file URI
+- `${localWorkspaceFolder}` または同等のhost path mapping
+- workspace/container側からhost/UI側へopen requestを渡す方法
 
-### T-003: Dev Container / 自動 build 経路を整理する
+PoCは最小コードで行い、成功条件をテストまたは実機確認可能な形にする。
 
-- `triggerTaskOnSave` の利用状況確認
-- `.vscode/tasks.json` の役割確認
-- `scripts/devcontainer-setup.sh` の不要処理削除
-- Preview 専用 LibreOffice が不要になった場合のみ Dockerfile から削除
-- 次マイルストーンで Sync Engine を追加しやすい状態へ整理
+成立しない場合は代替案を勝手に大規模実装せず、原因と候補をPR/タスクへ記録する。
 
-**状態:** 完了
+**状態:** 未着手
 
-### T-004: 不要ファイル・古い設定を整理する
+### T-103: Host Bridgeを最小実装する
 
-- tracked `.DS_Store` 削除と ignore 確認
-- 空の `compose.yml` 削除
-- 壊れた / 未完成 template 資産があれば利用状況を確認して扱いを決定
-- 生成物や fixture を誤って削除しない
+PoCで成立した方式のみ実装する。
 
-**状態:** 完了
+Host側の責務:
 
-### T-005: CLI / render の責務を最小限整理する
+- 対象PPTX pathを受け取る
+- .pptx validation
+- host OSでopenする
+- error reporting
 
-- `cli/slidegen.js` の責務確認
-- CLI parsing と処理本体が過度に密結合している箇所のみ分離
-- `slidegen render` の公開挙動は維持
-- Bash/Python/Quarto の全面書き換えはしない
-- 将来のためだけの過剰抽象化をしない
+禁止:
 
-**状態:** 完了
+- QMD parsing
+- Quarto実行
+- Python実行
+- PPTX変換
+- file watch
+- PowerPoint edit/save logic
 
-### T-006: テストとCIを cleanup 後の正式機能へ合わせる
+**状態:** 未着手
 
-- PPTX画像後処理テスト
-- CLI smoke
-- template listing
-- docx template が残っていること
-- 削除した preview 用 test の整理
-- 必要最小限の regression test 追加
+### T-104: build成功後のopen flowを接続する
 
-**状態:** 完了
+- 既存 `slidegen render` の互換性を維持
+- build failure時はopenしない
+- final PPTXのみを開く
+- host bridge unavailableでもrender結果を失わない
+- 二重openを避ける
 
-### T-007: ドキュメントを現在状態へ更新する
+自動QMD save watcherは追加しない。
 
-README / PROJECT_CONTEXT / 必要なDEBUG_SCENARIOS を更新し、過去マイルストーンの結果を現在仕様のように残さない。
+**状態:** 未着手
 
-**状態:** 完了
+### T-105: path / platform handling
 
-### T-008: 最終セルフレビューとPR作成
+最低限確認:
 
-- 全テスト実行
-- `.ai/REVIEW_CHECKLIST.md` に沿ってレビュー
-- docx が維持されていることを確認
-- PPTX render の回帰確認
-- 削除内容と理由を PR に記載
-- PowerPoint 自動起動を先回り実装していないことを確認
+- Windows host path
+- spaces
+- 日本語 path
+- nested project path
+- Windows path separator
+- PowerPoint already running
 
-**状態:** 完了（実コンテナ・GUI検証は環境制約により未確認）
+macOSは実装が自然に対応できる場合は対応する。実機未確認なら未確認と明記する。
+
+**状態:** 未着手
+
+### T-106: tests
+
+追加/更新:
+
+- output PPTX resolution
+- bridge request/path mapping
+- build failure -> no open
+- bridge unavailable -> render success preserved
+- invalid/non-PPTX rejection
+- current PPTX image-placement tests
+- smoke test
+- docx regression
+
+**状態:** 未着手
+
+### T-107: documentation
+
+更新:
+
+- README
+- PROJECT_CONTEXT
+- MILESTONE
+- TASKS
+- DEBUG_SCENARIOS if needed
+
+標準利用手順を以下に統一する。
+
+```text
+Docker Desktop
+-> VS Code
+-> Reopen in Container
+-> build
+-> Microsoft PowerPoint
+```
+
+**状態:** 未着手
+
+### T-108: final self-review and PR
+
+- 全テスト
+- REVIEW_CHECKLIST
+- M1以外を先回りしていないか
+- docx regression
+- Windows実機で必要な手動確認項目をPR本文へ記載
+- PowerPoint起動方法/host bridge責務を説明
+- 未確認事項を明記
+
+**状態:** 未着手
