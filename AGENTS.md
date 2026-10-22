@@ -8,8 +8,21 @@
 4. `.ai/TASKS.md`
 5. `docs/ROADMAP.md`
 6. `.ai/REVIEW_CHECKLIST.md`
+7. `.ai/AGENT_WORKFLOW.md`
+8. `.ai/ACCEPTANCE_CRITERIA.md`
+9. `.ai/TEST_PLAN.md`
+10. `.ai/HUMAN_GATES.md`
 
 問題発生時は `.ai/DEBUG_SCENARIOS.md` を確認してください。
+
+## Subagent / Gate 運用
+
+- 実際のsubagent機能が利用できる場合、Root / Lead Codex は `.ai/AGENT_WORKFLOW.md` に従って実装・テスト・レビューを独立したAgentへ委譲する。
+- ユーザーに複数チャットや複数Agentを手動で作らせない。
+- 実装前にAcceptance CriteriaとTest Planを確認する。
+- Gateは `PASS / FAIL / UNVERIFIED / HUMAN_REQUIRED` を明確に区別する。
+- HUMAN_REQUIRED項目は、AI側で可能な確認を終えた後にまとめてユーザーへ報告する。
+- FAILまたはUNVERIFIEDの必須Gateが残る状態で「完了」と報告しない。
 
 ## 基本ルール
 

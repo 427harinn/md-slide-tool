@@ -20,18 +20,22 @@ Codex は `AGENTS.md` から参照される `.ai/` 文書を実装の基準に�
 Human
   -> MILESTONE / TASKS を確定
 
-Codex
-  -> branch
-  -> implementation
-  -> tests
-  -> self review
-  -> PR
+Root Codex
+  -> acceptance criteria / test plan
+  -> spawn implementation subagent
+  -> spawn independent test/review/architecture subagents
+  -> FAILなら自動でimplementationへ差し戻し
+  -> AI-executable gatesを再検証
+  -> Draft PR
 
 Automated review
-  -> Codex Code Review / CI
+  -> CI / Codex Code Review
+
+Human
+  -> HUMAN_REQUIREDだけ実機確認
 
 Human + ChatGPT
-  -> PR review
+  -> 最終PR review
   -> 必要なら修正依頼
 
 Codex
@@ -51,6 +55,10 @@ Human
 - `.ai/MILESTONE.md`
 - `.ai/TASKS.md`
 - `.ai/REVIEW_CHECKLIST.md`
+- `.ai/AGENT_WORKFLOW.md`
+- `.ai/ACCEPTANCE_CRITERIA.md`
+- `.ai/TEST_PLAN.md`
+- `.ai/HUMAN_GATES.md`
 
 長期方針が必要な場合:
 
