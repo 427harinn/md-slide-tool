@@ -79,4 +79,4 @@ QMD -> PPTX render
 
 ## 状態
 
-実装・自動テストと独立Review/Architectureは完了。Draft PRのCIでQuarto/PPTX renderとdocx回帰を確認し、PowerPoint desktop保存保持のHUMAN_REQUIRED gateを残している。
+実装・自動テスト・独立Review/Architecture・PR #17 head CI run #60はPASS。PowerPoint desktop保存後のmetadata保持をHUMAN_REQUIRED gateとして残しているため、Draft PRを維持。

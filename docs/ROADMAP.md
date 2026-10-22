@@ -131,7 +131,7 @@ Marketplace公開、publisher設定、通常のReopen in Containerでの自動ex
 
 ## M2: Stable IDs and Element Layout
 
-状態: 実装済み。Draft PR CI と PowerPoint desktop 保存確認を実施中。
+状態: 実装済み。Draft PR CI はPASS。PowerPoint desktop 保存確認が残っている。
 
 目的:
 将来の往復変換に必要なstable identityとvisual element layout保存を導入する。

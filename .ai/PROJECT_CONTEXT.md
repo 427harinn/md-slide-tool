@@ -187,5 +187,5 @@ Dev Containersでは `${localWorkspaceFolder}` を `remoteEnv` 等でcontainer�
 
 - Python testsは18件PASS。PPTX metadataのpython-pptx save/reopen、ID/重複検証、assets layout restore/fallback/stale cleanupを含む。
 - GitHub Actionsはroot tests、既存smoke、Docker内の2回render/title+path変更/layout維持とdocx render回帰を実行する。
-- Windows実行環境ではQuarto / Docker / Bashが使えず、代表render・docx回帰・smokeはDraft PR CIで確認する。
+- Windows実行環境ではQuarto / Docker / Bashが使えなかったため、PR #17 head CI run #60で代表render・docx回帰・smokeを実行しPASS。
 - PowerPoint desktopで編集・保存後のmetadata保持のみHUMAN_REQUIRED。

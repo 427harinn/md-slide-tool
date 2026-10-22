@@ -74,7 +74,7 @@ Do not implement QMD save watcher, PPTX save watcher, PPTX -> QMD, `assets.json`
 
 ## M2: Stable IDs and Element Layout
 
-M2 gate status is tracked below; AC-M2-11 still depends on Draft PR CI, and AC-M2-04 retains the PowerPoint desktop save check.
+M2 gate status is tracked below; AC-M2-04 retains the PowerPoint desktop save check.
 
 - **AC-M2-01:** Missing stable IDs are generated only where needed, written back safely to QMD, and existing valid IDs remain unchanged.
   - Verification: AUTOMATED
@@ -118,8 +118,8 @@ M2 gate status is tracked below; AC-M2-11 still depends on Draft PR CI, and AC-M
   - Evidence: Assets assertions check schema v1, slide size, integer geometry, and absence of title/caption; independent Architecture review passed.
 - **AC-M2-11:** Existing image placement behavior, representative PPTX render, and docx generation remain functional.
   - Verification: AUTOMATED regression
-  - Status: UNVERIFIED
-  - Evidence: Existing image placement and Python regression suites pass. Representative Quarto PPTX render, DOCX render, smoke, and PR-head CI have not run locally; Draft PR CI is configured to run them.
+  - Status: PASS
+  - Evidence: PR #17 head CI run #60 passed root tests, existing smoke, Docker image build, representative two-pass Quarto/PPTX render with title/path/layout preservation, and DOCX render.
 - **AC-M2-12:** M2 does not implement PPTX -> QMD import, watchers, sync, conflict handling, shape persistence, crop/rotation/z-order, Marketplace publication, or PPTX -> Word.
   - Verification: scope scan + independent Review/Architecture
   - Status: PASS
