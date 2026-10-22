@@ -73,13 +73,16 @@ Before production implementation proceeds beyond T-301:
 32. Master/layout inherited content is not imported.
 33. Supported placeholders are imported structurally.
 34. Unknown slide-local shape/text/chart/SmartArt/etc. causes pre-commit FAIL.
-35. Per-document concurrent second render/import fails with DOCUMENT_BUSY.
-36. Create/replace/delete handled failure after every file operation rolls back.
-37. Simulated abrupt termination leaves recoverable transaction journal.
-38. Recovery in prepared/committing/rolling_back/committed/rolled_back phases follows documented policy, including committed-cleanup completion without rollback.
-39. Recovery stops rather than overwrites if a target hash matches neither old nor new.
-40. Existing M1/M2/render/docx regressions pass.
-41. Scope scan confirms no watcher/sync/full conflict merge or unrelated feature implementation.
+35. Two concurrent first M3 renders from schema v1 serialize on the same bootstrap lock and produce exactly one shared documentId.
+36. Bootstrap re-read detects migration completed by another process and reuses the existing documentId.
+37. Bootstrap -> document lock handoff follows the documented ordering without deadlock.
+38. Per-document concurrent second render/import fails with DOCUMENT_BUSY.
+39. Create/replace/delete handled failure after every file operation rolls back.
+40. Simulated abrupt termination leaves recoverable transaction journal.
+41. Recovery in prepared/committing/rolling_back/committed/rolled_back phases follows documented policy, including committed-cleanup completion without rollback.
+42. Recovery stops rather than overwrites if a target hash matches neither old nor new.
+43. Existing M1/M2/render/docx regressions pass.
+44. Scope scan confirms no watcher/sync/full conflict merge or unrelated feature implementation.
 
 ## AC-to-check mapping
 
@@ -96,11 +99,11 @@ Before production implementation proceeds beyond T-301:
 | AC-M3-09 | imported image extraction + shared-source safety |
 | AC-M3-10 | image deletion after complete validation |
 | AC-M3-11 | template structural fixtures + caption companion fixtures + unsupported slide-local FAIL |
-| AC-M3-12 | per-document exclusion + create/replace/delete failure injection + phase-specific crash recovery |
+| AC-M3-12 | bootstrap-lock first-migration concurrency + lock handoff + document exclusion + create/replace/delete failure injection + phase-specific crash recovery |
 | AC-M3-13 | source scan + Architecture Agent |
 | AC-M3-14 | existing regression suite + representative render/docx |
 | AC-M3-15 | repository scope scan + Review/Architecture |
-| AC-M3-16 | managed custom properties/title/caption metadata save-reopen + assets documentId evidence |
+| AC-M3-16 | managed custom properties/title/caption metadata save-reopen + assets documentId + concurrent first-migration single-ID evidence |
 | AC-M3-17 | canonical hash byte fixtures + QMD changed-since-render mismatch fixture |
 | AC-M3-18 | title-role move/delete/duplicate/ambiguity fixtures |
 
