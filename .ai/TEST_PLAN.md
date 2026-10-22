@@ -2,83 +2,59 @@
 
 ## Purpose
 
-The test plan maps every acceptance criterion to a concrete verification method before implementation begins.
+This plan verifies the M1 build-and-open capability: the Dev Container builds a QMD through the existing `slidegen render` path and the Local UI extension opens the resulting PPTX through the host bridge. Marketplace publication and automatic extension delivery are future Release / Distribution work, not M1 completion gates.
 
 ## Verification layers
 
 ### 1. Deterministic automated checks
 
-Use tests or commands for behavior that can be reproduced in the agent environment.
-
-Examples:
-
-- unit tests;
-- integration tests;
-- smoke tests;
-- CLI exit codes;
-- deterministic file validation;
-- PPTX/DOCX archive validation;
-- path mapping;
-- fixture-based rendering.
+Use reproducible tests for extension manifests, packaging, failure handling, path mapping, repository scope, and existing build regressions. Run the checks from the documented container environment when Docker is available.
 
 ### 2. Independent agent review
 
-Use subagents for non-deterministic repository-level checks.
+The Review Agent checks implementation correctness, fallback behavior, and scope. The Architecture Agent checks the M1 responsibility split and confirms no future milestone has been pulled in. These reviews do not replace deterministic checks.
 
-Examples:
+### 3. Confirmed Windows environment behavior
 
-- responsibility boundaries;
-- stale experiment reintroduction;
-- scope creep;
-- architecture consistency;
-- missing regression coverage;
-- completeness of the acceptance-criteria-to-verification mapping.
+The user has confirmed the two-layer extension setup on Windows: Local UI package and Dev Container Workspace package were installed manually for diagnosis; the command appeared, cross-host routing succeeded, QMD built in the container, path mapping succeeded, and the correct PPTX opened in Windows PowerPoint. Do not repeat these checks for documentation-only changes.
 
-Agent review does not replace deterministic tests. The Test Agent must enumerate the acceptance-criteria IDs and cite each mapped automated check or HUMAN_REQUIRED gate. A missing mapping is FAIL. This is an independent review gate, not a deterministic parser; the current repository does not store task-specific acceptance criteria in a structured format that a machine can validate.
+## M1 required checks
 
-### 3. HUMAN_REQUIRED environment checks
+1. **Extension behavior tests** (`npm test --prefix vscode-extension`): output PPTX resolution; build failure or missing output prevents opening; bridge/mapping failure preserves build success; reject invalid/non-PPTX paths; handle Windows, nested, spaced, and Japanese paths.
+2. **Packaging and smoke test**: `npm ci --prefix vscode-extension`, package both extensions, verify expected VSIX artifacts and package contents, then run `bash scripts/smoke-test.sh`.
+3. **Repository regression**: `npm test`; `python3 -m unittest tests/test_postprocess_place.py`; representative `slidegen render` to PPTX; docx generation/regression using the existing template.
+4. **Forbidden-scope scan**: verify no M0-rejected Preview/PDF.js/Webview/Preview-only build script/Preview-only LibreOffice has returned. Check that QMD/PPTX watchers, PPTX -> QMD, `assets.json`, stable IDs, conflict handling, PowerPoint Add-in, and PPTX -> Word remain out of scope.
+5. **CI and hygiene**: latest PR head CI passes all relevant checks; run `git diff --check`; verify code changes stay within M1.
+6. **Independent reviews**: Review Agent PASS and Architecture Agent PASS.
 
-Use only when the actual environment cannot be reproduced reliably by the agent.
+## AC-to-check mapping
 
-Examples:
+| Acceptance criterion | Verification / check | Current state |
+| --- | --- | --- |
+| AC-M1-01 — Two-host build/open works | User-confirmed Windows E2E; no rerun required for docs-only changes | PASS |
+| AC-M1-02 — Automatic distribution on Reopen in Container | HUMAN_REQUIRED before formal release; manual VSIX installation was used for the confirmed M1 E2E | HUMAN_REQUIRED (deferred; not an M1 gate) |
+| AC-M1-03 — Supported extension metadata | Manifest inspection and official-specification review | PASS |
+| AC-M1-04 — Build through `slidegen render` and resolve expected PPTX | Extension behavior tests, smoke/render; Windows behavior user-confirmed | PASS |
+| AC-M1-05 — Build failure or missing PPTX does not open PowerPoint | Explicit failure/no-open tests | PASS |
+| AC-M1-06 — Bridge failure preserves successful build | Simulated mapping/open failure tests | PASS |
+| AC-M1-07 — Host mapping handles nested, spaced, Japanese paths | Automated path fixtures; existing Windows path behavior user-confirmed | PASS |
+| AC-M1-08 — PPTX and docx regressions | Smoke, representative render, docx template generation/ZIP verification | PASS |
+| AC-M1-09 — No preview stack or future-scope implementation returns | Forbidden-scope scan and independent reviews | PASS |
+| AC-M1-10 — CI and automated checks pass | Latest PR head CI, local checks, `git diff --check` | PASS when latest PR head CI is green |
+| AC-M1-11 — Marketplace publication requires release decision | HUMAN_REQUIRED before formal release; no publication in M1 | HUMAN_REQUIRED (deferred; not an M1 gate) |
 
-- Windows host application integration;
-- VS Code Dev Container GUI lifecycle;
-- Microsoft PowerPoint behavior;
-- visual or physical-device validation.
+## Release / Distribution checks (before formal public release; not M1 gates)
 
-## Required mapping
+Retain these checks for the release milestone that authorizes Marketplace distribution:
 
-Before implementation, create a mapping like:
+- Confirm a Marketplace publisher and authorize the public listing.
+- Publish the UI and Workspace extension packages and establish versioning.
+- Add the published Workspace extension ID to `customizations.vscode.extensions`; verify dependency-based Local UI and Remote Workspace placement.
+- Verify the ordinary **Reopen in Container** flow without manual VSIX installation or Extension Development Host.
+- Verify post-publication updates and compatibility.
 
-| Acceptance criterion | Verification | Planned check | State |
-| --- | --- | --- | --- |
-| AC-01 | AUTOMATED | `npm test` / named test | UNVERIFIED |
-| AC-02 | AUTOMATED | smoke test | UNVERIFIED |
-| AC-03 | HUMAN_REQUIRED | Windows E2E steps | HUMAN_REQUIRED |
+These checks must not block M1 completion or determine PR #14 Draft status. External publication remains HUMAN_REQUIRED at the formal release decision.
 
-No required AC may be left without a planned verification.
+## Regression baseline policy
 
-For changes to this agent workflow, exercise the process itself: launch the required independent subagents, collect their gate results, correct any FAIL findings, and repeat the relevant checks and independent review. Report this as an independent-agent review gate; do not present the exercise as deterministic automation.
-
-## Environment limitation rule
-
-If the current Codex environment cannot reproduce a required path:
-
-- mark the gate HUMAN_REQUIRED;
-- finish all other automated work first;
-- provide the exact user steps and expected result in one batch;
-- do not claim milestone completion until the user reports the result.
-
-## Regression baseline for md-slide-tool
-
-When relevant to the change, include:
-
-- `npm test`;
-- `bash scripts/smoke-test.sh`;
-- `python3 -m unittest tests/test_postprocess_place.py`;
-- representative PPTX render;
-- docx regression;
-- `git diff --check`.
-
-Only run checks relevant to the change, but explain any baseline check intentionally omitted.
+For code/configuration changes, run the relevant baseline: `npm test`, `bash scripts/smoke-test.sh`, Python postprocess unit tests, representative PPTX render, docx regression, and `git diff --check`. If Docker/Quarto or another environment dependency is unavailable, report that gate as `UNVERIFIED` or `HUMAN_REQUIRED` according to `.ai/AGENT_WORKFLOW.md`; never report it as PASS. Documentation-only changes still require doc consistency review, latest PR head CI status, and independent Review and Architecture checks as specified for the task.

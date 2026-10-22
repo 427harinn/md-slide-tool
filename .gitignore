@@ -141,6 +141,7 @@ vite.config.ts.timestamp-*
 
 /.quarto/
 **/*.quarto_ipynb
+vscode-extension/*.vsix
 
 /# md files
 *.md

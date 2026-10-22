@@ -1,0 +1,14 @@
+{
+  "name": "md-slide-tool-extension-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tests and packages the md-slide-tool VS Code extensions.",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "package": "node ./scripts/package-extensions.js"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "3.3.2"
+  }
+}

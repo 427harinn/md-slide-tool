@@ -9,3 +9,8 @@ grep -q '^pptx:' <<< "$template_list"
 test -f templates/docx/template/template.qmd
 test -f templates/docx/template/template.docx
 npm pack --dry-run
+npm ci --prefix vscode-extension
+npm --prefix vscode-extension run package
+test -f vscode-extension/dist/md-slide-tool-powerpoint-workspace.vsix
+test -f vscode-extension/dist/md-slide-tool-powerpoint-ui.vsix
+npm --prefix vscode-extension test

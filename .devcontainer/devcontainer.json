@@ -4,6 +4,9 @@
         "dockerfile": "../Dockerfile"
     },
     "workspaceFolder": "/work",
+    "remoteEnv": {
+        "MD_SLIDE_TOOL_HOST_WORKSPACE": "${localWorkspaceFolder}"
+    },
     "mounts": [
         "source=${localWorkspaceFolder},target=/work,type=bind"
     ],

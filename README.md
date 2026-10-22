@@ -322,8 +322,19 @@ templates/pptx/my_template/
 - Dockerfile 内の Quarto インストールは 1.9.36 に固定されています。
 - PPTX 画像処理では `place` 属性を配置候補の優先指定として扱いますが、強制配置ではなく、置けない場合は自動選択に fallback します。
 
-## VS Code PPTX preview
+## Build and Open in Microsoft PowerPoint
 
-VS Code 内 PPTX → PDF preview は不採用となり、拡張、Webview、PDF.js、preview 専用 LibreOffice 依存を削除しました。PPTX の生成は引き続き `slidegen render` と Quarto を使います。VS Code の `Quarto Build` task は手動で実行できます。保存時の自動 build と PowerPoint 自動起動は現在の機能ではありません。
+目標とする利用手順:
 
-Dev Container には Quarto / Pandoc / Python によるレンダリング環境を含めています。セットアップスクリプトはルートの `slidegen` CLI を利用可能にし、シェル補完を設定します。
+1. Docker Desktop を起動する
+2. VS Code で md-slide-tool を開く
+3. **Dev Containers: Reopen in Container** を実行する
+4. QMD を右クリックして **Build and Open in Microsoft PowerPoint** を選ぶ
+
+**M1のbuild/open機能は実装完了し、Windows実機で成立確認済みです。** Local UI extensionとDev Container Workspace extensionを各hostへ配置し、command表示、cross-host routing、container内QMD build、host path mapping、正しいPPTXのWindows PowerPoint openを確認しました。機能確認には手動VSIX installを使用しました。
+
+Marketplace公開と、手動installなしで通常のReopen in Containerからextensionを自動配置する仕組みは、md-slide-toolの構造が安定した後、正式リリース前に実施する横断的なRelease / Distribution課題です。これらはM1完了条件ではありません。配布設計と将来のrelease gateは [Roadmap](docs/ROADMAP.md) と [M1 workflow notes](docs/M1_POWERPOINT_OPEN.md) を参照してください。
+
+workspace extensionはコンテナ内で既存 `slidegen render` を呼び、`${localWorkspaceFolder}` から渡す `MD_SLIDE_TOOL_HOST_WORKSPACE` を使って `/work/...` の出力pathをWindows host pathへ変換します。結果をVS Code command経由で受け取ったlocal UI extensionが `vscode.Uri.file(hostPath)` と `vscode.env.openExternal` を実行します。build失敗時はPowerPointを開かず、path mapping / host bridgeの失敗はbuild結果を維持します。VSIXは `cd vscode-extension && npm run package` で2つ生成できます。
+
+VS Code 内 PPTX preview、保存時build、PPTX保存監視はありません。実機検証項目は [M1 PowerPoint workflow](docs/M1_POWERPOINT_OPEN.md) を参照してください。

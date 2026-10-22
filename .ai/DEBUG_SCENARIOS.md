@@ -151,3 +151,20 @@ npm pack --dry-run
 * 読み込みや画面更新が完了してからスクリーンショットを撮る。
 * パスワード、トークン、個人情報を画像やログへ残さない。
 * E2E環境が未導入の場合は勝手に追加せず、現在のタスクで導入が許可されているか確認する。
+
+## PowerPoint commandがDev Containerに表示されない
+
+現状、extensionの自動install経路はありません。未公開workspace extensionをlifecycle hook内から `code --install-extension` する方式はWindows実機で動作しませんでした。
+
+`customizations.vscode.extensions` に指定できるのはMarketplace形式のextension IDです。extensionをMarketplaceへ公開した後にIDを追加するか、標準フローで利用できる別の正式な配布手段を選んでください。
+
+配布導入後の確認:
+
+```bash
+code --list-extensions | grep md-slide-tool-powerpoint
+```
+
+確認事項:
+
+* Marketplace listingとextension IDが有効か。
+* Dev Containerがextension IDをremote extensionとしてinstallしたか。

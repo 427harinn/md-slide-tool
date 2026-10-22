@@ -13,6 +13,7 @@ md-slide-tool は、Quarto ベースの QMD から PowerPoint / Word などの�
 - PPTX に画像を後処理で配置
 - docx project/template を利用
 - Docker / Dev Container で実行環境を揃える
+- M1: VS Code commandから `slidegen render` を呼び、成功後にhost-side `file:` URIを開く
 
 ## 現在の正式機能
 
@@ -121,6 +122,18 @@ CI smoke test は CLI help、template listing、npm package contents を確認�
 - `compose.yml` と追跡済み `.DS_Store` を削除し、`.DS_Store` は Git ignore に追加済み。既存 project コンテンツは変更しない。
 - HTML template は残した。現行 template QMD は `style.css` を参照するが、同梱されていない。既存 HTML project の利用状況・修正方針は未確認のため、今回その template は変更していない。
 - PowerPoint 自動起動、PPTX -> QMD、assets.json、stable ID、Sync Engine、競合処理は未実装で、後続マイルストーンの対象。
+
+## M1実装状況
+
+- M0で削除した Preview / PDF.js / Preview専用LibreOffice は復活させない。
+- M1 extension はworkspace build packageとlocal UI packageの2つ。build packageはDev Container内で既存 `slidegen render` を実行し、UI packageだけがhost上で `vscode.Uri.file` / `vscode.env.openExternal` を呼ぶ。
+- UI と workspace package は `vscode.commands.executeCommand` でQMD URI文字列と小さなJSON結果をやり取りする。Tasks API案は検討したが、remote buildの結果pathを返す追加channelが必要になるため採用しなかった。
+- `.devcontainer/devcontainer.json` の `remoteEnv.MD_SLIDE_TOOL_HOST_WORKSPACE` が `${localWorkspaceFolder}` を渡す。
+- Dev Container lifecycle hookから `code --install-extension` を呼ぶ方式はWindows実機でCLIがPATHに存在せず失敗したため撤回した。
+- Windows実機ではLocal UI packageとRemote Workspace packageを各hostへ手動installし、command表示、cross-host command routing、container build、host path mapping、PowerPoint openを確認済み。手動配置は機能成立の診断用で、M1の完了を妨げない。
+- Workspace packageはUI packageを `extensionDependencies` に指定し、UI packageは `api: "none"` を宣言する。Dev Containerのextension ID listはMarketplace形式で、ローカルVSIX pathを指定できない。
+- lifecycle hookの `code --install-extension` はWindows実機でCLI不在により失敗し、撤回済み。未公開packageの通常自動配布は未実装。Marketplace公開・publisher設定・自動配置は正式リリース前のRelease / Distribution課題であり、M1完了条件ではない。
+- M1 build/openとHost Bridgeは手動diagnostic installでWindows実機PASS。M1の完了条件は既存 `slidegen render` によるDev Container build、Local UI host open、失敗時の正しい挙動、PPTX/docx regression、禁止されたPreview stackを戻さないこと、およびCI PASS。Release / Distributionの将来gateは `docs/ROADMAP.md` と `.ai/HUMAN_GATES.md` を参照。
 
 ## Repository Cleanup 検証記録 (2026-10-22)
 

@@ -67,16 +67,23 @@ PoCが成立しない場合は、代替案を調査結果とともに止めて�
 
 ## 完了条件
 
-- Windows標準環境でReopen in Container後に利用可能
+- QMDを既存 `slidegen render` 経路でPPTXへbuildできる
+- Workspace extensionがDev Container側でbuildし、Local UI extensionがhost側でPPTXを開く
 - QMD build成功後に正しいPPTXがPowerPointで開く
 - build failure時は開かない
 - bridge failureでrender自体を失敗扱いにしない
+- Windows実機で二層extension構成とPowerPoint openが確認済み
 - PPTX/docx回帰テストが通る
+- Preview / PDF.js / Webview / LibreOfficeを復活させない
+- tests / smoke test / render / docx regression / latest PR head CI がPASS
 - README / PROJECT_CONTEXTを更新
-- 実機未確認項目をPR本文に明記
+
+Marketplace公開、publisher設定、`customizations.vscode.extensions`による自動配布、通常のReopen in Containerからの手動installなしの導入、および公開後E2EはM1完了条件に含めない。これらは正式リリース前の横断的なRelease / Distribution gateとして保持する。
 
 詳細は `docs/M1_POWERPOINT_OPEN.md`。
 
 ## 状態
 
-計画済み・未着手
+実装完了。Windows実機でLocal UI extensionとDev Container Workspace extensionを各hostへ配置し、command表示、cross-host command routing、container build、host path mapping、正しいPPTXのPowerPoint openを確認済み。build failure時にopenしないこと、bridge failureでもbuild成功結果を維持すること、PPTX/docx回帰、禁止scopeに戻っていないこと、CI PASSを完了条件とする。
+
+Marketplace公開と通常のReopen in Containerからの自動配布は正式リリース前のRelease / Distribution gateであり、M1の未完了理由ではない。PR #14をDraft解除可能とするための判断にMarketplace公開は不要。詳細は `docs/ROADMAP.md` と `.ai/HUMAN_GATES.md`。
