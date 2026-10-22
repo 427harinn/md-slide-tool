@@ -79,6 +79,6 @@ PoCが成立しない場合は、代替案を調査結果とともに止めて�
 
 ## 状態
 
-未完了。remote workspace buildとlocal UI openを2つの小さなVS Code extension packageに分割した。workspace-only構成ではWindows実機でremote `openExternal(file://C:/...)` が `vscode-remote` linkとして扱われることを確認したため、local UI extensionが `vscode.Uri.file` と `vscode.env.openExternal` を担う。2 package間の実機command routingおよびWindows PowerPoint E2Eは未確認。
+未完了。Windows実機で、UI extensionをWindows Localへ、Workspace extensionをDev Containerへ手動installした診断構成のcommand表示、二層間command routing、container build、正しいPPTXのPowerPoint openはPASS。これらbridge checksは再確認不要。
 
-自動配布も未解決。lifecycle hookからの `code --install-extension` はWindows実機でCLI不在により失敗し撤回済み。Dev Container設定へローカルVSIX pathを指定できず、extensionも未公開のため通常のReopen in Containerだけではcommandが使えない。PR #14はDraftを維持し、M1 GateはFAIL。
+残課題は通常のReopen in Containerでの自動配布だけである。VS Code公式仕様に合わせWorkspace packageからLocal UI packageへの `extensionDependencies` を宣言し、UI packageは `api: "none"` とした。Dev Container設定はMarketplace extension IDから導入するため、未公開packageを使うにはMarketplace公開が必要。公開は未承認・未実施であり、HUMAN_REQUIRED。publication decisionと通常フローのWindows自動導入確認が終わるまでPR #14はDraft、M1 GateはHUMAN_REQUIRED。

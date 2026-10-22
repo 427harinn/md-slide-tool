@@ -9,6 +9,7 @@
   "engines": { "vscode": "^1.92.0" },
   "categories": ["Other"],
   "extensionKind": ["workspace"],
+  "extensionDependencies": ["md-slide-tool.md-slide-tool-powerpoint-ui"],
   "main": "./src/extension.js",
   "activationEvents": ["onCommand:mdSlideTool.buildRemotePptx"]
 }

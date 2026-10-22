@@ -130,9 +130,10 @@ CI smoke test は CLI help、template listing、npm package contents を確認�
 - UI と workspace package は `vscode.commands.executeCommand` でQMD URI文字列と小さなJSON結果をやり取りする。Tasks API案は検討したが、remote buildの結果pathを返す追加channelが必要になるため採用しなかった。
 - `.devcontainer/devcontainer.json` の `remoteEnv.MD_SLIDE_TOOL_HOST_WORKSPACE` が `${localWorkspaceFolder}` を渡す。
 - Dev Container lifecycle hookから `code --install-extension` を呼ぶ方式はWindows実機でCLIがPATHに存在せず失敗したため撤回した。
-- Windows実機でworkspace extensionから`openExternal(file://C:/...)`を呼ぶと `vscode-remote` link扱いになったため、local UI packageへopen責務を移した。二層間の実機command routingは未確認。
-- `customizations.vscode.extensions` はMarketplace形式のextension IDのみを扱い、ローカルVSIX pathを指定できない。2 packageとも未公開のため、通常のReopen in Containerだけで利用する配布経路は未解決。
-- Marketplace公開とextension ID追加はWindows E2E後に判断する。公開は未承認・未実施。配布とHost Bridgeの両Gateが成立するまでM1は未完了。
+- Windows実機ではLocal UI packageとRemote Workspace packageを各hostへ手動installし、command表示、cross-host command routing、container build、host path mapping、PowerPoint openを確認済み。
+- Workspace packageはUI packageを `extensionDependencies` に指定し、UI packageは `api: "none"` を宣言する。Dev Containerのextension ID listはMarketplace形式で、ローカルVSIX pathを指定できない。
+- lifecycle hookの `code --install-extension` はWindows実機でCLI不在により失敗し、撤回済み。未公開packageの通常自動配布は未解決。公開は未承認・未実施であり、Marketplace公開が必要な場合は人間の判断を待つ。
+- M1のbuild/openとHost Bridgeは手動diagnostic installで実機PASS。標準のReopen in Containerから手動installなしで自動配布・配置されることが確認されるまでM1は未完了。
 
 ## Repository Cleanup 検証記録 (2026-10-22)
 
