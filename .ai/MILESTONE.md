@@ -2,55 +2,96 @@
 
 ## マイルストーン名
 
-Dev Container版 VS Code PPTXプレビューMVP
+Repository Cleanup for PowerPoint Workflow
 
 ## 背景
 
-md-slide-toolはDocker / Dev ContainerでQuarto、Pandoc、Python、フォントを揃えて利用する構成を持つ。PPTXプレビューもホストOSへNode.js、LibreOffice、pdfjs-distを直接導入するのではなく、WindowsまたはmacOS上のVS CodeからDev Container内で実行する前提へ修正する。
+このリポジトリには、CLI ベースの正式機能に加え、VS Code 内 PPTX Preview、LibreOffice/PDF.js、保存時 Task 実行、Auto Preview 実験など、異なる時期に試した実装が混在している。
+
+今後は Microsoft PowerPoint を実編集環境として利用し、Docker / Dev Container 側を QMD/PPTX 変換・監視・同期の中心にする。
+
+双方向同期を実装する前に、不要な実験経路と重複責務を整理し、QMD -> PPTX の既存機能と docx の正式機能を保ったまま次の開発に進める状態にする。
 
 ## 目的
 
-完成済み`.pptx`を、Dev Containerで動作するVS Code拡張からLibreOffice headless変換し、VS Code Webviewでスライド順にプレビューできるようにする。既存CLIとレンダリング処理を壊さず、Webview、PDF.js描画、更新処理、変換サービス、一時ファイル管理、入力検証の既存実装はDev Container前提で利用できる範囲を残す。
+- 現在の正式機能と実験コードを区別する
+- 不採用となった実験経路を削除する
+- build の入口を整理する
+- CLI / core / UI の責務境界を明確にする
+- ドキュメントと実装の状態を一致させる
+- 次マイルストーン「QMD -> PPTX -> Microsoft PowerPoint」を実装しやすい状態にする
 
-## 確定仕様
+## 維持する正式機能
 
-- ホストOSはWindowsまたはmacOS。
-- 実際の実行環境はVS Code Dev Container。
-- VS Code拡張はDev Containerのワークスペース側で利用する。
-- ホスト側へのNode.js、LibreOffice、pdfjs-dist、npm installは要求しない。
-- LibreOfficeはコンテナ内へインストールする。
-- PPTXからPDFへの変換はコンテナ内で行う。
-- Windows/macOS固有のLibreOfficeパス探索は今回の対象外。
-- LibreOffice検出はコンテナ内PATH上の`libreoffice`、次に`soffice`を使用する。
-- コンテナ内でLibreOfficeが見つからない場合は、Dev Containerイメージが正しくビルドされていないことを示す。
-- ホストOS差異はDocker / Dev Containerの起動とファイルマウントに限定する。
-- 完成済み`.pptx`を対象とし、QMD自動レンダリングや`slidegen render`自動連携は行わない。
-- PDF.jsはDev Container内の`vscode-extension/node_modules`へインストールし、ビルド時に実ファイルをWebview用ディレクトリへコピーする。
-- placeholder PDF.jsファイルを正式実装として使用しない。
-- Webviewは外部CDNを使わず、CSPと`localResourceRoots`を設定する。
-- 変換済みPDFはWebviewから許可されたコンテナ内ディレクトリに生成する。
-- 更新処理、処理中表示、重複防止、エラー表示、一時ファイル削除を維持する。
+- `slidegen new`
+- PPTX 向け `slidegen render`
+- Quarto / Pandoc ベースの PPTX build
+- `prepare-qmd-for-pptx.py`
+- `postprocess-pptx.py`
+- PPTX 画像自動配置
+- PPTX template
+- docx project/template 機能
+- Dev Container
+- 現在利用中の project データ
+- 既存テストの有効な部分
 
-## 完了条件
+## 削除・整理候補
 
-DockerfileにLibreOfficeが追加され、Dev Container作成後にルート依存、`slidegen`リンク、拡張依存、拡張ビルドが利用できる。拡張はコンテナ内PATHの`libreoffice`または`soffice`を検出し、コンテナ内でPPTXをPDFへ変換できる。WebviewでPDF.jsによる全スライド表示、更新、エラー表示が動作する。既存CLI、既存smoke、画像配置後処理が壊れていない。Dev Container内テスト、実PPTX→PDF変換、可能なGUI確認、README/PROJECT_CONTEXT更新、PR報告が完了している。
+実装前に参照関係を確認し、利用経路がないことを確認してから削除する。
+
+- VS Code 内 PPTX -> PDF preview
+- PDF.js Webview
+- preview 専用 VS Code Extension コード
+- preview 専用 LibreOffice 依存
+- 重複した save-trigger build 経路
+- 空の `compose.yml`
+- tracked `.DS_Store`
+- stale / contradictory documentation
+- main に採用しない Auto Preview 実験に由来する設計記述
 
 ## 対象外
 
-Windows/macOSネイティブ実行、ホストOSへのLibreOffice導入、ホストOSへのNode.js/npm依存導入、Windows/macOS固有LibreOfficeパス探索、QMD保存時自動レンダリング、`slidegen render`自動連携、リアルタイムプレビュー、ファイル監視、編集、画像配置変更、サムネイルグリッド、拡大モーダル、ズーム、PDF/PNGエクスポート、複数比較、LibreOffice自動ダウンロード、外部変換API、VS Code Marketplace公開。
+このマイルストーンでは実装しない。
 
-## 影響範囲
+- Microsoft PowerPoint 自動起動
+- PPTX -> QMD
+- assets.json
+- slide id / image id
+- file watcher based sync engine
+- dirty state handling
+- conflict QMD
+- automatic diff
+- PPTX -> Word
 
-Dockerfile、`.devcontainer/devcontainer.json`、Dev Containerセットアップスクリプト、`vscode-extension/`、LibreOffice検出処理、README、`.ai/PROJECT_CONTEXT.md`、`.ai/MILESTONE.md`、`.ai/TASKS.md`。既存CLI、テンプレート、レンダリングスクリプトは原則変更しない。
+これらは `docs/ROADMAP.md` の後続マイルストーンで扱う。
 
-## 今回固有の注意事項
+## リファクタリング方針
 
-Dev Container前提へ修正し、既存実装のうち利用可能なWebview、PDF.js描画、更新処理、変換サービス、一時ファイル管理、入力検証は残す。全面的な作り直しや無関係なリファクタリングは行わない。テスト用PPTX/PDFやスクリーンショットなどの生成物は不要にGitへ追加しない。WindowsまたはmacOSの一方だけでGUI確認できた場合、未確認側を成功済みと報告しない。
+- cleanup と新機能追加を混ぜない
+- 既存の公開 CLI を不用意に変更しない
+- docx を削除・縮小しない
+- 先に不要コードを削除し、その後必要最小限の内部整理を行う
+- `slidegen render` が将来 Sync Engine から再利用できる構造を目指すが、今回過剰な抽象化はしない
+- Git 履歴から復元できる実験コードを「念のため」で残さない
 
-## 今回固有の停止条件
+## 完了条件
 
-有料ソフト/APIが必要、PPTX/PDF内容を外部サービスへ送信する必要、Dev Container前提で既存CLI公開IFを破壊しなければ実装できない、新しいネイティブ依存が必須、既存Docker/Dev Container構成を大幅に壊す必要がある場合は停止する。
+- 正式機能 / 実験機能の棚卸しが記録されている
+- 削除対象の依存関係とコードが除去されている
+- build 経路が重複していない
+- `slidegen new` / `slidegen render` が動作する
+- PPTX画像後処理の既存テストが通る
+- docx project/template が残っている
+- README / PROJECT_CONTEXT が実装と一致している
+- CI が cleanup 後の正式機能を確認できる
+- PR に削除内容、残した内容、検証結果、未検証事項が記載されている
+
+## 次のマイルストーン
+
+QMD -> PPTX -> Microsoft PowerPoint
+
+詳細は `docs/ROADMAP.md` を参照する。
 
 ## 状態
 
-実装中
+計画済み・未着手
