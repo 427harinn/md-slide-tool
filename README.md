@@ -331,10 +331,10 @@ templates/pptx/my_template/
 3. **Dev Containers: Reopen in Container** を実行する
 4. QMD を右クリックして **Build and Open in Microsoft PowerPoint** を選ぶ
 
-**現在、この標準フローだけではM1 commandはまだ利用できません。** Windows実機では二層extensionをLocal UI / Dev Container Workspaceの各hostへ手動installした場合のbuild/openを確認済みです。未解決なのは未公開extensionの自動配布です。workspace packageからUI packageへの `extensionDependencies` を設定しましたが、通常のReopen in Containerでの配置は未確認です。`customizations.vscode.extensions`にはMarketplace形式のextension IDを指定でき、ローカルVSIX pathは指定できません。
+**M1のbuild/open機能は実装完了し、Windows実機で成立確認済みです。** Local UI extensionとDev Container Workspace extensionを各hostへ配置し、command表示、cross-host routing、container内QMD build、host path mapping、正しいPPTXのWindows PowerPoint openを確認しました。機能確認には手動VSIX installを使用しました。
 
-現時点の標準配布候補は、workspace packageをMarketplace extension IDとしてDev Containerに指定し、`extensionDependencies`でLocal UI packageも導入する方法です。Marketplace公開にはpublisher設定と明示的な公開許可が必要です。公開は未実施で、許可なく行いません。通常フローでの自動配置がWindows実機で確認されるまではM1は未完了、PRはDraftです。
+Marketplace公開と、手動installなしで通常のReopen in Containerからextensionを自動配置する仕組みは、md-slide-toolの構造が安定した後、正式リリース前に実施する横断的なRelease / Distribution課題です。これらはM1完了条件ではありません。配布設計と将来のrelease gateは [Roadmap](docs/ROADMAP.md) と [M1 workflow notes](docs/M1_POWERPOINT_OPEN.md) を参照してください。
 
-workspace extensionはコンテナ内で既存 `slidegen render` を呼び、`${localWorkspaceFolder}` から渡す `MD_SLIDE_TOOL_HOST_WORKSPACE` を使って `/work/...` の出力pathをWindows host pathへ変換します。結果をVS Code command経由で受け取ったlocal UI extensionが `vscode.Uri.file(hostPath)` と `vscode.env.openExternal` を実行します。build失敗時はPowerPointを開かず、path mapping / host bridgeの失敗はbuild結果を維持します。VSIXは `cd vscode-extension && npm run package` で2つ生成できます。手動VSIX installは診断に限り、最終利用フローには含めません。
+workspace extensionはコンテナ内で既存 `slidegen render` を呼び、`${localWorkspaceFolder}` から渡す `MD_SLIDE_TOOL_HOST_WORKSPACE` を使って `/work/...` の出力pathをWindows host pathへ変換します。結果をVS Code command経由で受け取ったlocal UI extensionが `vscode.Uri.file(hostPath)` と `vscode.env.openExternal` を実行します。build失敗時はPowerPointを開かず、path mapping / host bridgeの失敗はbuild結果を維持します。VSIXは `cd vscode-extension && npm run package` で2つ生成できます。
 
 VS Code 内 PPTX preview、保存時build、PPTX保存監視はありません。実機検証項目は [M1 PowerPoint workflow](docs/M1_POWERPOINT_OPEN.md) を参照してください。

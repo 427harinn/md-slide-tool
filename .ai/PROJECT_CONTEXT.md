@@ -130,10 +130,10 @@ CI smoke test は CLI help、template listing、npm package contents を確認�
 - UI と workspace package は `vscode.commands.executeCommand` でQMD URI文字列と小さなJSON結果をやり取りする。Tasks API案は検討したが、remote buildの結果pathを返す追加channelが必要になるため採用しなかった。
 - `.devcontainer/devcontainer.json` の `remoteEnv.MD_SLIDE_TOOL_HOST_WORKSPACE` が `${localWorkspaceFolder}` を渡す。
 - Dev Container lifecycle hookから `code --install-extension` を呼ぶ方式はWindows実機でCLIがPATHに存在せず失敗したため撤回した。
-- Windows実機ではLocal UI packageとRemote Workspace packageを各hostへ手動installし、command表示、cross-host command routing、container build、host path mapping、PowerPoint openを確認済み。
+- Windows実機ではLocal UI packageとRemote Workspace packageを各hostへ手動installし、command表示、cross-host command routing、container build、host path mapping、PowerPoint openを確認済み。手動配置は機能成立の診断用で、M1の完了を妨げない。
 - Workspace packageはUI packageを `extensionDependencies` に指定し、UI packageは `api: "none"` を宣言する。Dev Containerのextension ID listはMarketplace形式で、ローカルVSIX pathを指定できない。
-- lifecycle hookの `code --install-extension` はWindows実機でCLI不在により失敗し、撤回済み。未公開packageの通常自動配布は未解決。公開は未承認・未実施であり、Marketplace公開が必要な場合は人間の判断を待つ。
-- M1のbuild/openとHost Bridgeは手動diagnostic installで実機PASS。標準のReopen in Containerから手動installなしで自動配布・配置されることが確認されるまでM1は未完了。
+- lifecycle hookの `code --install-extension` はWindows実機でCLI不在により失敗し、撤回済み。未公開packageの通常自動配布は未実装。Marketplace公開・publisher設定・自動配置は正式リリース前のRelease / Distribution課題であり、M1完了条件ではない。
+- M1 build/openとHost Bridgeは手動diagnostic installでWindows実機PASS。M1の完了条件は既存 `slidegen render` によるDev Container build、Local UI host open、失敗時の正しい挙動、PPTX/docx regression、禁止されたPreview stackを戻さないこと、およびCI PASS。Release / Distributionの将来gateは `docs/ROADMAP.md` と `.ai/HUMAN_GATES.md` を参照。
 
 ## Repository Cleanup 検証記録 (2026-10-22)
 

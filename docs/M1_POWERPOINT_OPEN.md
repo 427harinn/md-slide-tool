@@ -16,7 +16,7 @@ Dev Container 内で QMD を PPTX に build し、build 成功後に Windows/mac
 4. Dev Container 内で QMD を build
 5. build 成功後、ホスト OS の Microsoft PowerPoint で生成 PPTX を開く
 
-**現状:** 二層extensionのbuild/open、cross-host command routing、host path mapping、Windows PowerPoint openは実機確認済み。未解決なのは未公開extension packageの自動配布だけである。Marketplace公開を伴う通常利用フローは判断待ちで、M1 GateはHUMAN_REQUIRED。
+**現状:** 二層extensionのbuild/open、cross-host command routing、host path mapping、Windows PowerPoint openは実機確認済み。機能実装は完了扱い。通常のReopen in Containerからの自動配布とMarketplace公開は正式リリース前のRelease / Distribution課題であり、M1 Gateではない。
 
 PowerPoint 以外の build / conversion logic は Dev Container 側に置く。
 
@@ -131,21 +131,24 @@ CLI単体利用時にホスト bridge が存在しない場合でも、render �
 
 ## Completion criteria
 
-Windows + Docker Desktop + VS Code + Reopen in Container の標準環境で:
+M1 is complete when the following are satisfied:
 
-1. Dev Container build succeeds
-2. `slidegen render` の既存 render が成功する
-3. build 後に対象 PPTX が Windows 側で開く
-4. PowerPoint で正しいファイルが開かれる
-5. 日本語/空白を含む path でも動く
-6. build failure 時に開かない
-7. host bridge failure でも PPTX build 自体は壊れない
-8. docx の正式機能を壊さない
-9. tests / smoke tests が通る
+1. QMD builds to PPTX through the existing `slidegen render` path in the Dev Container.
+2. The Workspace extension builds in the Dev Container and the Local UI extension opens the output on the host.
+3. Windows E2E confirms the two-layer extension setup, command routing, host path mapping, and correct PowerPoint open. The confirmed diagnostic setup used manual VSIX installation.
+4. Build failure does not open PowerPoint.
+5. Host bridge failure preserves a successful PPTX build.
+6. PPTX / docx regressions pass.
+7. No removed Preview / PDF.js / Webview / Preview-only build / LibreOffice code is restored.
+8. Tests, smoke test, representative PPTX render, docx regression, and latest PR head CI pass.
+
+Marketplace publication, publisher configuration, automatic installation in a plain Reopen in Container flow, and post-publication E2E are not M1 completion criteria. They remain a cross-cutting Release / Distribution gate before formal public release; see `docs/ROADMAP.md` and `.ai/HUMAN_GATES.md`.
 
 ## Manual validation
 
-## Automated checks and Windows HUMAN_REQUIRED gate
+The two-layer Windows build/open behavior is already user-confirmed. Do not repeat it for documentation-only changes.
+
+## Automated checks and Windows evidence
 
 自動テストで確認する項目:
 
@@ -158,15 +161,14 @@ Windows + Docker Desktop + VS Code + Reopen in Container の標準環境で:
 - `openExternal` / mapping failureでもbuild成功結果を保持
 - smoke test、PPTX render、docx regression
 
-Windows実機で人間が確認する項目（M1 GateをPASSにする前に必要）:
+Windows実機で確認済み:
 
-- Dev Containerへ接続したwindowにlocal UI packageとremote workspace packageが配置される
-- Extension Development Hostや最終利用者の手動操作なしでcommandが表示される
-- cross-host VS Code command routingが成功する
-- 実QMDから正しいPPTXがWindows側PowerPointで開く
-- PowerPoint起動済み、日本語/空白を含む実workspace path
-- 意図的build failureではPowerPointが起動しない
-- PowerPointで生成ファイルを通常編集・保存できる
+- Local UI packageとRemote Workspace packageを各hostへ配置
+- command表示、cross-host VS Code command routing
+- Dev Container内の実QMD build
+- host path mappingと正しいPPTXのWindows PowerPoint open
+
+自動配布後の通常Reopen E2E、既起動PowerPoint、日本語/空白を含む実workspace path、編集/保存の追加確認は正式リリース前のRelease / Distribution gateに含め、M1完了を止めない。
 
 ## PR #14 implementation status
 
@@ -184,11 +186,11 @@ The single UI extension + Tasks API alternative was considered. VS Code can exec
 
 ### Verification split
 
-Automated tests cover remote build failure/output validation, host path mapping, command result handling, and that the UI side creates a local `file:` URI before `openExternal`. Windows HUMAN_REQUIRED covers actual extension-host placement and cross-host command dispatch, Windows file association/PowerPoint opening, an already-running PowerPoint, Japanese/space paths, and editable output.
+Automated tests cover remote build failure/output validation, host path mapping, command result handling, and that the UI side creates a local `file:` URI before `openExternal`. The user has confirmed extension-host placement and cross-host dispatch for the manual diagnostic install, as well as Windows PowerPoint opening. Additional normal-flow distribution checks belong to the pre-release gate.
 
 The M1 build/open code is implemented as separate workspace and UI extension packages, and both VSIX packages build locally. Windows has confirmed the two packages run in the intended extension hosts, the command routes across hosts, and a successful build opens the correct PPTX in PowerPoint. These bridge checks are PASS and will not be repeated as part of distribution work.
 
-Automatic distribution through the regular **Reopen in Container** flow remains unresolved. Windows validation showed that the remote `code` CLI is not on `PATH` in lifecycle hooks, so lifecycle-hook VSIX installation was removed. The Dev Container extension list accepts Marketplace extension IDs, not local VSIX paths. Neither package is published, so the current standard flow does not install them. Manual VSIX installation is diagnostic-only and is not the final workflow.
+Automatic distribution through the regular **Reopen in Container** flow remains intentionally deferred. Windows validation showed that the remote `code` CLI is not on `PATH` in lifecycle hooks, so lifecycle-hook VSIX installation was removed. The Dev Container extension list accepts Marketplace extension IDs, not local VSIX paths. Neither package is published; manual VSIX installation was used to verify the M1 feature. Marketplace publication and normal-flow automatic placement are pre-release Release / Distribution tasks, not M1 blockers.
 
 ### Extension distribution options and decision
 
@@ -200,10 +202,10 @@ Automatic distribution through the regular **Reopen in Container** flow remains 
 | Local VSIX path in `customizations.vscode.extensions` | Would avoid Marketplace publication. | Rejected: Dev Container extension IDs do not accept local VSIX paths. |
 | Tasks API launched from one UI extension | Can execute remote tasks but does not itself provision the missing extension package into the proper host. | Does not solve the distribution problem; task output/result channels would also be needed for the host path. |
 
-Selected preparation: the Remote Workspace package declares an `extensionDependencies` entry for the exact Local UI package ID, and the Local UI package declares `"api": "none"`. The Dev Container config remains free of both unpublished IDs and local VSIX paths. If standard automatic distribution requires Marketplace publication, publishing is an external HUMAN_REQUIRED decision and will not be performed without authorization. Once approved, list the Remote Workspace Marketplace ID in `customizations.vscode.extensions`, then verify dependency installation/host placement through the normal Reopen flow.
+Current metadata: the Remote Workspace package declares an `extensionDependencies` entry for the exact Local UI package ID, and the Local UI package declares `"api": "none"`. The Dev Container config remains free of unpublished IDs and local VSIX paths. Before formal public release, decide whether to publish, then list the published Remote Workspace extension ID in `customizations.vscode.extensions` and verify dependency installation/host placement through the normal Reopen flow. No publication is performed by M1.
 
 Official references: [Extension Manifest](https://code.visualstudio.com/api/references/extension-manifest), [Remote Development: extension placement, cross-host dependencies and command routing](https://code.visualstudio.com/api/advanced-topics/remote-extensions), and [Dev Container metadata reference](https://containers.dev/implementors/json_reference/). VS Code documents that extension kind determines the correct installation location, Marketplace builds are used for automatic remote installation, and a remote extension may depend on a local provider with `"api": "none"` while still communicating through commands. The docs do not establish that this unpublished package pair is installed correctly through our exact Dev Container setup; that is reserved for the final Windows HUMAN_REQUIRED Reopen gate.
 
 The remote command runs the existing `slidegen render` CLI in the container. It checks for the final same-stem `.pptx` output and maps its path relative to `/work` onto `MD_SLIDE_TOOL_HOST_WORKSPACE`. The local command invokes the remote command through `vscode.commands.executeCommand`, then creates `vscode.Uri.file(hostPath)` and calls `vscode.env.openExternal`. A build error or missing output prevents opening. Host mapping or `openExternal` failure leaves the generated PPTX build intact and reports a warning.
 
-The extension packages contain only the M1 build/open responsibilities and path mapping. They do not contain Preview/Webview/PDF.js code or `pdfjs-dist` dependencies. Automated checks are separate from the Windows HUMAN_REQUIRED distribution gate. Bridge E2E is already confirmed. The only remaining human gates are the external decision to publish the extension package(s), then final normal-flow Reopen verification without manual VSIX installation or Extension Development Host. Until those gates pass, M1 remains HUMAN_REQUIRED and PR #14 stays Draft.
+The extension packages contain only the M1 build/open responsibilities and path mapping. They do not contain Preview/Webview/PDF.js code or `pdfjs-dist` dependencies. The M1 bridge E2E is confirmed. No HUMAN_REQUIRED gate remains for M1. Marketplace publisher/publication, automatic host placement, and post-publication compatibility are retained as HUMAN_REQUIRED Release / Distribution gates before formal release; they do not determine M1 completion or PR #14 Draft status.

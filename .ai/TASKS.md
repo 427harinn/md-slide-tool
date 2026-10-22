@@ -29,7 +29,7 @@ PoCは最小コードで行い、成功条件をテストまたは実機確認�
 
 成立しない場合は代替案を勝手に大規模実装せず、原因と候補をPR/タスクへ記録する。
 
-**状態:** workspace-only PoCはWindows実機でFAIL（remote hostから開いた`file:` URIが`vscode-remote` link扱い）。UI extension + workspace extensionの二層構成で、手動diagnostic install時の実機command routing / PowerPoint openはPASS（ユーザー確認）。通常Reopen flowでの自動配布は未確認で、Marketplace公開判断とWindows検証がHUMAN_REQUIRED。
+**状態:** workspace-only PoCはWindows実機でFAIL（remote hostから開いた`file:` URIが`vscode-remote` link扱い）。UI extension + workspace extensionの二層構成で、手動diagnostic install時の実機command routing / PowerPoint openはPASS（ユーザー確認）。二層bridgeのPoCは完了。通常Reopen flowでの自動配布は正式リリース前のRelease / Distribution gateへ移管し、M1完了条件から除外。
 
 ### T-103: Host Bridgeを最小実装する
 
@@ -51,7 +51,7 @@ Host側の責務:
 - file watch
 - PowerPoint edit/save logic
 
-**状態:** workspace extensionで既存renderとhost path mapping、local UI extensionでlocal file URI生成とopenを実装。各extensionを正しいhostへ手動installした実機cross-host command routingとPowerPoint openはPASS（ユーザー確認）。通常フロー用の自動配布は未解決。
+**状態:** workspace extensionで既存renderとhost path mapping、local UI extensionでlocal file URI生成とopenを実装。各extensionを正しいhostへ手動installした実機cross-host command routingとPowerPoint openはPASS（ユーザー確認）。自動配布のMarketplace準備は正式リリース前のRelease / Distribution課題。
 
 ### T-104: build成功後のopen flowを接続する
 
@@ -78,7 +78,7 @@ Host側の責務:
 
 macOSは実装が自然に対応できる場合は対応する。実機未確認なら未確認と明記する。
 
-**状態:** unit testsでWindows/POSIX mapping、日本語/空白pathを確認。Windows実機のhost mapping/openはユーザー確認によりPASS。PowerPoint起動済み、日本語/空白を含むpath、build failure、編集/保存は自動配布後にまとめてHUMAN_REQUIRED。
+**状態:** unit testsでWindows/POSIX mapping、日本語/空白pathを確認。Windows実機のhost mapping/openはユーザー確認によりPASS。PowerPoint起動済みの追加確認等は正式リリース前の自動配布E2Eで扱い、M1の必須Gateにはしない。
 
 ### T-106: tests
 
@@ -115,7 +115,7 @@ Docker Desktop
 -> Microsoft PowerPoint
 ```
 
-**状態:** README / PROJECT_CONTEXT / MILESTONE / TASKS / M1 docを、ユーザー確認済みのbridge PASSと残る自動配布 HUMAN_REQUIRED gateに合わせて更新。
+**状態:** README / PROJECT_CONTEXT / MILESTONE / TASKS / M1 docを、ユーザー確認済みのM1完了条件と正式リリース前のRelease / Distribution課題に合わせて更新。
 
 ### T-108: final self-review and PR
 
@@ -127,4 +127,14 @@ Docker Desktop
 - PowerPoint起動方法/host bridge責務を説明
 - 未確認事項を明記
 
-**状態:** PR #14 Draft。独立Review/Architecture、Docker自動テスト/回帰、GitHub Actions CI run #52（PR head `39178f4`）はPASS。Marketplace公開判断と通常Reopen flowの自動配布E2EはHUMAN_REQUIREDのためDraftを維持。
+**状態:** PR #14の最終セルフレビュー、独立Review/Architecture、Docker自動テスト/回帰、latest PR head CIを確認する。Marketplace公開判断と通常Reopen flowの自動配布E2Eは正式リリース前のRelease / Distribution gateであり、M1完了やPR #14のDraft解除を妨げない。SHAやCI run番号は固定せず最新headの状態を確認する。
+
+## 横断課題: Release / Distribution (正式リリース前; M1完了条件外)
+
+- Marketplace publisherの確定と公開承認
+- UI extension / Workspace extensionのMarketplace公開とversioning
+- `customizations.vscode.extensions` とdependencyによるLocal / Remote自動配置
+- 手動VSIX installやExtension Development Host起動を伴わない通常Reopen in Container E2E
+- 公開後のupdate / compatibility確認
+
+これらの外部公開・配布作業は別途正式リリース前に実施し、今回実行しない。

@@ -103,7 +103,7 @@ html は現状の利用状況・実装品質を確認してから継続可否を
 
 ## M1: QMD -> PPTX -> PowerPoint
 
-状態: 現在のマイルストーン
+状態: 実装完了。Windows実機で二層extension、cross-host command routing、Dev Container build、host path mapping、正しいPowerPoint openを確認済み。自動テストとCIもPASSを完了条件とする。
 
 詳細: `docs/M1_POWERPOINT_OPEN.md`
 
@@ -125,6 +125,8 @@ QMD save/build
 - host 側には「指定された PPTX を PowerPoint で開く」最小責務のみ
 - Windows / macOS の差異は host adapter に閉じ込める
 - VS Code 内 PDF preview は前提にしない
+
+Marketplace公開、publisher設定、通常のReopen in Containerでの自動extension配置、公開後E2EはM1 completion gateに含めず、正式リリース前の横断Release / Distribution gateで扱う。
 
 ## M2: Stable IDs and Image Layout
 
@@ -215,6 +217,19 @@ PowerPoint / QMD 往復が安定した後に検討する。
 - PPTX の完成内容を QMD に取り込む
 - QMD を中間表現として既存 docx 出力へ接続
 - プレゼン資料を報告書・配布資料へ変換する
+
+## Cross-cutting: Release / Distribution (before formal release)
+
+This release gate is separate from M0–M6 milestone completion. Complete it before the first formal public release, after the product structure is sufficiently stable. Marketplace publication is not part of M1 and is not authorized by this roadmap entry.
+
+- Decide and configure the Marketplace publisher.
+- Publish the Local UI and Remote Workspace extension packages.
+- Establish extension versioning and compatibility policy.
+- Add the published extension ID(s) to `customizations.vscode.extensions` and use extension dependencies for Local / Remote placement.
+- Verify the standard **Reopen in Container** flow without manual VSIX installation or Extension Development Host.
+- Verify post-publication updates and compatibility.
+
+Publication and publisher ownership require an explicit human release decision. Track the detailed human gates in `.ai/HUMAN_GATES.md`.
 
 ---
 
