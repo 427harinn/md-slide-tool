@@ -39,48 +39,53 @@ Before production implementation proceeds beyond T-301:
 
 ## M3 required checks
 
-1. M3-managed marker/version/document-id accepted.
-2. Unmarked legacy/arbitrary PPTX rejected with re-render guidance.
-3. Presentation remains managed if all old normal slide IDs are deleted.
-4. QMD body baseline hash match accepted.
-5. QMD body changed since render rejected before staging.
-6. Front matter byte-preserved.
-7. Title-slide role marker survives move.
-8. Title slide deletion leaves front matter untouched.
-9. Duplicate title marker fails.
-10. Missing/ambiguous title marker with ID-less title-layout slide fails.
-11. New supported normal slide before/after title slide gets new ID.
-12. Malformed/duplicate slide IDs fail.
-13. Title/paragraph/bullet/numbered list normalized.
-14. Slide reorder reflected.
-15. Slide deletion reflected.
-16. Existing image move/resize updates exact EMU geometry.
-17. Malformed/duplicate element IDs fail.
-18. Crop schema v1 read compatibility.
-19. v1 -> v2 migration.
-20. Zero/positive/PowerPoint-valid negative crop preserved.
-21. Invalid crop rejected.
-22. PPTX -> assets v2 -> PPTX crop roundtrip.
-23. Same identified picture replacement keeps element ID.
-24. Newly inserted picture gets new element ID.
-25. New/changed image extraction under `img/imported/`.
-26. Shared source image is not destructively overwritten.
-27. Image deletion reflected only after full validation.
-28. Master/layout inherited content is not imported.
-29. Supported placeholders are imported structurally.
-30. Unknown slide-local shape/text/chart/SmartArt/etc. causes pre-commit FAIL.
-31. Handled failure after every file replacement rolls back.
-32. Simulated abrupt termination leaves recoverable transaction journal.
-33. Next render/import auto-recovers old/new-known states.
-34. Recovery stops rather than overwrites if a target hash matches neither old nor new.
-35. Existing M1/M2/render/docx regressions pass.
-36. Scope scan confirms no watcher/sync/full conflict merge or unrelated feature implementation.
+1. M3-managed marker/version/document-id accepted only when assets schema v2 carries the same documentId.
+2. Same-body but different-documentId PPTX/QMD pair rejected.
+3. Unmarked legacy/arbitrary PPTX rejected with re-render guidance.
+4. Presentation remains managed if all old normal slide IDs are deleted.
+5. QMD body baseline hash match accepted.
+6. QMD body changed since render rejected before staging.
+7. Canonical body hash fixtures cover BOM, LF/CRLF/CR, front matter/no front matter, trailing newline and whitespace-only changes.
+8. Front matter byte-preserved.
+9. Title-slide role marker survives move.
+10. Title slide deletion leaves front matter untouched.
+11. Duplicate title marker fails.
+12. Missing/ambiguous title marker with ID-less title-layout slide fails.
+13. New supported normal slide before/after title slide gets new ID.
+14. Malformed/duplicate slide IDs fail.
+15. Title/paragraph/bullet/numbered list normalized.
+16. Slide reorder reflected.
+17. Slide deletion reflected.
+18. Existing image move/resize updates exact EMU geometry.
+19. Malformed/duplicate element IDs fail.
+20. Existing generated caption textbox is recognized by reserved marker and roundtrips to image caption.
+21. Orphan/duplicate caption marker fails; arbitrary textbox still fails.
+22. Crop schema v1 read compatibility.
+23. v1 -> v2 migration.
+24. Zero/positive/PowerPoint-valid negative crop preserved.
+25. Invalid crop rejected.
+26. PPTX -> assets v2 -> PPTX crop roundtrip.
+27. Same identified picture replacement keeps element ID.
+28. Newly inserted picture gets new element ID.
+29. New/changed image extraction under `img/imported/`.
+30. Shared source image is not destructively overwritten.
+31. Image deletion reflected only after full validation.
+32. Master/layout inherited content is not imported.
+33. Supported placeholders are imported structurally.
+34. Unknown slide-local shape/text/chart/SmartArt/etc. causes pre-commit FAIL.
+35. Per-document concurrent second render/import fails with DOCUMENT_BUSY.
+36. Create/replace/delete handled failure after every file operation rolls back.
+37. Simulated abrupt termination leaves recoverable transaction journal.
+38. Recovery in prepared/committing/rolling_back/committed/rolled_back phases follows documented policy, including committed-cleanup completion without rollback.
+39. Recovery stops rather than overwrites if a target hash matches neither old nor new.
+40. Existing M1/M2/render/docx regressions pass.
+41. Scope scan confirms no watcher/sync/full conflict merge or unrelated feature implementation.
 
 ## AC-to-check mapping
 
 | AC | Planned evidence |
 | --- | --- |
-| AC-M3-01 | managed marker/version/document-id + unmarked rejection fixtures |
+| AC-M3-01 | managed marker/version/document-id + assets documentId pairing + same-body wrong-pair + unmarked rejection fixtures |
 | AC-M3-02 | front matter byte-preservation fixture |
 | AC-M3-03 | stable slide ID title/reorder/delete + malformed/duplicate fixtures |
 | AC-M3-04 | new slide ID + title-layout ambiguity fixtures |
@@ -90,13 +95,13 @@ Before production implementation proceeds beyond T-301:
 | AC-M3-08 | replacement-vs-new-picture identity fixtures |
 | AC-M3-09 | imported image extraction + shared-source safety |
 | AC-M3-10 | image deletion after complete validation |
-| AC-M3-11 | template structural fixtures + unsupported slide-local FAIL |
-| AC-M3-12 | commit failure injection + crash journal recovery |
+| AC-M3-11 | template structural fixtures + caption companion fixtures + unsupported slide-local FAIL |
+| AC-M3-12 | per-document exclusion + create/replace/delete failure injection + phase-specific crash recovery |
 | AC-M3-13 | source scan + Architecture Agent |
 | AC-M3-14 | existing regression suite + representative render/docx |
 | AC-M3-15 | repository scope scan + Review/Architecture |
-| AC-M3-16 | managed custom properties/title metadata save-reopen evidence |
-| AC-M3-17 | QMD changed-since-render hash mismatch fixture |
+| AC-M3-16 | managed custom properties/title/caption metadata save-reopen + assets documentId evidence |
+| AC-M3-17 | canonical hash byte fixtures + QMD changed-since-render mismatch fixture |
 | AC-M3-18 | title-role move/delete/duplicate/ambiguity fixtures |
 
 ## Regression baseline
