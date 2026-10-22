@@ -1,35 +1,82 @@
 # MILESTONE
 
-## M1: QMD -> PPTX -> Microsoft PowerPoint
+## マイルストーン名
 
-### 目的
+M1: QMD -> PPTX -> Microsoft PowerPoint
 
-QMD の build は Docker / Dev Container 内で実行し、生成した PPTX を Windows ホスト側の Microsoft PowerPoint で開く。VS Code extension は build の起動とホストへの最小通知だけを担う。
+## 背景
 
-### 確定方針
+M0 Repository Cleanup が完了し、不採用だった VS Code 内 PPTX Preview、PDF.js、Preview 専用 LibreOffice、重複した保存時 build 経路を削除した。
 
-- 既存の `slidegen render` を build の正規経路として維持する。
-- VS Code の `vscode.env.openExternal` でホスト側の `file:` URI を開く feasibility PoC を行う。
-- Dev Container の `${localWorkspaceFolder}` を `MD_SLIDE_TOOL_HOST_WORKSPACE` として container extension へ渡し、`/work` からの相対位置でホストパスを作る。
-- build が失敗した場合は PowerPoint を開かない。
-- host bridge が使えない場合は build 成功を維持し、警告を表示する。
-- パスに空白・日本語が含まれる場合と PowerPoint が起動済みの場合を考慮する。
-- VS Code 内 PPTX Preview、QMD 保存時 build、PPTX 保存監視は導入しない。
-- docx の正式機能は維持する。
+現在の正式 PPTX build は以下。
 
-### 対象外
+```text
+slidegen render
+  -> scripts/render-current.sh
+  -> prepare-qmd-for-pptx.py
+  -> Quarto / Pandoc
+  -> postprocess-pptx.py
+  -> final PPTX
+```
 
-PPTX->QMD、`assets.json`、stable ID、Sync Engine、競合処理、PowerPoint Add-in、build watcher、自動保存、差分同期。
+標準利用環境は、Windows で Docker Desktop を起動し、VS Code から Reopen in Container して Dev Container 内で作業する。
 
-### 完了条件
+次は、生成した PPTX を VS Code 内で preview するのではなく、ホスト Windows 側の Microsoft PowerPoint で直接開くところまでを正式ワークフローにする。
 
-- VS Code UI から Dev Container 内で既存 PPTX build を起動できる。
-- 成功後だけ `vscode.env.openExternal` によってホスト側 PowerPoint を開く。
-- `/work` -> Windows host workspace の path mapping を検証する。
-- mapping / build failure / bridge unavailable の unit tests がある。
-- 既存 smoke、PPTX render、docx regression を確認する。
-- README と開発ドキュメントに利用方法・実機確認項目を記載する。
+## 目的
 
-### 状態
+```text
+QMD build
+  -> Dev Container で PPTX生成
+  -> host bridge
+  -> Microsoft PowerPointで生成PPTXを開く
+```
 
-実装済み。Windows 上の VS Code Remote/Dev Containers 経由で `openExternal` が PowerPoint を起動するかは実機検証待ち。
+## 設計原則
+
+- build / render logic は Dev Container 側に置く
+- host 側は PPTX を開く最小責務だけ持つ
+- PowerPoint を直接 container から spawn しない
+- Remote/Dev Container対応のため VS Code UI/local side を bridge 候補とする
+- 既存 `slidegen render` を壊さない
+- docx を壊さない
+- VS Code内Previewを復活させない
+- M4より前に自動save watcherを実装しない
+
+## 最初に行うPoC
+
+- UI Extension / `vscode.env.openExternal` で host-side PPTX を開けるか
+- container path `/work/...` と host workspace path のmapping
+- `${localWorkspaceFolder}` の bridge利用
+- Windows path / spaces / 日本語 path
+- bridge unavailable 時の挙動
+
+PoCが成立しない場合は、代替案を調査結果とともに止めて報告し、無理に別方式を実装しない。
+
+## 対象外
+
+- PPTX -> QMD
+- assets.json
+- stable IDs
+- PPTX save watch
+- QMD save watch
+- dirty state
+- conflict handling
+- PowerPoint Add-in
+- PPTX -> Word
+
+## 完了条件
+
+- Windows標準環境でReopen in Container後に利用可能
+- QMD build成功後に正しいPPTXがPowerPointで開く
+- build failure時は開かない
+- bridge failureでrender自体を失敗扱いにしない
+- PPTX/docx回帰テストが通る
+- README / PROJECT_CONTEXTを更新
+- 実機未確認項目をPR本文に明記
+
+詳細は `docs/M1_POWERPOINT_OPEN.md`。
+
+## 状態
+
+実装中。通常のDev Container起動時にextensionをinstallする経路を追加した。Windows実機でのVS Code RemoteからPowerPointを開く確認は未完了。

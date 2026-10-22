@@ -1,5 +1,6 @@
 # Logs
 logs
+.DS_Store
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -140,6 +141,7 @@ vite.config.ts.timestamp-*
 
 /.quarto/
 **/*.quarto_ipynb
+vscode-extension/*.vsix
 
 /# md files
 *.md

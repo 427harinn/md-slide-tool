@@ -93,7 +93,6 @@ docker run --rm -v "$(pwd):/work" -w /work md-slide-tool npm run start -- --help
 見る場所:
 
 * `Dockerfile`
-* `compose.yml`
 * `.devcontainer/devcontainer.json`
 
 確認事項:
@@ -124,26 +123,6 @@ npm pack --dry-run
 * npm packageへ必要ファイルが含まれているか。
 * OS依存コマンドをCIで実行していないか。
 
-## VS Code拡張・Webviewが起動しない
-
-確認候補:
-
-* Extension Hostのログ
-* VS CodeのDeveloper Toolsコンソール
-* コマンド登録
-* 拡張機能のactivation条件
-* 対象ワークスペースと対象ファイル
-* Webview HTML生成処理
-
-保存する情報:
-
-* VS Codeのバージョン
-* OS
-* 実行したコマンド
-* Extension Hostのエラー
-* Webviewコンソールエラー
-* 失敗時スクリーンショット
-
 ## 外部プロセスが失敗する
 
 確認事項:
@@ -172,3 +151,19 @@ npm pack --dry-run
 * 読み込みや画面更新が完了してからスクリーンショットを撮る。
 * パスワード、トークン、個人情報を画像やログへ残さない。
 * E2E環境が未導入の場合は勝手に追加せず、現在のタスクで導入が許可されているか確認する。
+
+## PowerPoint commandがDev Containerに表示されない
+
+確認:
+
+```bash
+code --list-extensions | grep md-slide-tool-powerpoint
+bash scripts/install-vscode-extension.sh
+```
+
+確認事項:
+
+* Dev Container の `postStartCommand` が正常終了したか。
+* `code` CLI がDev Containerから実行できるか。
+* extensionのVSIXが生成され、remote extensionとしてinstallされたか。
+* extension source変更後にsource hashが更新され、再packageされたか。

@@ -13,9 +13,7 @@ md-slide-tool は、Quarto ベースの QMD から PowerPoint / Word などの�
 - PPTX に画像を後処理で配置
 - docx project/template を利用
 - Docker / Dev Container で実行環境を揃える
-- VS Code extension の `Build and Open in Microsoft PowerPoint` command から既存 render script を実行し、成功後に host bridge で PPTX を開く（M1）
-
-M1 の unit tests と Dev Container build regression は通過。Windows VS Code Remote から `vscode.env.openExternal` が実際の PowerPoint へ配送されるかは Windows GUI 実機で要確認。
+- M1: VS Code commandから `slidegen render` を呼び、成功後にhost-side `file:` URIを開く
 
 ## 現在の正式機能
 
@@ -46,31 +44,12 @@ docx は現在も利用している正式機能。削除・縮小しない。
 
 PowerPoint 系が安定した後、完成した PPTX/QMD の内容から Word 文書を生成する機能も将来候補とする。
 
-## 現在存在する実験実装
+## 削除した実験経路
 
-### VS Code PPTX Preview (legacy)
-
-既存 Preview MVP のコードは repository に残存しているが、M1 workflow では利用しない。
-
-```text
-PPTX -> LibreOffice -> PDF -> PDF.js -> VS Code Webview
-```
-
-Microsoft PowerPoint 自体を実編集環境として利用する。Preview UI は M1 で使わず、cleanup の別タスクとして扱う。
-
-### Auto Preview
-
-`pptx_autostartup` branch には QMD save -> render -> preview refresh の実験がある。
-
-main へそのまま merge する予定はない。debounce / running / pending / error handling の考え方は将来の Sync Engine の参考にできる。
-
-## 現在の自動 build 経路
-
-Dev Container settings には `triggerTaskOnSave` を利用した QMD save -> `Quarto Build` task の設定がある。
-
-M1 では QMD save の自動 build は有効化しない。`Build and Open in Microsoft PowerPoint` はユーザーが明示的に起動する command。
-
-将来 Docker Sync Engine を導入すると経路が重複するため、Repository Cleanup で整理対象とする。
+- VS Code 内 PPTX -> PDF preview と PDF.js Webview は不採用。関連拡張コードと `pdfjs-dist` 依存を削除した。
+- Preview 専用だった LibreOffice は Dockerfile から削除した。PPTX build に必要な Quarto / Pandoc / Python / python-pptx / Pillow は維持する。
+- `triggerTaskOnSave` による保存時 build は削除した。`.vscode/tasks.json` の `Quarto Build` は手動 task として残す。
+- `pptx_autostartup` 等の Auto Preview 実験は main に取り込んでいない。
 
 ## 主な技術
 
@@ -80,7 +59,7 @@ M1 では QMD save の自動 build は有効化しない。`Build and Open in Mi
 - Python 3 / python-pptx / Pillow
 - Quarto / Pandoc
 - Docker / Dev Container
-- VS Code Extension
+- VS Code task integration (manual tasks only)
 
 ## 今後の設計原則
 
@@ -96,7 +75,8 @@ M1 では QMD save の自動 build は有効化しない。`Build and Open in Mi
 
 ## 今後のマイルストーン
 
-- M1: QMD -> PPTX -> Microsoft PowerPoint (実装済み、Windows GUI 実機確認待ち)
+- M0: Repository Cleanup
+- M1: QMD -> PPTX -> Microsoft PowerPoint
 - M2: Stable IDs and Image Layout
 - M3: PPTX -> QMD Import
 - M4: Docker Sync Engine
@@ -122,9 +102,8 @@ Human -> merge
 - `python3 -m unittest tests/test_postprocess_place.py`
 - `bash scripts/smoke-test.sh`
 - GitHub Actions: npm ci -> smoke test
-- VS Code extension: `npm --prefix vscode-extension test`
 
-M1 は Docker image 内で smoke、PPTX render、docx regression を確認する。
+CI smoke test は CLI help、template listing、npm package contents を確認する。Python unittest は PPTX image placement 後処理を確認する。Preview 専用テストは削除した。
 
 ## Cleanup 時の注意
 
@@ -133,3 +112,50 @@ M1 は Docker image 内で smoke、PPTX render、docx regression を確認する
 - PPTX image placement の現在動作を壊さない
 - 実験コードを削除する前に正式経路から参照されていないことを確認する
 - cleanup と次マイルストーンの新機能を同一 PR に混ぜない
+- `projects/` 配下の既存データは、個別に対象指定されない限り削除しない
+
+## Cleanup後の確認済み状態
+
+- 正式 build 経路は `slidegen render` -> `scripts/render-current.sh` -> QMD前処理 -> Quarto -> PPTX画像後処理。
+- `slidegen new` は `pptx` / `docx` / `html` の各 template を生成する。docx は正式機能として維持する。
+- VS Code に残る build task は手動実行。保存時自動実行の拡張・設定はない。
+- `compose.yml` と追跡済み `.DS_Store` を削除し、`.DS_Store` は Git ignore に追加済み。既存 project コンテンツは変更しない。
+- HTML template は残した。現行 template QMD は `style.css` を参照するが、同梱されていない。既存 HTML project の利用状況・修正方針は未確認のため、今回その template は変更していない。
+- PowerPoint 自動起動、PPTX -> QMD、assets.json、stable ID、Sync Engine、競合処理は未実装で、後続マイルストーンの対象。
+
+## M1実装状況
+
+- M0で削除した Preview / PDF.js / Preview専用LibreOffice は復活させない。
+- M1 command は workspace extension としてDev Container内で動き、buildは既存 `slidegen render` を使用する。
+- `.devcontainer/devcontainer.json` の `remoteEnv.MD_SLIDE_TOOL_HOST_WORKSPACE` が `${localWorkspaceFolder}` を渡す。
+- `postStartCommand` はextensionソースのhashを確認し、必要な場合のみVSIXを作成・remote extension hostへinstallする。通常のReopen in Containerでcommandを利用可能にする。
+- Windows VS Code Remoteから `vscode.env.openExternal` がPowerPointを開くend-to-end GUI確認は未完了。
+
+## Repository Cleanup 検証記録 (2026-10-22)
+
+- `npm test` は 10 件成功。CLI help / template listing、docx template からの一時 project 生成、`npm pack --dry-run` も確認した。
+- `scripts/smoke-test.sh` はこの Windows 実行環境から直接起動できなかったため、構成コマンドを個別に確認した。Git Bash と `python3` の WindowsApps shim が実行権限エラーとなる。
+- PPTX render 実行は Python 起動時に権限エラーで停止した。Quarto は PATH 上になく、Docker daemon もアクセス拒否のため、実コンテナ / 実PPTX生成は未確認。
+- VS Code GUI、Dev Container GUI、PowerPoint 実機は未確認。
+
+
+## M1開始時点の標準実行環境
+
+ユーザーの標準操作は以下。
+
+```text
+Windows
+  -> Docker Desktop起動
+  -> VS Codeでrepositoryを開く
+  -> Dev Containers: Reopen in Container
+  -> Dev Container内でslidegen / Quarto / Pythonを実行
+  -> PowerPointのみWindows host側で利用
+```
+
+M1ではこの経路を第一検証対象にする。
+
+Remote/Dev Containerで外部アプリを開く場合、Workspace Extensionからhostアプリを直接spawnする設計を避ける。VS Code公式ドキュメントでは、ローカルアプリを開く用途に `vscode.env.openExternal` を推奨し、local resourceが必要な処理にはUI extensionを使える。
+
+Dev Containersでは `${localWorkspaceFolder}` を `remoteEnv` 等でcontainerへ渡せるため、`/work` 配下の相対pathとhost workspace pathを組み合わせる方式をPoC候補とする。
+
+詳細は `docs/M1_POWERPOINT_OPEN.md`。

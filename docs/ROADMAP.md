@@ -79,7 +79,9 @@ html は現状の利用状況・実装品質を確認してから継続可否を
 
 # 実装ロードマップ
 
-## M0: Repository Cleanup
+## M0: Repository Cleanup ✅
+
+状態: 完了
 
 目的:
 今後の開発の土台を作る。
@@ -101,6 +103,10 @@ html は現状の利用状況・実装品質を確認してから継続可否を
 
 ## M1: QMD -> PPTX -> PowerPoint
 
+状態: 現在のマイルストーン
+
+詳細: `docs/M1_POWERPOINT_OPEN.md`
+
 目的:
 現在の片方向ワークフローを完成させる。
 
@@ -119,8 +125,6 @@ QMD save/build
 - host 側には「指定された PPTX を PowerPoint で開く」最小責務のみ
 - Windows / macOS の差異は host adapter に閉じ込める
 - VS Code 内 PDF preview は前提にしない
-
-実装詳細と検証状況は [M1_POWERPOINT_OPEN.md](M1_POWERPOINT_OPEN.md) を参照する。
 
 ## M2: Stable IDs and Image Layout
 

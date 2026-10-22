@@ -208,7 +208,7 @@ bash scripts/render-current.sh projects/selfintroduction/selfintroduction_pptx.q
 | Project generation | `pptx` / `docx` / `html` |
 | CLI render | PPTX 向け QMD のみ |
 | `pdf` | テンプレート未同梱、現時点では未対応 |
-| `slidegen preview` | 未実装 |
+| VS Code 内 PPTX preview | 不採用・削除済み |
 
 ## PPTX テンプレート正規化
 
@@ -319,16 +319,20 @@ templates/pptx/my_template/
 ## 既知の注意点
 
 - `html/template/template.qmd` は `style.css` を参照していますが、現時点でテンプレート内に `style.css` は含まれていません。
-- `compose.yml` は現時点では未設定です。
 - Dockerfile 内の Quarto インストールは 1.9.36 に固定されています。
 - PPTX 画像処理では `place` 属性を配置候補の優先指定として扱いますが、強制配置ではなく、置けない場合は自動選択に fallback します。
 
-## Build and Open in Microsoft PowerPoint (M1)
+## Build and Open in Microsoft PowerPoint
 
-The VS Code extension command **Build and Open in Microsoft PowerPoint** runs `slidegen render` from the Dev Container. After a successful build, it maps the `/work` output path to the host workspace path and calls `vscode.env.openExternal` with a `file:` URI, asking Windows file association to open the PPTX in Microsoft PowerPoint.
+通常の利用手順:
 
-The current checkout's extension can be launched using **Run Extension** in `vscode-extension/.vscode/launch.json`. In the Extension Development Host, open a QMD file, then select the command from its Explorer context menu or the Command Palette. If building fails, PowerPoint is not opened. If the host bridge fails, the PPTX build remains successful and the extension reports the output path.
+1. Docker Desktop を起動する
+2. VS Code で md-slide-tool を開く
+3. **Dev Containers: Reopen in Container** を実行する
+4. QMD を右クリックして **Build and Open in Microsoft PowerPoint** を選ぶ
 
-The Dev Container passes `${localWorkspaceFolder}` as `MD_SLIDE_TOOL_HOST_WORKSPACE`. The bridge maps a path relative to `/work` into that host workspace and encodes spaces and Japanese characters in the file URI. Automatic build on QMD save and PPTX save monitoring are not enabled.
+Dev Container の `postStartCommand` はM1専用 extension を必要な場合にVSIX化してremote extension hostへインストールします。Extension Development Hostを手動起動する必要はありません。QMDのbuildはコンテナ内の既存 `slidegen render` が行い、成功後に `vscode.env.openExternal` でホストのPowerPointへ渡します。
 
-See [M1 PowerPoint workflow](docs/M1_POWERPOINT_OPEN.md) for validation details and Windows manual checks. Delivery from the VS Code Remote extension host to Windows, including reuse of an already-running PowerPoint instance, still requires confirmation on the target machine.
+container の `/work/...` は `${localWorkspaceFolder}` から渡した `MD_SLIDE_TOOL_HOST_WORKSPACE` と相対pathで対応づけます。build失敗時はPowerPointを開きません。host bridgeが失敗してもPPTX build結果は維持し、警告を表示します。
+
+VS Code 内 PPTX preview、保存時build、PPTX保存監視はありません。実機検証項目は [M1 PowerPoint workflow](docs/M1_POWERPOINT_OPEN.md) を参照してください。

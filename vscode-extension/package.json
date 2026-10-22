@@ -1,28 +1,29 @@
 {
   "name": "md-slide-tool-powerpoint",
   "displayName": "md-slide-tool PowerPoint",
+  "description": "Build PPTX in the Dev Container and open it on the host.",
   "version": "0.1.0",
   "publisher": "md-slide-tool",
-  "description": "Build PPTX files in the Dev Container and open them in the host PowerPoint app.",
-  "main": "./src/extension.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/427harinn/md-slide-tool.git"
+  },
   "type": "module",
   "engines": {
     "vscode": "^1.92.0"
   },
-  "activationEvents": [
-    "onCommand:mdSlideTool.openPptxPreview",
-    "onCommand:mdSlideTool.buildAndOpenPowerPoint"
-  ],
   "categories": [
     "Other"
   ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onCommand:mdSlideTool.buildAndOpenPowerPoint"
+  ],
   "contributes": {
     "commands": [
-      {
-        "command": "mdSlideTool.openPptxPreview",
-        "title": "Open PPTX Preview",
-        "category": "md-slide-tool"
-      },
       {
         "command": "mdSlideTool.buildAndOpenPowerPoint",
         "title": "Build and Open in Microsoft PowerPoint",
@@ -32,11 +33,6 @@
     "menus": {
       "explorer/context": [
         {
-          "command": "mdSlideTool.openPptxPreview",
-          "when": "resourceExtname == .pptx",
-          "group": "navigation@50"
-        },
-        {
           "command": "mdSlideTool.buildAndOpenPowerPoint",
           "when": "resourceExtname == .qmd",
           "group": "navigation@50"
@@ -45,22 +41,10 @@
     }
   },
   "scripts": {
-    "build": "node ./scripts/copy-pdfjs.js && node ./scripts/verify-package.js",
-    "watch": "node --watch ./scripts/verify-package.js",
     "test": "node --test test/*.test.js",
-    "package:check": "npm run build && npm pack --dry-run",
-    "copy:pdfjs": "node ./scripts/copy-pdfjs.js"
+    "package": "vsce package --no-dependencies"
   },
-  "dependencies": {
-    "pdfjs-dist": "^4.10.38"
-  },
-  "files": [
-    "src",
-    "webview",
-    "package.json",
-    "README.md"
-  ],
-  "extensionKind": [
-    "workspace"
-  ]
+  "devDependencies": {
+    "@vscode/vsce": "3.3.2"
+  }
 }
