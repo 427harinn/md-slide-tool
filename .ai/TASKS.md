@@ -127,4 +127,4 @@ Docker Desktop
 - PowerPoint起動方法/host bridge責務を説明
 - 未確認事項を明記
 
-**状態:** PR #14 Draft。独立Review/ArchitectureはPASS。Dockerで自動テストと回帰テストをPASS。PR CI結果、Marketplace公開の判断、通常Reopen flowの自動配布E2Eが未完了のためHUMAN_REQUIRED gateを残し、Draftを維持。
+**状態:** PR #14 Draft。独立Review/Architecture、Docker自動テスト/回帰、最新PR headのGitHub Actions CI run #50はPASS。Marketplace公開判断と通常Reopen flowの自動配布E2EはHUMAN_REQUIREDのためDraftを維持。

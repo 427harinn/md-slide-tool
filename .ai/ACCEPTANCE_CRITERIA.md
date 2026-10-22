@@ -56,8 +56,8 @@ The remaining M1 issue is standard-flow extension distribution. Do not repeat th
   - Evidence: Automated package/scope scans and independent Review/Architecture reviews found no production reintroduction or M2+ implementation.
 - **AC-M1-10:** CI runs the automated extension package/configuration checks and existing relevant repository regression checks; all pass on the PR branch.
   - Verification: AUTOMATED.
-  - Status: UNVERIFIED
-  - Evidence: Local Docker smoke and regression gates pass; PR CI must complete on the updated branch.
+  - Status: PASS
+  - Evidence: PR #14 head `7152053` GitHub Actions CI run #50 succeeded; local Docker smoke and regression gates also pass.
 - **AC-M1-11:** No extension is published to the Visual Studio Marketplace, and no public release/ownership decision is made without explicit human authorization. If Marketplace publication is the only supported standard distribution path, report that prerequisite as a HUMAN_REQUIRED decision and keep the PR Draft.
   - Verification: HUMAN_REQUIRED for any publication decision; automated review can confirm no publish command/workflow was run or added.
   - Status: HUMAN_REQUIRED for the public publication decision.
