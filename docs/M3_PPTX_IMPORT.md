@@ -379,10 +379,11 @@ Bootstrap rules:
 - every M3-capable render/import entrypoint resolves the same paired QMD path before any schema migration or document-id generation;
 - schema v1 / missing-documentId state acquires the bootstrap lock first;
 - while holding the bootstrap lock, re-read assets/PPTX metadata because another completed process may already have migrated the project;
-- if `documentId` is still absent, generate exactly one document-id, stage/write assets v2 and PPTX managed metadata under the same transaction;
-- after migration completes, release the bootstrap lock;
+- if `documentId` is still absent, generate exactly one document-id and complete the schema v2 / PPTX metadata migration while the bootstrap lock remains held;
+- **the process that performed the migration must then acquire the newly created document-id lock while still holding the bootstrap lock**;
+- only after the document-id lock has been acquired successfully may that process release the bootstrap lock and continue render/recovery work under the document lock;
 - later commands use the normal document-id lock;
-- if migration is already complete after the re-read, do not generate another ID; switch to the existing document-id lock according to the lock-order rule below.
+- if migration is already complete after the re-read, do not generate another ID; acquire the existing document-id lock while still holding bootstrap, then release bootstrap.
 
 #### Normal document lock
 
@@ -398,9 +399,12 @@ To avoid races during the transition:
 
 1. bootstrap state: acquire bootstrap lock;
 2. re-read pairing metadata;
-3. if still unmigrated, complete migration while bootstrap lock remains held;
-4. if migrated state is discovered, acquire the document lock before releasing bootstrap lock, then continue under document lock;
-5. never acquire bootstrap after already holding the document lock.
+3. if still unmigrated, generate the document-id and complete migration while bootstrap lock remains held;
+4. whether migration was performed by this process or discovered after re-read, acquire the corresponding document-id lock **before releasing bootstrap**;
+5. once the document lock is held, release bootstrap and continue exclusively under the document lock;
+6. never acquire bootstrap after already holding the document lock.
+
+There is therefore no interval in which a migrated document is unlocked between bootstrap ownership and document-lock ownership.
 
 This guarantees two concurrent first M3 renders for one schema v1 project serialize on the same bootstrap key and cannot generate competing document IDs.
 
