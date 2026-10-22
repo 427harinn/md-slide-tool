@@ -4,68 +4,100 @@
 
 Current milestone: M3 PPTX -> QMD Import.
 
-Verify safe manual import from an md-slide-tool-managed PPTX into its paired QMD/assets while preserving M1/M2 behavior.
+Verify safe manual import from an M3-managed PPTX into its paired QMD/assets while preserving M1/M2 behavior and preventing accidental overwrite/data loss.
 
 ## Verification layers
 
 ### 1. Deterministic automated checks
 
-Use constructed PPTX/QMD/assets fixtures for content import, stable IDs, images, crop, unsupported-content guards, and atomic rollback.
+Use constructed PPTX/QMD/assets fixtures for managed metadata, title-slide role, QMD baseline hashes, content import, crop, unsupported-content guards, and transaction recovery.
 
 ### 2. Independent agent review
 
 - Test Agent maps every AC-M3 criterion to concrete evidence.
-- Review Agent checks destructive failure modes, classification mistakes, partial writes, and regressions.
-- Architecture Agent checks managed-PPTX scope, source-of-truth boundaries, assets responsibilities, and that M4/M5 are not pulled forward.
+- Review Agent checks destructive failure modes, ambiguous classification, stale-QMD overwrite risk, transaction recovery, and regressions.
+- Architecture Agent checks source-of-truth boundaries, package-level managed metadata, title-slide role, assets v2 responsibilities, and that M4/M5 are not pulled forward.
 
 ### 3. HUMAN_REQUIRED
 
-Prefer fully automated package/Open XML/python-pptx fixtures. Use desktop PowerPoint only for behavior that cannot be reliably reproduced otherwise, especially crop or picture-replacement semantics if needed.
+Prefer fully automated Open XML/python-pptx/package fixtures.
+
+Use desktop PowerPoint only for a preservation behavior that cannot be proved otherwise, such as custom document properties, title-role marker, or crop/replacement semantics after real PowerPoint save.
 
 Do not request human checks until all agent-executable gates pass.
 
+## Pre-implementation feasibility gates
+
+Before production implementation proceeds beyond T-301:
+
+1. Generate representative PPTX files with every currently supported repository PPTX template.
+2. Enumerate slide-local shapes, placeholders, master/layout inheritance, and placeholder types.
+3. Confirm explicit structural classification rules cover current templates without position/name/color guessing.
+4. Confirm package-level managed custom properties and reserved title-role marker survive the selected save/reopen path.
+5. Confirm raw crop representation can be extracted and re-applied without visible drift.
+6. If any of these cannot be resolved deterministically, stop implementation and report UNVERIFIED rather than inventing heuristics.
+
 ## M3 required checks
 
-1. managed PPTX accepted; unrelated PPTX rejected.
-2. front matter unchanged.
-3. title edit imported.
-4. paragraph imported.
-5. bullet/numbered list normalized.
-6. slide reorder reflected.
-7. slide deletion reflected.
-8. new slide gets stable ID in QMD and PPTX.
-9. existing image move/resize updates exact EMU geometry.
-10. crop import and next-render crop reapplication.
-11. same identified picture replacement keeps element ID.
-12. newly inserted picture gets new element ID.
-13. new/changed image extraction under `img/imported/`.
-14. shared source image is not destructively overwritten.
-15. image deletion reflected after successful validation.
-16. unsupported user content causes pre-commit FAIL.
-17. injected failures prove atomic rollback for QMD/assets/images/PPTX.
-18. title slide/front matter limitation is preserved.
-19. existing M1/M2/render/docx regressions pass.
-20. scope scan confirms no M4/M5 or unrelated feature implementation.
+1. M3-managed marker/version/document-id accepted.
+2. Unmarked legacy/arbitrary PPTX rejected with re-render guidance.
+3. Presentation remains managed if all old normal slide IDs are deleted.
+4. QMD body baseline hash match accepted.
+5. QMD body changed since render rejected before staging.
+6. Front matter byte-preserved.
+7. Title-slide role marker survives move.
+8. Title slide deletion leaves front matter untouched.
+9. Duplicate title marker fails.
+10. Missing/ambiguous title marker with ID-less title-layout slide fails.
+11. New supported normal slide before/after title slide gets new ID.
+12. Malformed/duplicate slide IDs fail.
+13. Title/paragraph/bullet/numbered list normalized.
+14. Slide reorder reflected.
+15. Slide deletion reflected.
+16. Existing image move/resize updates exact EMU geometry.
+17. Malformed/duplicate element IDs fail.
+18. Crop schema v1 read compatibility.
+19. v1 -> v2 migration.
+20. Zero/positive/PowerPoint-valid negative crop preserved.
+21. Invalid crop rejected.
+22. PPTX -> assets v2 -> PPTX crop roundtrip.
+23. Same identified picture replacement keeps element ID.
+24. Newly inserted picture gets new element ID.
+25. New/changed image extraction under `img/imported/`.
+26. Shared source image is not destructively overwritten.
+27. Image deletion reflected only after full validation.
+28. Master/layout inherited content is not imported.
+29. Supported placeholders are imported structurally.
+30. Unknown slide-local shape/text/chart/SmartArt/etc. causes pre-commit FAIL.
+31. Handled failure after every file replacement rolls back.
+32. Simulated abrupt termination leaves recoverable transaction journal.
+33. Next render/import auto-recovers old/new-known states.
+34. Recovery stops rather than overwrites if a target hash matches neither old nor new.
+35. Existing M1/M2/render/docx regressions pass.
+36. Scope scan confirms no watcher/sync/full conflict merge or unrelated feature implementation.
 
 ## AC-to-check mapping
 
 | AC | Planned evidence |
 | --- | --- |
-| AC-M3-01 | managed/unmanaged CLI fixtures |
+| AC-M3-01 | managed marker/version/document-id + unmarked rejection fixtures |
 | AC-M3-02 | front matter byte-preservation fixture |
-| AC-M3-03 | title/reorder/delete stable-ID fixtures |
-| AC-M3-04 | new slide ID generation + PPTX writeback |
+| AC-M3-03 | stable slide ID title/reorder/delete + malformed/duplicate fixtures |
+| AC-M3-04 | new slide ID + title-layout ambiguity fixtures |
 | AC-M3-05 | paragraph/bullet/numbered-list normalization fixtures |
-| AC-M3-06 | image geometry assets assertions |
-| AC-M3-07 | crop extraction + render roundtrip |
+| AC-M3-06 | image geometry + element-ID validation fixtures |
+| AC-M3-07 | schema v1/v2 crop migration + crop roundtrip |
 | AC-M3-08 | replacement-vs-new-picture identity fixtures |
 | AC-M3-09 | imported image extraction + shared-source safety |
 | AC-M3-10 | image deletion after complete validation |
-| AC-M3-11 | unsupported shape/SmartArt/chart/text fixtures + Review |
-| AC-M3-12 | staged transaction failure injection / rollback tests |
+| AC-M3-11 | template structural fixtures + unsupported slide-local FAIL |
+| AC-M3-12 | commit failure injection + crash journal recovery |
 | AC-M3-13 | source scan + Architecture Agent |
 | AC-M3-14 | existing regression suite + representative render/docx |
 | AC-M3-15 | repository scope scan + Review/Architecture |
+| AC-M3-16 | managed custom properties/title metadata save-reopen evidence |
+| AC-M3-17 | QMD changed-since-render hash mismatch fixture |
+| AC-M3-18 | title-role move/delete/duplicate/ambiguity fixtures |
 
 ## Regression baseline
 
