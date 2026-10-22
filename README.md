@@ -331,7 +331,7 @@ templates/pptx/my_template/
 3. **Dev Containers: Reopen in Container** を実行する
 4. QMD を右クリックして **Build and Open in Microsoft PowerPoint** を選ぶ
 
-Dev Container の `postStartCommand` はM1専用 extension を必要な場合にVSIX化してremote extension hostへインストールします。Extension Development Hostを手動起動する必要はありません。QMDのbuildはコンテナ内の既存 `slidegen render` が行い、成功後に `vscode.env.openExternal` でホストのPowerPointへ渡します。
+Dev Container の `postAttachCommand` はVS Codeがattachした後にM1専用 extension を必要な場合だけVSIX化してremote extension hostへインストールします。Extension Development Hostを手動起動する必要はありません。QMDのbuildはコンテナ内の既存 `slidegen render` が行い、成功後に `vscode.env.openExternal` でホストのPowerPointへ渡します。
 
 container の `/work/...` は `${localWorkspaceFolder}` から渡した `MD_SLIDE_TOOL_HOST_WORKSPACE` と相対pathで対応づけます。build失敗時はPowerPointを開きません。host bridgeが失敗してもPPTX build結果は維持し、警告を表示します。
 

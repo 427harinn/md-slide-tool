@@ -163,7 +163,7 @@ bash scripts/install-vscode-extension.sh
 
 確認事項:
 
-* Dev Container の `postStartCommand` が正常終了したか。
+* Dev Container の `postAttachCommand` が正常終了したか。
 * `code` CLI がDev Containerから実行できるか。
 * extensionのVSIXが生成され、remote extensionとしてinstallされたか。
 * extension source変更後にsource hashが更新され、再packageされたか。

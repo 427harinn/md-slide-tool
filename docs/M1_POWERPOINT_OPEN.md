@@ -156,7 +156,7 @@ Windows + Docker Desktop + VS Code + Reopen in Container の標準環境で:
 
 ## PR #14 implementation status
 
-The M1 extension is a workspace extension installed in the Dev Container. `.devcontainer/devcontainer.json` passes `${localWorkspaceFolder}` as `remoteEnv.MD_SLIDE_TOOL_HOST_WORKSPACE`. The `postStartCommand` runs `scripts/install-vscode-extension.sh`; the script hashes the extension sources and packages/installs a VSIX only when the source changed or the extension is missing. This makes the command available after the regular **Reopen in Container** flow without starting an Extension Development Host.
+The M1 extension is a workspace extension installed in the Dev Container. `.devcontainer/devcontainer.json` passes `${localWorkspaceFolder}` as `remoteEnv.MD_SLIDE_TOOL_HOST_WORKSPACE`. The `postAttachCommand` runs `scripts/install-vscode-extension.sh` after VS Code attaches; the script checks that the remote `code` CLI is available, then hashes the extension sources and packages/installs a VSIX only when the source changed or the extension is missing. This makes the command available after the regular **Reopen in Container** flow without starting an Extension Development Host.
 
 The command runs the existing `slidegen render` CLI in the container. It checks for the final same-stem `.pptx` output, maps its path relative to `/work` onto the host workspace, and calls `vscode.env.openExternal`. A build error or missing output prevents opening. Host mapping or `openExternal` failure leaves the generated PPTX build intact and reports a warning.
 

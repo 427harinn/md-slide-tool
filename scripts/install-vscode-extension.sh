@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if ! command -v code >/dev/null 2>&1; then
+  printf '%s\n' "VS Code remote 'code' CLI is unavailable. This installer must run after VS Code attaches via postAttachCommand." >&2
+  exit 127
+fi
+
 EXTENSION_DIR="/work/vscode-extension"
 EXTENSION_VERSION="$(node -p "require('$EXTENSION_DIR/package.json').version")"
 VSIX_PATH="$EXTENSION_DIR/md-slide-tool-powerpoint-$EXTENSION_VERSION.vsix"
