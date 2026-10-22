@@ -31,9 +31,10 @@ Examples:
 - stale experiment reintroduction;
 - scope creep;
 - architecture consistency;
-- missing regression coverage.
+- missing regression coverage;
+- completeness of the acceptance-criteria-to-verification mapping.
 
-Agent review does not replace deterministic tests.
+Agent review does not replace deterministic tests. The Test Agent must enumerate the acceptance-criteria IDs and cite each mapped automated check or HUMAN_REQUIRED gate. A missing mapping is FAIL. This is an independent review gate, not a deterministic parser; the current repository does not store task-specific acceptance criteria in a structured format that a machine can validate.
 
 ### 3. HUMAN_REQUIRED environment checks
 
@@ -57,6 +58,8 @@ Before implementation, create a mapping like:
 | AC-03 | HUMAN_REQUIRED | Windows E2E steps | HUMAN_REQUIRED |
 
 No required AC may be left without a planned verification.
+
+For changes to this agent workflow, exercise the process itself: launch the required independent subagents, collect their gate results, correct any FAIL findings, and repeat the relevant checks and independent review. Report this as an independent-agent review gate; do not present the exercise as deterministic automation.
 
 ## Environment limitation rule
 
