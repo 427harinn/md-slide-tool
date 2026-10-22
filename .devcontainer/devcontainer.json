@@ -11,7 +11,6 @@
         "source=${localWorkspaceFolder},target=/work,type=bind"
     ],
     "postCreateCommand": "bash /work/scripts/devcontainer-setup.sh",
-    "postAttachCommand": "bash /work/scripts/install-vscode-extension.sh",
     "customizations": {
         "vscode": {
             "extensions": [

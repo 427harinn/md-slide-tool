@@ -154,16 +154,17 @@ npm pack --dry-run
 
 ## PowerPoint commandがDev Containerに表示されない
 
-確認:
+現状、extensionの自動install経路はありません。未公開workspace extensionをlifecycle hook内から `code --install-extension` する方式はWindows実機で動作しませんでした。
+
+`customizations.vscode.extensions` に指定できるのはMarketplace形式のextension IDです。extensionをMarketplaceへ公開した後にIDを追加するか、標準フローで利用できる別の正式な配布手段を選んでください。
+
+配布導入後の確認:
 
 ```bash
 code --list-extensions | grep md-slide-tool-powerpoint
-bash scripts/install-vscode-extension.sh
 ```
 
 確認事項:
 
-* Dev Container の `postAttachCommand` が正常終了したか。
-* `code` CLI がDev Containerから実行できるか。
-* extensionのVSIXが生成され、remote extensionとしてinstallされたか。
-* extension source変更後にsource hashが更新され、再packageされたか。
+* Marketplace listingとextension IDが有効か。
+* Dev Containerがextension IDをremote extensionとしてinstallしたか。

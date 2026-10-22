@@ -51,7 +51,7 @@ Host側の責務:
 - file watch
 - PowerPoint edit/save logic
 
-**状態:** 実装済み。VSIXはDev Container lifecycleでinstallする。
+**状態:** Host Bridge実装済み。Dev Container lifecycle hookからのVSIX installはWindows実機で `code` CLI不在により失敗したため撤回。通常フロー用の配布方法が未解決。
 
 ### T-104: build成功後のopen flowを接続する
 
@@ -127,4 +127,4 @@ Docker Desktop
 - PowerPoint起動方法/host bridge責務を説明
 - 未確認事項を明記
 
-**状態:** PR #14 Draftで対応中。Windows実機確認は未完了。
+**状態:** PR #14 Draft。Windows実機で通常フロー後もcommandが表示されないことを確認。Marketplace形式IDしか受け付けないDev Container設定と未公開extensionの配布制約を記録し、M1 GateはFAILのまま。

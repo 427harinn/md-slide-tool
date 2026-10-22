@@ -324,15 +324,17 @@ templates/pptx/my_template/
 
 ## Build and Open in Microsoft PowerPoint
 
-通常の利用手順:
+目標とする利用手順:
 
 1. Docker Desktop を起動する
 2. VS Code で md-slide-tool を開く
 3. **Dev Containers: Reopen in Container** を実行する
 4. QMD を右クリックして **Build and Open in Microsoft PowerPoint** を選ぶ
 
-Dev Container の `postAttachCommand` はVS Codeがattachした後にM1専用 extension を必要な場合だけVSIX化してremote extension hostへインストールします。Extension Development Hostを手動起動する必要はありません。QMDのbuildはコンテナ内の既存 `slidegen render` が行い、成功後に `vscode.env.openExternal` でホストのPowerPointへ渡します。
+**現在、この標準フローだけではM1 commandはまだ利用できません。** extensionのbuild/open実装はありますが、Dev Containerから未公開のworkspace extensionを自動配布する方法が未解決です。`customizations.vscode.extensions`にはMarketplace形式のextension IDを指定でき、ローカルVSIX pathは指定できません。通常フローを完成させる配布方法を決めるまでM1は未完了として扱います。
 
-container の `/work/...` は `${localWorkspaceFolder}` から渡した `MD_SLIDE_TOOL_HOST_WORKSPACE` と相対pathで対応づけます。build失敗時はPowerPointを開きません。host bridgeが失敗してもPPTX build結果は維持し、警告を表示します。
+次の候補はextensionをVS Code Marketplaceへ公開し、そのIDを`customizations.vscode.extensions`に追加する方法です。public publishにはpublisher設定と公開許可が必要です。組織内galleryを使う案は、利用環境ごとのgallery設定が必要になるため標準フローの要件を別途確認します。
+
+extensionのbuild/open動作は、コンテナ内の既存 `slidegen render` を呼び、`${localWorkspaceFolder}` から渡す `MD_SLIDE_TOOL_HOST_WORKSPACE` を使って `/work/...` の出力pathをhost pathへ変換し、`vscode.env.openExternal` に渡します。build失敗時はPowerPointを開かず、host bridgeの失敗はbuild結果を維持します。
 
 VS Code 内 PPTX preview、保存時build、PPTX保存監視はありません。実機検証項目は [M1 PowerPoint workflow](docs/M1_POWERPOINT_OPEN.md) を参照してください。

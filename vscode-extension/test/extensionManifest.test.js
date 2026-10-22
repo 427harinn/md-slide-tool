@@ -10,16 +10,11 @@ test('extension exposes only the M1 build-and-open command', async () => {
   assert.equal(manifest.devDependencies['@vscode/vsce'], '3.3.2');
 });
 
-test('Dev Container setup packages and installs the extension automatically', async () => {
+test('Dev Container does not run the unavailable lifecycle VSIX installer', async () => {
   const devcontainer = JSON.parse(await fs.readFile(new URL('../../.devcontainer/devcontainer.json', import.meta.url), 'utf8'));
-  const installer = await fs.readFile(new URL('../../scripts/install-vscode-extension.sh', import.meta.url), 'utf8');
-  assert.equal(devcontainer.postAttachCommand, 'bash /work/scripts/install-vscode-extension.sh');
   assert.equal(devcontainer.postStartCommand, undefined);
-  assert.match(installer, /command -v code/);
-  assert.match(installer, /after VS Code attaches via postAttachCommand/);
-  assert.match(installer, /npm --prefix "\$EXTENSION_DIR" ci/);
-  assert.match(installer, /npm --prefix "\$EXTENSION_DIR" run package/);
-  assert.match(installer, /code --install-extension "\$VSIX_PATH" --force/);
+  assert.equal(devcontainer.postAttachCommand, undefined);
+  assert.equal(devcontainer.customizations.vscode.extensions.includes('md-slide-tool.md-slide-tool-powerpoint'), false);
 });
 
 test('extension source does not include the removed Preview or PDF.js stack', async () => {

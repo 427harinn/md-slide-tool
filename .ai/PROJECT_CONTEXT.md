@@ -128,8 +128,9 @@ CI smoke test は CLI help、template listing、npm package contents を確認�
 - M0で削除した Preview / PDF.js / Preview専用LibreOffice は復活させない。
 - M1 command は workspace extension としてDev Container内で動き、buildは既存 `slidegen render` を使用する。
 - `.devcontainer/devcontainer.json` の `remoteEnv.MD_SLIDE_TOOL_HOST_WORKSPACE` が `${localWorkspaceFolder}` を渡す。
-- `postAttachCommand` はVS Code attach後にextensionソースのhashを確認し、必要な場合のみVSIXを作成・remote extension hostへinstallする。installerはremote `code` CLIの存在を先に検査する。
-- Windows VS Code Remoteから `vscode.env.openExternal` がPowerPointを開くend-to-end GUI確認は未完了。
+- Dev Container lifecycle hookから `code --install-extension` を呼ぶ方式はWindows実機でCLIがPATHに存在せず失敗したため撤回した。
+- `customizations.vscode.extensions` はMarketplace形式のextension IDのみを扱い、ローカルVSIX pathを指定できない。現在のextensionは未公開のため、通常のReopen in Containerだけでcommandを利用する配布経路は未解決。
+- 次候補はMarketplace公開後にextension IDを `customizations.vscode.extensions` へ追加する方法。公開は未承認・未実施。標準フローが成立するまでM1は未完了。
 
 ## Repository Cleanup 検証記録 (2026-10-22)
 

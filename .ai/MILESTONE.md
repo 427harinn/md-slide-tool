@@ -79,4 +79,4 @@ PoCが成立しない場合は、代替案を調査結果とともに止めて�
 
 ## 状態
 
-実装中。通常のDev Container起動時にextensionをinstallする経路を追加した。Windows実機でのVS Code RemoteからPowerPointを開く確認は未完了。
+未完了。Build/OpenとHost Bridgeは実装済みだが、未公開workspace extensionを通常のDev Container起動だけでinstallする方法が未解決。lifecycle hookからの `code --install-extension` はWindows実機でCLI不在により失敗したため撤回。Marketplace公開などの配布方法が決まるまでDraftを維持する。
