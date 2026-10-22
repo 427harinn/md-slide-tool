@@ -50,10 +50,12 @@ H-02: Verify automatic package delivery through normal Reopen in Container
 Steps:
 1. After an approved Marketplace release and configuration update, start Docker Desktop and open the repository in VS Code.
 2. Run Dev Containers: Reopen in Container, without manually installing VSIX packages and without starting Extension Development Host.
-3. Confirm the Build and Open in Microsoft PowerPoint command is available and run it on a QMD.
+3. Confirm the Build and Open in Microsoft PowerPoint command is available and run it on a QMD from a Windows workspace path containing Japanese characters/spaces.
+4. Repeat once with PowerPoint already running; intentionally trigger a QMD build failure and confirm no new file opens; edit and save the generated PPTX in PowerPoint.
 Expected:
 - Remote Workspace extension is installed in the Dev Container host and Local UI extension is installed in the Windows UI host through the declared dependency.
 - Build succeeds and the generated PPTX opens in Windows PowerPoint.
+- PowerPoint already running receives the expected file, Japanese/space path opens correctly, build failure does not open a file, and the generated PPTX can be edited and saved.
 - No lifecycle hook invokes `code --install-extension` and no manual VSIX install is needed.
 
 Result: WAITING
