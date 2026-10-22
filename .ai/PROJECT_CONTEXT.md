@@ -189,3 +189,22 @@ Dev Containersでは `${localWorkspaceFolder}` を `remoteEnv` 等でcontainer�
 - GitHub Actionsはroot tests、既存smoke、Docker内の2回render/title+path変更/layout維持とdocx render回帰を実行する。
 - Windows実行環境ではQuarto / Docker / Bashが使えなかったため、PR #17 head CI run #60で代表render・docx回帰・smokeを実行しPASS。
 - PowerPoint desktopで編集・保存後のmetadata保持のみHUMAN_REQUIRED。
+
+
+## M3確定設計
+
+詳細は `docs/M3_PPTX_IMPORT.md`。
+
+- `slidegen import <pptx>` はmd-slide-tool管理PPTXとsame-stem QMDを対象にする。任意PPTX変換ではない。
+- import時はPPTXをsupported contentのsource of truthとしてnormal slide bodyを再構築し、既存QMD front matterは維持する。
+- M3 v1のtext復元はtitle / paragraph / bullet / numbered listをnormalized Markdownとして扱う。
+- existing stable `slide-id` / `element-id` を維持する。
+- PowerPointで新規追加されたsupported slide/imageには新規IDを発行し、QMDだけでなくPPTXにも書き戻す。
+- image move/resizeはassetsのEMU geometryへ反映する。
+- PowerPoint画像cropはM3正式対応。元画像を破壊的に加工せず、per-element crop metadataとしてassetsへ保持し次renderで再適用する。
+- same identified picture shapeの画像差し替えはsame elementとして扱う。shape削除後の新規pictureは新elementとし、類似性で推測しない。
+- changed/new imageは必要に応じ `img/imported/<element-id>.<ext>` へ抽出し、共有source画像を直接上書きしない。
+- unsupported user contentを黙って捨てず、次renderで失われる危険がある場合はcommit前にFAILする。
+- importはQMD/assets/images/PPTX metadata writebackをstageし、全検証成功後のみcommitする。
+- front-matter title slide reverse import、shape/SmartArt/chart/free-position text box、rotation/z-order、watch/sync/conflictはM3対象外。
+- 将来課題としてinternal ID表示の隠蔽、incremental build、build state UI、build中の編集/多重build制御を追跡する。
