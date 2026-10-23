@@ -2,108 +2,82 @@
 
 ## マイルストーン名
 
-M4: Docker Sync Engine
+M4: Save-driven Sync Engine v2
 
 ## 背景
 
 M0〜M3で、QMD -> PPTX、stable ID、assets、managed PPTX -> QMD import、recoverable transactionまで完了した。
 
-M4では、この手動往復を保存ベースの自動同期へ進める。
+PR #20ではdestination-freeze / mutation-broker方式を設計したが、T-401 feasibilityで以下が成立しないことが分かった。
 
-詳細仕様は `docs/M4_SYNC_ENGINE.md`。
+- VS Code側のatomic QMD freeze/replace primitive
+- timeout後に遅延broker writeが発生しない保証
+- commit/rollback/recoveryすべてを安全にcross-host broker化する前提
+
+そのためM4はv2へ方向転換する。
+
+詳細: `docs/M4_SYNC_ENGINE.md`
 
 ## 目的
 
 ```text
-QMD save  -> automatic render -> PPTX
-PPTX save -> automatic import -> QMD/assets
+QMD save
+  -> versioned preview PPTX
+  -> PowerPointで最新preview表示
+
+canonical PPTX save
+  -> import candidate
+  -> QMDへ安全に反映
 ```
 
-通常は自動同期し、相手側に未保存/独立変更がある場合だけ自動処理を止める。
+## v2 原則
 
-```text
-possible conflict
-  -> [Cancel] [Compare]
-```
+**supported editorが所有しているcanonical fileを別processからreplaceしない。**
 
-## M4の簡略化方針
-
-M4は、PowerPoint/VS Codeを編集可能なまま複数leaseで同時保護する方式を採用しない。
-
-正式サポートする編集経路は:
-
-```text
-QMD  -> VS Code
-PPTX -> Microsoft PowerPoint desktop
-```
-
-同期中は書き込み先を短時間だけfreezeする。
-
-- QMD -> PPTX: PowerPointがopen-dirtyならCONFLICT。open-cleanなら対象presentationを一時closeしてからpublishし、完了後reopen。
-- PPTX -> QMD: QMDがdirtyならCONFLICT。open-cleanならVS Code側でeditorを一時close/hideしてからpublishし、完了後restore。
-- automatic pathは journal check -> 必要ならpair freeze+recovery -> checkpoint/fingerprint再読込 -> pair evaluation -> direction選択 -> freeze/prepare -> transaction -> restore の順。
-- arbitrary external processとの同時書き込みをM4の保証範囲にしない。
-- ただしcommit直前のexpected hash確認とM3 recoverable transactionは維持する。
-
-## 設計原則
-
-- 自動同期オーケストレーターはDev Container側のVS Code Workspace extension。Coreはrecovery/render/import/transaction primitiveを担当。
-- Workspace extensionはCore起動前にQMD/PowerPoint pairをfreezeするため、M3 recoveryもfreeze後に実行される。
-- watcher/debounce/state machineはDev Container側。
-- VS Codeはdirty-state、QMD freeze、status、Conflict/Compare UI。
-- Windows Local UIはPowerPoint state、close/reopen、SaveCopyAs。
-- running中の複数saveは1件のPENDINGにcoalesce。
-- freezeSessionIdはDev Container内のephemeral session directoryでCoreと共有する。
-- Workspaceのinvalidating renameとCoreのcommitting renameは同じ `frozen` tokenをsourceにするため、exactly oneだけ成功する。
-- claim前のQMD/PPTX reopen/editはinvalidatedが勝てばdestructive write 0件。
-- claim後の通常reopenはpending-reopen markerとして記録。
-- QMD/PPTX actual mutationはfreeze所有側brokerがfreeze確認/再確立と同じcritical section内で実行し、完了後resultを返す。ACK後にCoreが後からreplaceする方式は禁止。
-- QMD brokerはWorkspace、PPTX brokerはWindows Local UI。
-- broker timeout/failure/UNKNOWN、Workspace/Local UI control lossはTransactionSuspendedとなり、journalを残して即時rollbackしない。
-- TransactionSuspendedはFileTransactionのgeneric BaseException rollback経路を明示的に迂回。
-- crash/suspend後は新しいpair freeze/session後にrecovery。
-- startupはcheckpointで方向判定する前にpending journalをfreeze+recoveryし、安定化後にcheckpoint/fingerprintを再読込。
-- self-generated writesはhash/fingerprintで抑制。
-- sync checkpointはfront matter込みQMD hashとPPTX fingerprintを持つが、本文を複製しない。
-- checkpointは同期outputsと同じrecoverable transactionでcommit。
-- M4はConflict検出/Compare snapshotまで。Semantic Diffとwinner selectionはM5。
-- incremental buildはM4初期要件にしない。
-
-## 対象外
-
-- keystroke-level live sync
-- automatic semantic merge
-- final M5 diff/resolution UI
-- arbitrary external editors/processesとの完全な同時書き込み保証
-- Windows-wide filesystem lease
-- long-lived QMD/PowerPoint publish lease
-- incremental render optimization
-- arbitrary PowerPoint shapes beyond M3
-- Marketplace publication
-- PPTX -> Word
+- QMD編集時はcanonical PPTXを直接更新せず、versioned preview PPTXを生成する。
+- PowerPoint編集時はcanonical managed PPTXを保存し、QMD側へ取り込む。
+- preview PPTXは非canonical・disposable・import対象外。
+- open-clean QMDへの反映はVS Code API経由をprobeする。
+- これが安全に成立しなければ、QMDが閉じるまでPendingにする。
 
 ## 完了条件
 
-- QMD saveでautomatic render。
-- PPTX saveでautomatic import。
-- duplicate event debounce / pending coalescing。
-- self-write loop防止。
-- PowerPoint dirty/clean/closed判定。
-- QMD dirty/clean判定。
-- QMD -> PPTX時にclean presentationを安全にclose/reopen。
-- commit ownership前のPowerPoint reopen/editは安全にinvalidateして0 write、ownership後はLocal UI mutation brokerでfreeze+actual mutationを同一critical sectionにできる。
-- PPTX -> QMD時にclean QMD editorを安全にfreeze/restore。
-- commit ownership前のQMD reopen/editはbufferを保持してinvalidate、ownership後はWorkspace mutation brokerでfreeze+actual mutationを同一critical sectionにできる。
-- transaction recoveryはpair freeze成立後にのみautomatic pathで実行される。
-- dirty destinationは自動で閉じずCONFLICT。
-- conflictはCancel / Compare。
-- Compareはunsaved PowerPoint/QMDの最新状態を壊さずsnapshot化。
-- checkpoint / crash recoveryがM3 transactionと整合。
-- DOCUMENT_BUSYはbounded pending re-evaluation。
-- status bar / pause-resume。
-- M1/M2/M3/docx regressionを維持。
+- QMD save -> versioned preview PPTX生成。
+- 最新previewをPowerPointで表示。
+- 前previewがopen-cleanなら安全にclose可能。
+- dirty previewは自動closeしない。
+- previewはcanonical import triggerにならない。
+- canonical PPTX save -> import candidate生成。
+- QMD closedなら既存M3 transaction経由で反映。
+- QMD open-cleanはeditor-mediated applyがfeasibility PASSの場合のみ自動反映。
+- QMD open-dirtyはCONFLICT。
+- canonical checkpointはpreview renderでは進めない。
+- watcher/debounce/pending/self-write suppression。
+- Cancel / Compare。
+- M1/M2/M3/docx regression維持。
+
+## 実装前gate
+
+T-402A:
+- versioned preview生成
+- exact preview open
+- prior clean preview close
+- dirty preview保護
+- multiple presentation targeting
+- Japanese/space paths
+- preview cleanup
+- previewがcanonical import triggerにならない
+
+T-402B:
+- QMD open-clean/open-dirty判定
+- candidate textをVS Code APIでexact editorへapply
+- save through VS Code
+- editor version race
+- dirty buffer保護
+- remaining M3 outputsとの整合
+
+T-402B FAILの場合はclosed-QMD Pending fallbackを採用する。
 
 ## 状態
 
-設計中。destination freeze方式へ再整理済み。
-T-401でPowerPoint close/reopen、QMD editor freeze/restore、cross-host controlを実機検証してからproduction implementationへ進む。
+設計v2。production implementation前にT-402A/T-402B feasibilityを実施する。
