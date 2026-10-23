@@ -47,10 +47,13 @@ PPTX -> Microsoft PowerPoint desktop
 
 ## 設計原則
 
-- watcher/debounce/state machineはDocker / Dev Container側。
+- 自動同期オーケストレーターはDev Container側のVS Code Workspace extension。Coreはrecovery/render/import/transaction primitiveを担当。
+- Workspace extensionはCore起動前にQMD/PowerPoint pairをfreezeするため、M3 recoveryもfreeze後に実行される。
+- watcher/debounce/state machineはDev Container側。
 - VS Codeはdirty-state、QMD freeze、status、Conflict/Compare UI。
 - Windows Local UIはPowerPoint state、close/reopen、SaveCopyAs。
 - running中の複数saveは1件のPENDINGにcoalesce。
+- freezeSessionId中にQMD/PPTXをsupported appで再open/editしたらsessionをinvalidateし、以後のdestructive writeを停止して再評価。
 - self-generated writesはhash/fingerprintで抑制。
 - sync checkpointはfront matter込みQMD hashとPPTX fingerprintを持つが、本文を複製しない。
 - checkpointは同期outputsと同じrecoverable transactionでcommit。
@@ -79,7 +82,10 @@ PPTX -> Microsoft PowerPoint desktop
 - PowerPoint dirty/clean/closed判定。
 - QMD dirty/clean判定。
 - QMD -> PPTX時にclean presentationを安全にclose/reopen。
+- Syncing中のPowerPoint reopen/editを検出して安全にinvalidateできる。
 - PPTX -> QMD時にclean QMD editorを安全にfreeze/restore。
+- Syncing中のQMD reopen/editを検出してbufferを保持したままinvalidateできる。
+- transaction recoveryはpair freeze成立後にのみautomatic pathで実行される。
 - dirty destinationは自動で閉じずCONFLICT。
 - conflictはCancel / Compare。
 - Compareはunsaved PowerPoint/QMDの最新状態を壊さずsnapshot化。
