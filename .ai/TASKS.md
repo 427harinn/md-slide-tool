@@ -41,9 +41,11 @@ production implementation前の必須gate。
 - pending M3 transactionがある状態でも、Core起動前にpair freezeを完了
 - recover_transactions()はfreeze成立後にのみautomatic M4 pathから呼ばれる
 - recoveryの最初のdestructive mutation直前にexact guardを frozen -> committing へatomic transition
-- transition前のreopen -> invalidated、destructive write 0件
-- transition後のreopen -> pendingReopen、supported appをre-closeしtransaction/recoveryをstable stateまで完了
-- crash中のstale committing guardは破棄扱い。次回は新しいpair freeze/session後にrecovery
+- frozen token rename競合でinvalidationとcommit claimを直列化
+- claim前のreopen -> invalidated、destructive write 0件
+- claim後のreopen + control healthy -> pending-reopen marker、supported appをre-closeしてtransaction継続
+- claim後にWorkspace/Local UI control loss -> 次mutation前にTransactionSuspended、journal保持、no immediate rollback
+- crash/suspend後は新しいpair freeze/session後にrecovery
 
 #### Cross-host
 - Workspace -> Local UI freeze/restore requestにfreezeSessionIdを付与
@@ -57,12 +59,14 @@ production implementation前の必須gate。
 成立しない場合はproduction実装を止め、設計を再検討する。
 
 ### T-402: Sync state / checkpoint
-- shared guard: `.md-slide-tool/freeze/<document-id>.json`
-- guard fields: documentId / freezeSessionId / state / pendingReopen
-- state: frozen / invalidated / committing / restoring
-- Workspace atomically creates/invalidates guard; Core validates session and atomically claims frozen -> committing before first destructive mutation
-- after committing begins, reopen attempts set pendingReopen and are rejected/re-closed rather than forcing mid-transaction abort
-- stale committing guard after crash never authorizes recovery; new pair freeze/session required
+- ephemeral runtime session dir: /tmp/md-slide-tool/freeze/<workspace-key>/<document-id>/<freezeSessionId>/
+- primary state token is one filename: frozen / invalidated / committing / restoring
+- frozen -> invalidated and frozen -> committing are competing same-directory atomic rename operations; exactly one can succeed
+- pending reopen is separate append-only/create-if-absent marker, never a competing JSON update
+- automatic Core receives a dedicated Workspace control pipe tied to freezeSessionId
+- Core checks control health before every destructive mutation
+- control loss after committing raises TransactionSuspended and leaves journal in committing; do not run immediate rollback for this condition
+- stale runtime state after crash never authorizes recovery; new pair freeze/session required
 - FREEZING_PAIR / RECOVERING_IF_NEEDED / RESTORING_PAIR stateを含む
 - freezeSessionId validityをper-document stateに持つ
 
@@ -175,10 +179,12 @@ production implementation前の必須gate。
 - PowerPoint close/reopen failure
 - QMD restore failure
 - M3 PPTX metadata writeback path while PowerPoint was open
-- QMD/PPTX reopen before frozen->committing -> invalidation + destructive write 0件
-- QMD/PPTX reopen after frozen->committing -> pendingReopen + immediate re-close; transaction reaches stable state
-- first replace後にreopen -> no ad-hoc rollback; stable commit/rollback/manual recovery followed by re-evaluation
-- crash after first replace + reopen/pending -> new freeze/session before recovery
+- QMD/PPTX reopen before claim -> invalidated rename wins or Core committing rename wins; both never win
+- claim/invalidation race repeated stress test
+- reopen after claim with healthy control -> pending-reopen + immediate re-close
+- Workspace/Local UI disconnect after claim -> TransactionSuspended before next file mutation, journal remains committing
+- first replace後にcontrol loss -> no immediate rollback, new freeze/session before recovery
+- checkpoint remains old unless transaction had already reached committed
 - pending M3 recovery starts only after pair freeze
 - reopen/invalidate during recovery -> safe stop/re-evaluation
 - pause/resume
