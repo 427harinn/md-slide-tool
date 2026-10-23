@@ -187,14 +187,32 @@ Run before production sync-engine implementation.
 15. If the user reopens/edits during Syncing, current buffer is preserved and later pair-level evaluation can surface conflict rather than silently discard it.
 
 #### Shared freeze guard / transaction boundary
+- runtime session is ephemeral: `/tmp/md-slide-tool/freeze/<workspace-key>/<document-id>/<freezeSessionId>/`;
+- one primary state token exists: frozen / invalidated / committing / restoring;
+- Workspace invalidation uses atomic same-directory rename `frozen -> invalidated`;
+- Core ownership claim uses atomic same-directory rename `frozen -> committing`;
+- race them repeatedly; exactly one rename succeeds and the loser observes missing source;
+- no JSON read-modify-write is used for the frozen/invalidated/committing decision;
+- post-ownership reopen uses create-if-absent `pending-reopen`, which cannot replace the primary state token;
 - Workspace creates `.md-slide-tool/freeze/<document-id>.json` atomically with exact freezeSessionId;
 - Core receives expected session ID and rejects missing/mismatched/invalidated guard;
 - reopen immediately before frozen -> committing CAS -> invalidated, zero destructive writes;
 - Core atomically changes frozen -> committing before first FileTransaction/recovery mutation;
 - reopen immediately after committing transition but before first replace -> pendingReopen, supported view re-closed, transaction continues to stable state;
 - reopen immediately after first replace -> no ad-hoc rollback caused by freeze invalidation; existing transaction semantics finish commit/rollback;
-- guard write/read race is injected repeatedly to prove no invalidated session can be claimed as committing;
-- stale committing guard after process death cannot be reused.
+- token rename race is injected repeatedly to prove invalidated and committing can never both win;
+- stale runtime session after process death cannot be reused.
+
+#### Control-loss / suspend
+- Workspace spawns Core with a dedicated control pipe/channel bound to freezeSessionId;
+- Core checks control health immediately before every destructive file mutation;
+- Workspace shutdown/restart -> pipe EOF;
+- Local UI disconnect/restart while committing -> Workspace signals suspend/closes control channel;
+- inject control loss before first mutation -> zero destructive writes;
+- inject control loss after operation 1 of N -> Core raises TransactionSuspended before operation 2;
+- TransactionSuspended leaves journal phase=committing and does not enter normal immediate rollback;
+- checkpoint remains old unless phase already reached committed;
+- next automatic attempt creates a new freeze session before recovery.
 
 #### Recovery / ordering
 - pending M3 transaction fixture + automatic sync -> pair freeze happens before recover_transactions();
@@ -209,6 +227,8 @@ Run before production sync-engine implementation.
 17. Workspace -> Local UI close/reopen request targets the exact presentation.
 18. SaveCopyAs request returns the correct temporary result.
 19. Timeout, Remote disconnect, Local UI restart, PowerPoint exit, malformed response and stale response fail safely.
+19a. If disconnect occurs before commit ownership, the session invalidates and Core performs zero destructive writes.
+19b. If disconnect occurs after commit ownership, Core suspends before the next mutation and leaves the transaction journal for recovery under a new freeze session.
 20. No Windows-wide filesystem lease is required for M4 completion.
 
 If the destination-freeze operations cannot be made reliable with supported APIs, feasibility FAILS and production implementation stops.
@@ -249,8 +269,9 @@ If the destination-freeze operations cannot be made reliable with supported APIs
 - checkpoint commits in the same transaction as synchronized outputs;
 - crash after partial commit follows M3 recovery;
 - automatic recovery is entered only after pair freeze is established;
-- invalidation before recovery claims committing -> recovery performs zero destructive writes;
-- reopen after recovery claims committing -> pendingReopen and recovery completes to stable state;
+- invalidation rename wins before recovery claim -> recovery performs zero destructive writes;
+- Core committing rename wins -> recovery owns transaction window while control remains healthy;
+- control loss during recovery after one mutation -> TransactionSuspended, no immediate rollback, journal retained;
 - crash after first recovery replace -> journal retained; new pair freeze/session required before next recovery;
 - checkpoint verified for committed, rolled-back, and ManualRecoveryRequired outcomes;
 - committed transaction recovery completes matching checkpoint;
