@@ -269,3 +269,22 @@ M4 turns the M3 manual roundtrip into safe save-driven synchronization. All crit
 - **AC-M4-19:** Existing M1 build/open, M2 stable layout, M3 manual render/import and transaction recovery, and docx generation continue to pass regression tests.
   - Verification: AUTOMATED regression + CI
   - Status: UNVERIFIED
+
+- **AC-M4-20:** Dirty-state/fingerprint validation is performed both before candidate work and immediately before canonical commit. If QMD or PowerPoint changes between those checks, the candidate is not published and the document is re-evaluated into PENDING/CONFLICT.
+  - Verification: AUTOMATED race injection + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-21:** QMD and PPTX events arriving in the same debounce window are resolved by one pair-level state evaluation, never by event arrival order.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M4-22:** The durable sync checkpoint includes a full-QMD fingerprint that detects front-matter-only edits and is committed/recovered in the same recoverable transaction boundary as the synchronized render/import outputs.
+  - Verification: AUTOMATED crash recovery + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-23:** A crash cannot leave canonical outputs committed with a silently stale "last synchronized" checkpoint that later authorizes overwrite. Restart/recovery either completes the matching checkpoint or stops for safe re-evaluation/manual recovery.
+  - Verification: AUTOMATED crash injection
+  - Status: UNVERIFIED
+- **AC-M4-24:** The Workspace/Core -> Windows Local UI request/response path for PowerPoint dirty-state and comparison snapshot is explicitly correlated and fails closed on timeout, disconnect, restart, PowerPoint exit, malformed response, or stale response.
+  - Verification: T-401 cross-host feasibility + AUTOMATED bridge tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-25:** Manual render/import and automatic sync never bypass the M3 document lock. Automatic DOCUMENT_BUSY becomes a bounded pending re-evaluation rather than spin retry or destructive failure.
+  - Verification: AUTOMATED concurrency tests
+  - Status: UNVERIFIED
