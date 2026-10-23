@@ -238,38 +238,27 @@ Dev Containersでは `${localWorkspaceFolder}` を `remoteEnv` 等でcontainer�
 
 Detailed design: `docs/M4_SYNC_ENGINE.md`.
 
-- Normal workflow becomes save-driven:
+- Normal workflow is save-driven:
   - QMD save -> automatic render -> PPTX.
   - PPTX save -> automatic import -> QMD/assets.
-- This is save-level near-real-time synchronization, not keystroke-level live sync.
-- Core watch/debounce/state/queue/self-write logic stays in Docker / Dev Container.
-- Primary triggers are the paired managed QMD and PPTX. assets/image writes created by md-slide-tool are not independent user triggers.
-- State model includes IDLE / DEBOUNCING / RENDERING / IMPORTING / PENDING / CONFLICT / ERROR / PAUSED.
-- While a render/import is active, newer saves coalesce into one pending intent; after completion the latest state is re-evaluated.
-- Self-generated write suppression must use expected hashes/fingerprints/managed identity, not a time-only ignore window.
-- Sync state may persist minimal fingerprints but must not create a second canonical title/body store.
-- Before QMD -> PPTX overwrite, the Windows host adapter checks whether the paired PowerPoint presentation is open and has unsaved changes.
-- Before PPTX -> QMD overwrite, the VS Code side checks the actual QMD editor dirty state.
-- If either direction could destroy unsaved/independent work, automatic sync stops and VS Code shows **Cancel / Compare**.
-- Compare must use the latest states:
-  - unsaved PowerPoint -> non-destructive SaveCopyAs/equivalent snapshot; do not force-save the original;
-  - unsaved QMD -> in-memory VS Code document text; do not force-save the real file.
-- M4 creates/provides comparison snapshots and enters conflict state. M5 owns the final Semantic Diff and winner-selection/resolution UX.
-- Target M5 diff is document-wide but grouped by slide and semantic field for readability. Internal stable IDs/hashes are hidden from normal users.
-- Initial M4 does not require incremental/selective rendering; optimize only after the sync engine is stable.
-- Windows PowerPoint dirty-state + comparison-copy behavior is a mandatory T-401 feasibility gate before production implementation.
-
-- M4 destructive publication uses two-phase safety validation: admission + immediate pre-commit revalidation.
-- QMD/PPTX events coalesced in the same debounce window trigger one pair-level re-evaluation, not first-event-wins.
-- Durable sync checkpoint includes full-QMD hash (front matter included) and must share the recoverable transaction boundary with synchronized outputs.
-- Cross-host Workspace/Core -> Windows Local UI requests for PowerPoint state/snapshot require correlated responses and fail-closed timeout/disconnect behavior.
-- Manual M3 operations and automatic M4 sync share the document lock; automatic DOCUMENT_BUSY becomes bounded pending re-evaluation.
-- M4 commit barrier spans the interval from final validation through recoverable canonical publication. A final token check followed by ordinary replacement is explicitly unsafe.
-- PowerPoint-open QMD->PPTX publication requires a validated-token-bound exclusive host publish lease or equivalent atomic host-side primitive; otherwise that automatic path must be disabled/re-scoped.
-- PPTX->QMD publication requires a VS Code editor publish lease or version-conditional primitive tied to the exact TextDocument version through replacement.
-- COMMITTING change events are coalesced as PENDING and re-evaluated after barrier release.
-- Automatic DOCUMENT_BUSY uses bounded timed re-check even when manual work produces no watched-file event.
-- Core -> Workspace QMD lease RPC is explicit: acquire/renew/release tied to documentId/path/TextDocument version/text hash, held through the recoverable commit, fail-closed on lease loss.
-- Automatic publication also requires host-visible exclusive filesystem leases for every replace/delete target and expected-old-hash/expected-absence checks while leased.
-- FileTransaction commit is no longer allowed to assume staged old state remains current; it must consume the publication lease set and CAS preconditions.
-- Closed PPTX and external-process writes are protected by the filesystem publication layer, independently of PowerPoint dirty-state handling.
+- M4 uses a **destination freeze** model instead of layered PowerPoint/QMD/filesystem publication leases.
+- Supported interactive editors are VS Code for QMD and Microsoft PowerPoint desktop for PPTX.
+- QMD -> PPTX:
+  - PowerPoint open-dirty -> CONFLICT.
+  - open-clean -> temporarily close the paired presentation, commit, reopen.
+  - closed -> commit directly.
+- PPTX -> QMD:
+  - QMD dirty -> CONFLICT.
+  - open-clean -> temporarily close/hide/freeze the QMD editor, commit, restore.
+- If M3 import still writes PPTX metadata, a clean open PowerPoint presentation must also be closed/reopened around that commit, unless a separately tested no-writeback design replaces it.
+- Core order is conceptually: document lock -> pair evaluation -> prepare candidate -> destination freeze -> final saved-file hash check -> M3 recoverable transaction + sync checkpoint -> destination restore -> pending re-evaluation -> unlock.
+- Arbitrary external programs writing managed files during the short freeze/commit interval are outside M4's formal guarantee. M4 still performs final hash validation and uses M3 transaction/recovery.
+- QMD/PPTX events in the same debounce window are evaluated together.
+- Repeated saves while busy coalesce into one PENDING re-evaluation.
+- Durable checkpoint includes full-QMD hash including front matter and PPTX fingerprint, but not duplicated canonical text.
+- Conflict UX remains **Cancel / Compare**.
+- Compare uses SaveCopyAs for unsaved PowerPoint and VS Code in-memory text for unsaved QMD.
+- M4 prepares conflict snapshots; M5 owns Semantic Diff and winner selection.
+- Internal stable IDs/hashes remain implementation details and are hidden from normal diff UX.
+- Incremental/selective rendering is deferred until save-driven synchronization is stable.
+- T-401 must prove PowerPoint close/reopen, QMD freeze/restore, M3 PPTX writeback behavior, and cross-host requests before production implementation.
