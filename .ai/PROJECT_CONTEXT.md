@@ -251,7 +251,7 @@ Detailed design: `docs/M4_SYNC_ENGINE.md`.
 - Workspace/Local UI control loss after commit ownership causes TransactionSuspended before the next mutation; the journal remains in committing and immediate rollback is skipped.
 - A stale runtime session never authorizes recovery; next recovery requires a new pair freeze/session.
 - Pair freeze is established before Core startup because Core may run M3 transaction recovery before render/import.
-- Reopening/editing the paired QMD or PPTX during Syncing invalidates the freeze session; Core must stop further destructive automatic writes and the Workspace orchestrator re-evaluates/enters CONFLICT as needed.
+- Reopening/editing before commit ownership invalidates the freeze and yields zero destructive writes. After commit ownership, QMD/PPTX mutation is handled by the owning mutation broker; broker failure/unknown outcome suspends the transaction for later recovery.
 - Supported interactive editors are VS Code for QMD and Microsoft PowerPoint desktop for PPTX.
 - QMD -> PPTX:
   - PowerPoint open-dirty -> CONFLICT.
@@ -261,7 +261,7 @@ Detailed design: `docs/M4_SYNC_ENGINE.md`.
   - QMD dirty -> CONFLICT.
   - open-clean -> temporarily close/hide/freeze the QMD editor, commit, restore.
 - If M3 import still writes PPTX metadata, a clean open PowerPoint presentation must also be closed/reopened around that commit, unless a separately tested no-writeback design replaces it.
-- Automatic M4 order is conceptually: pair evaluation -> pair freeze -> Core start -> M3 document lock -> recovery if needed -> prepare candidate -> freeze validity + final saved-file hash check -> M3 recoverable transaction + sync checkpoint -> pair restore -> pending re-evaluation.
+- Automatic M4 startup is journal-first: identify pair -> detect journal -> if present pair freeze + recovery -> re-read checkpoint/fingerprints -> pair evaluation -> choose direction -> freeze/prepare/transaction -> restore -> pending re-evaluation.
 - Arbitrary external programs writing managed files during the short freeze/commit interval are outside M4's formal guarantee. M4 still performs final hash validation and uses M3 transaction/recovery.
 - QMD/PPTX events in the same debounce window are evaluated together.
 - Repeated saves while busy coalesce into one PENDING re-evaluation.
@@ -276,7 +276,7 @@ Detailed design: `docs/M4_SYNC_ENGINE.md`.
 - TransactionSuspended is a dedicated M3 transaction outcome that bypasses FileTransaction.commit()'s generic immediate rollback path; committing/rolling_back journals remain for later recovery under a new pair freeze.
 - Startup ordering is journal-first: detect pending journal -> pair freeze -> recover to stable state -> re-read checkpoint/fingerprints -> only then choose IDLE/render/import/CONFLICT. A checkpoint from an incomplete transaction is never used to choose direction before recovery.
 
-- The re-freeze ACK model is replaced for actual QMD/PPTX mutation: the freeze-owning component performs the file mutation before returning a post-mutation result.
+- For actual QMD/PPTX mutation, the freeze-owning component performs the file mutation before returning a post-mutation result; Core never receives a pre-write permission and then replaces the file later.
 - QMD automatic create/replace/delete is brokered by the Workspace extension; PPTX mutation is brokered by the Windows Local UI. Core remains M3 journal/transaction authority.
 - A broker critical section includes exact session/op correlation, re-freeze/close, expected-old verification, actual mutation, and resulting-hash verification. This removes the ACK-to-Core-replace race.
 - Startup/direction ordering is journal-first everywhere: pending journal -> pair freeze -> recovery -> checkpoint/fingerprint re-read -> pair evaluation -> choose render/import/conflict.
