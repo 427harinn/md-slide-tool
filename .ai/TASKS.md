@@ -43,7 +43,9 @@ production implementation前の必須gate。
 - recoveryの最初のdestructive mutation直前にexact guardを frozen -> committing へatomic transition
 - frozen token rename競合でinvalidationとcommit claimを直列化
 - claim前のreopen -> invalidated、destructive write 0件
-- claim後のreopen + control healthy -> pending-reopen marker、supported appをre-closeしてtransaction継続
+- claim後のreopen + control healthy -> pending-reopen marker
+- Coreは次のdestructive mutation前にsame freezeSessionId/reopen generationのre-freeze ACKを必須確認
+- ACK timeout/failure/stale -> TransactionSuspended before next mutation
 - claim後にWorkspace/Local UI control loss -> 次mutation前にTransactionSuspended、journal保持、no immediate rollback
 - crash/suspend後は新しいpair freeze/session後にrecovery
 
@@ -183,8 +185,12 @@ production implementation前の必須gate。
 - claim/invalidation race repeated stress test
 - reopen after claim with healthy control -> pending-reopen + immediate re-close
 - Workspace/Local UI disconnect after claim -> TransactionSuspended before next file mutation, journal remains committing
+- TransactionSuspendedはFileTransaction.commit()のgeneric BaseException -> immediate rollback経路を明示的に迂回
+- rollback recovery中のsuspendはjournal phase=rolling_backを保持
 - first replace後にcontrol loss -> no immediate rollback, new freeze/session before recovery
 - checkpoint remains old unless transaction had already reached committed
+- final replace後/committed marker前のsuspendもjournal未完了としてrecovery
+- startupはjournal有無をcheckpointより先に確認し、pending journalがあればfreeze+recovery完了後にcheckpointを再読込してsync direction決定
 - pending M3 recovery starts only after pair freeze
 - reopen/invalidate during recovery -> safe stop/re-evaluation
 - pause/resume
