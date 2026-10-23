@@ -4,11 +4,14 @@
 
 Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M4_SYNC_ENGINE.md`、Acceptance Criteria、Test Planを確認する。
 
-### T-401: Destination freeze feasibility
+### T-401: Pair-freeze feasibility and orchestration
 
 production implementation前の必須gate。
 
 #### PowerPoint
+- freezeSessionIdを受け取り、paired presentationのfreeze/restoreを実行
+- freeze中のPresentationOpen/reopenを検出してsession invalidationを返す
+- reopen後にdirty化したpresentationを保存せず保護し、CONFLICTへ再評価
 
 - exact paired presentationを特定
 - closed / open-saved / open-dirtyを区別
@@ -22,6 +25,10 @@ production implementation前の必須gate。
 - またはPPTX writeback削除案を別fixtureで安全性確認してから採用
 
 #### VS Code QMD
+- Workspace extensionをM4のsync orchestratorとする
+- Core automatic command起動前にpaired QMD/PPTX両方のfreezeを完了する
+- paired QMDのreopen/editをfreeze中に検出してsession invalidation
+- reopen後dirty bufferを失わずCONFLICTへ再評価
 
 - paired QMD dirty/clean判定
 - open-clean QMD editorを短時間close/hide
@@ -30,7 +37,15 @@ production implementation前の必須gate。
 - close/restoreでcontent lossやfalse dirtyを起こさない
 - userがSyncing中に再open/editした場合の検出/後続CONFLICT挙動を確認
 
+#### Recovery / ordering
+- pending M3 transactionがある状態でも、Core起動前にpair freezeを完了
+- recover_transactions()はfreeze成立後にのみautomatic M4 pathから呼ばれる
+- recoveryのdestructive mutation前にfreezeSessionId validityを確認
+- recovery中にreopen/invalidateされたら追加writeを止め、M3 hash-guarded recoveryへ戻す
+
 #### Cross-host
+- Workspace -> Local UI freeze/restore requestにfreezeSessionIdを付与
+- Local UI -> WorkspaceのPowerPoint reopen invalidation eventを同じsessionにcorrelate
 
 - Workspace -> Local UI state / close / reopen / SaveCopyAs request
 - typed correlated response
@@ -40,6 +55,8 @@ production implementation前の必須gate。
 成立しない場合はproduction実装を止め、設計を再検討する。
 
 ### T-402: Sync state / checkpoint
+- FREEZING_PAIR / RECOVERING_IF_NEEDED / RESTORING_PAIR stateを含む
+- freezeSessionId validityをper-document stateに持つ
 
 - IDLE / DEBOUNCING / CHECKING / PREPARING / FREEZING_DESTINATION / COMMITTING / RESTORING_DESTINATION / PENDING / CONFLICT / ERROR / PAUSED
 - per-document state
@@ -77,6 +94,9 @@ production implementation前の必須gate。
 - no render/import loop
 
 ### T-406: QMD -> PPTX automatic sync
+- Workspace orchestratorがCore起動前にpaired QMD + PowerPointをfreeze
+- freeze中reopen/edit -> FREEZE_INVALIDATED、commit中止/再評価
+- pending recoveryもfreeze後に実行
 
 - QMD save
 - pair-level evaluation
@@ -91,6 +111,10 @@ production implementation前の必須gate。
 - pending再評価
 
 ### T-407: PPTX -> QMD automatic sync
+- Workspace orchestratorがCore起動前にpaired QMD + PowerPointをfreeze
+- M3 PPTX metadata writebackも同一pair freeze内で実行
+- freeze中reopen/edit -> FREEZE_INVALIDATED、commit中止/再評価
+- pending recoveryもfreeze後に実行
 
 - PPTX save/package stable
 - pair-level evaluation
@@ -143,6 +167,10 @@ production implementation前の必須gate。
 - PowerPoint close/reopen failure
 - QMD restore failure
 - M3 PPTX metadata writeback path while PowerPoint was open
+- QMD reopen/edit during freeze -> session invalidation + no further destructive write
+- PowerPoint reopen/edit during freeze -> session invalidation + no further destructive write
+- pending M3 recovery starts only after pair freeze
+- reopen/invalidate during recovery -> safe stop/re-evaluation
 - pause/resume
 - M1/M2/M3/docx regression
 - Windows real E2E after agent gates
