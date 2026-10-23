@@ -233,3 +233,29 @@ Dev Containersでは `${localWorkspaceFolder}` を `remoteEnv` 等でcontainer�
 - Supported classification can use placeholder type/index, picture shape type, and a reserved `mdst-caption-<element-id>` textbox name. All other slide-local objects are unsupported. Master/layout shapes are distinct from `slide.shapes`; position/color/appearance heuristics are not needed.
 - In the rendered body, ordinary paragraph uses explicit `a:buNone`, bullets inherit the body-placeholder list style, and numbered paragraphs carry `a:buAutoNum`.
 - `tests/test_m3_feasibility_fixture.py` verifies custom properties in `docProps/custom.xml`, title/caption markers, stable IDs, picture bytes/format, and raw positive/negative crop values across python-pptx save/reopen. Microsoft PowerPoint desktop preservation of these newly introduced M3 fields is not claimed by this fixture.
+
+## M4 design direction
+
+Detailed design: `docs/M4_SYNC_ENGINE.md`.
+
+- Normal workflow becomes save-driven:
+  - QMD save -> automatic render -> PPTX.
+  - PPTX save -> automatic import -> QMD/assets.
+- This is save-level near-real-time synchronization, not keystroke-level live sync.
+- Core watch/debounce/state/queue/self-write logic stays in Docker / Dev Container.
+- Primary triggers are the paired managed QMD and PPTX. assets/image writes created by md-slide-tool are not independent user triggers.
+- State model includes IDLE / DEBOUNCING / RENDERING / IMPORTING / PENDING / CONFLICT / ERROR / PAUSED.
+- While a render/import is active, newer saves coalesce into one pending intent; after completion the latest state is re-evaluated.
+- Self-generated write suppression must use expected hashes/fingerprints/managed identity, not a time-only ignore window.
+- Sync state may persist minimal fingerprints but must not create a second canonical title/body store.
+- Before QMD -> PPTX overwrite, the Windows host adapter checks whether the paired PowerPoint presentation is open and has unsaved changes.
+- Before PPTX -> QMD overwrite, the VS Code side checks the actual QMD editor dirty state.
+- If either direction could destroy unsaved/independent work, automatic sync stops and VS Code shows **Cancel / Compare**.
+- Compare must use the latest states:
+  - unsaved PowerPoint -> non-destructive SaveCopyAs/equivalent snapshot; do not force-save the original;
+  - unsaved QMD -> in-memory VS Code document text; do not force-save the real file.
+- M4 creates/provides comparison snapshots and enters conflict state. M5 owns the final Semantic Diff and winner-selection/resolution UX.
+- Target M5 diff is document-wide but grouped by slide and semantic field for readability. Internal stable IDs/hashes are hidden from normal users.
+- Initial M4 does not require incremental/selective rendering; optimize only after the sync engine is stable.
+- Windows PowerPoint dirty-state + comparison-copy behavior is a mandatory T-401 feasibility gate before production implementation.
+
