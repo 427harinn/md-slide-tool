@@ -336,3 +336,16 @@ AC-M4-26 through AC-M4-34 were introduced while exploring a layered publication-
   - Verification: T-401 + AUTOMATED cross-host tests
   - Status: UNVERIFIED
 
+- **AC-M4-45:** Workspace and Core coordinate freeze validity through one atomic shared guard keyed by documentId/freezeSessionId. Core must atomically claim `frozen -> committing` immediately before the first destructive transaction/recovery mutation.
+  - Verification: AUTOMATED guard/race tests + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-46:** Reopen/edit before Core claims `committing` invalidates the guard and results in zero destructive writes. Reopen/edit after `committing` does not trigger ad-hoc rollback; supported-app reopen is rejected/re-closed, `pendingReopen` is recorded, and the transaction reaches a stable committed/rolled-back/manual-recovery state before re-evaluation.
+  - Verification: T-401 + AUTOMATED first-write race tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-47:** A crash during `committing` leaves the M3 journal authoritative. A stale guard never authorizes recovery; a brand-new pair freeze/session is required before recovery can perform destructive writes.
+  - Verification: AUTOMATED crash/recovery tests + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-48:** Checkpoint state after partial commit plus reopen/invalidation follows the M3 transaction outcome: committed output has the new checkpoint, rolled-back output has the old checkpoint, and ManualRecoveryRequired never fabricates a synchronized checkpoint.
+  - Verification: AUTOMATED failure injection
+  - Status: UNVERIFIED
+
