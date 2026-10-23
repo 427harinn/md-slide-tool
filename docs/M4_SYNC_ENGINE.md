@@ -90,12 +90,19 @@ IDLE
   -> REVALIDATING
   -> RENDERING or IMPORTING
   -> PRECOMMIT_REVALIDATING
+  -> ACQUIRING_COMMIT_BARRIER
   -> COMMITTING
   -> IDLE
 
-RENDERING / IMPORTING / REVALIDATING
+RENDERING / IMPORTING / REVALIDATING / PRECOMMIT_REVALIDATING
   + new relevant save
   -> PENDING
+
+ACQUIRING_COMMIT_BARRIER / COMMITTING
+  + new relevant save or editor/host change signal
+  -> record PENDING
+  -> do not start another operation
+  -> after barrier release, re-evaluate both sides
 
 current operation completes
   + PENDING
@@ -141,6 +148,61 @@ If any protected token changed while render/import was running:
 - transition to PENDING or CONFLICT after re-evaluating both latest sides.
 
 M3 document locks protect md-slide-tool processes only and are not treated as locks on PowerPoint or VS Code user editing.
+
+### Commit barrier / conditional publication
+
+Pre-commit revalidation alone is not sufficient. After the final token check succeeds, M4 must acquire a **commit barrier** before the first canonical file is replaced, and keep that barrier until all canonical files plus the sync checkpoint have reached a committed/recoverable state.
+
+The barrier must close the time-of-check/time-of-use window. A design that performs:
+
+```text
+check clean
+-> return from check
+-> ordinary multi-file replacement
+```
+
+is forbidden.
+
+The barrier contract is:
+
+1. revalidate the protected side;
+2. acquire a short-lived publish lease or equivalent conditional-publication guard tied to the exact validated version/token;
+3. if the lease cannot be acquired because the user edited/saved/reopened the protected side, publish nothing and re-evaluate;
+4. while the barrier is held, a user edit/save must either be prevented/serialized or cause the conditional publication to fail before overwriting that edit;
+5. commit all staged canonical files and the durable sync checkpoint;
+6. release the barrier;
+7. if any save/change event occurred during COMMITTING, keep one PENDING intent and immediately re-evaluate after release.
+
+The exact platform mechanisms are mandatory feasibility gates, not implementation guesses.
+
+#### PowerPoint-protected publication
+
+For QMD -> PPTX, when the paired presentation is open, the Windows host adapter must provide an **exclusive presentation publish lease** or equivalent atomic host-side publication primitive.
+
+Required guarantee:
+- the lease is granted only for the exact open presentation and exact validated state token;
+- from lease acquisition until PPTX publication is complete, PowerPoint cannot accept an unobserved edit/save that would be overwritten by the publication;
+- if the presentation state changes before lease acquisition completes, lease acquisition fails;
+- the lease is always released on success, failure, timeout, disconnect, or host crash recovery.
+
+Candidate mechanisms may include a host-side critical section that safely closes/replaces/reopens an open-saved presentation, or another mechanism that demonstrably serializes PowerPoint edits across publication. The design does **not** assume that `Presentation.Saved` polling by itself is a lease.
+
+If no supported/reliable PowerPoint barrier can be demonstrated, QMD -> PPTX automatic publication while PowerPoint is open must be disabled/re-scoped rather than accepting a race.
+
+#### QMD-protected publication
+
+For PPTX -> QMD, the VS Code Workspace extension must provide an **editor publish lease** or version-conditional publication primitive for the paired QMD.
+
+Required guarantee:
+- the guard is tied to the exact TextDocument version/in-memory fingerprint validated before commit;
+- if the document changes after validation, canonical QMD publication fails before overwriting that edit;
+- if the editor is already dirty, the guard is not granted;
+- the guard covers the actual QMD replacement interval, not only the initial query;
+- failure releases the guard and transitions to re-evaluation/CONFLICT.
+
+A simple `document.version` read followed later by an unconditional filesystem replace is forbidden.
+
+If VS Code's supported APIs cannot provide either a short read-only/write lease or version-conditional publication with this guarantee, stop and revise the M4 publication path before implementation.
 
 ## 6. Debounce
 
@@ -217,10 +279,12 @@ On QMD save:
 4. through the host bridge, query the paired PowerPoint presentation state and capture an admission PowerPoint token;
 5. if PowerPoint is open-dirty, or both saved sides independently changed since the checkpoint, enter CONFLICT;
 6. otherwise render to candidate outputs without publishing over the live PPTX yet;
-7. immediately before M3 transaction commit, re-query/revalidate the protected QMD/PowerPoint tokens and saved fingerprints;
+7. immediately before publication, re-query/revalidate the protected QMD/PowerPoint tokens and saved fingerprints;
 8. if PowerPoint or protected state changed after admission, discard candidate publication and re-evaluate -> PENDING/CONFLICT;
-9. if still safe, commit candidate PPTX/assets plus the new sync checkpoint in one recoverable transaction;
-10. classify generated writes by committed expected fingerprints and return to IDLE.
+9. if still safe, acquire the PowerPoint commit barrier / exclusive presentation publish lease for the exact validated token;
+10. only while that barrier is held, commit candidate PPTX/assets plus the new sync checkpoint in one recoverable transaction;
+11. release the barrier in a finally-style path;
+12. if any event/change was observed during COMMITTING, keep PENDING and re-evaluate immediately; otherwise return to IDLE.
 
 A dirty-state query followed by a later unconditional overwrite is forbidden.
 
@@ -234,10 +298,12 @@ On PPTX save:
 4. capture the current PowerPoint/file state token through the host bridge;
 5. if QMD is dirty, or both saved sides independently changed since the checkpoint, enter CONFLICT;
 6. otherwise reconstruct/import to candidate outputs without publishing over the live QMD yet;
-7. immediately before commit, re-check the VS Code document version/dirty state and relevant PowerPoint/file token;
+7. immediately before publication, re-check the VS Code document version/dirty state and relevant PowerPoint/file token;
 8. if QMD or protected state changed after admission, do not publish; re-evaluate -> PENDING/CONFLICT;
-9. if still safe, commit QMD/assets/PPTX metadata writeback plus the new sync checkpoint in one recoverable transaction;
-10. classify generated writes by committed expected fingerprints and return to IDLE.
+9. if still safe, acquire the VS Code QMD editor publish lease / version-conditional publication guard for the exact validated document version;
+10. only while that guard is held, commit QMD/assets/PPTX metadata writeback plus the new sync checkpoint in one recoverable transaction;
+11. release the guard in a finally-style path;
+12. if any event/change was observed during COMMITTING, keep PENDING and re-evaluate immediately; otherwise return to IDLE.
 
 ### Manual command interaction / DOCUMENT_BUSY
 
@@ -246,8 +312,10 @@ Manual `slidegen render` / `slidegen import` and automatic sync share the existi
 If the automatic engine receives `DOCUMENT_BUSY`:
 - do not treat it as a destructive failure and do not spin-retry;
 - record one pending re-evaluation;
-- wait for a bounded lock-release/retry signal or the next relevant filesystem event;
-- after the manual operation finishes, recompute both sides from the durable checkpoint;
+- schedule a bounded lock re-check even if no watched file changes: first retry after about 250 ms, then bounded backoff up to about 2 s, with a total wait budget around 10 s;
+- any relevant filesystem event may trigger an earlier re-evaluation, but an event is not required;
+- once the lock is observed free, immediately recompute both sides from the durable checkpoint;
+- if the total wait budget expires, remain PENDING/attention-required rather than spin forever;
 - then choose normal sync, CONFLICT, or IDLE from the latest state.
 
 If a manual command encounters the automatic engine holding the lock, existing explicit `DOCUMENT_BUSY` behavior may remain; M4 must not bypass the lock.
@@ -358,6 +426,8 @@ PowerPoint host adapter must safely:
 - read whether it has unsaved changes;
 - distinguish closed/open-saved/open-dirty;
 - produce a state/version token that changes when an edit/save relevant to overwrite safety occurs, or provide an equivalent revalidation mechanism;
+- acquire and release an exclusive presentation publish lease (or equivalent atomic host-side publication primitive) tied to that exact validated token;
+- prove that edits/saves cannot slip between final validation and PPTX publication while the lease is held;
 - create a comparison copy without changing the original presentation's dirty/saved state;
 - handle multiple PowerPoint presentations without selecting the wrong document;
 - fail safely if COM/PowerPoint is unavailable.
@@ -369,9 +439,13 @@ Cross-host bridge must prove:
 - timeout, Remote Extension Host disconnect, Local UI restart, PowerPoint exit during request, and malformed/stale responses all fail closed;
 - cancellation/disconnect never gets converted into "safe/clean" state;
 - pre-commit revalidation can issue a second host request and detect a changed token;
+- commit-barrier acquire/release requests are correlated, timeout-safe, and fail closed;
+- host disconnect during a held barrier cannot be treated as a successful publication;
 - no implementation depends solely on file locks/timestamps.
 
-If the reverse bridge cannot be made reliable with the existing two-extension topology, stop and revise the design before implementation. Do not silently substitute heuristics or add a PowerPoint Add-in without explicit design review.
+The VS Code side must separately prove that the paired QMD can be protected by a supported short-lived editor publish lease or version-conditional publication primitive from final validation through replacement. A plain version check followed by unconditional file replacement does not pass this gate.
+
+If either the reverse bridge, the PowerPoint publish lease, or the QMD editor publish guard cannot be made reliable with the existing topology, stop and revise the design before implementation. Do not silently substitute heuristics or add a PowerPoint Add-in without explicit design review.
 
 ## 18. Incremental build
 
