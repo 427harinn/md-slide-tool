@@ -118,3 +118,63 @@ Expected:
 
 Result: PASS — User confirmed the memory limit removal and WSL/Docker restart stabilized the environment; `OOMKilled=false`, no `Cannot reconnect` recurrence, closed/running/repeated Build and Open PowerPoint runs succeeded, and the complete PowerPoint edit/save/import/QMD-assets/re-render cycle retained content and visual appearance including crop. This evidence supports AC-M3-06, AC-M3-07, AC-M3-11, and AC-M3-16 in `.ai/ACCEPTANCE_CRITERIA.md`.
 ```
+
+## M4 status
+
+No manual implementation gate is requested while M4 is design-only.
+
+After T-401 feasibility, automated tests, and independent Review/Architecture PASS, run one grouped Windows E2E gate.
+
+```text
+HUMAN_REQUIRED
+
+H-M4-01: Verify destination-freeze save-driven synchronization
+
+Precondition:
+- T-401 PASS
+- automated Test / Review / Architecture PASS
+- latest CI PASS
+
+Steps:
+1. Open the repository through Docker Desktop + VS Code Dev Container.
+2. With PowerPoint closed, edit/save managed QMD and confirm automatic render.
+3. Open the PPTX and leave it saved. Edit/save QMD.
+4. Confirm the target presentation briefly closes and reopens with the updated content.
+4a. During a repeat sync before commit ownership starts, manually reopen the same PPTX and confirm the invalidation token wins and no destructive write occurs.
+4b. During a separately instrumented/slow commit after Core has entered committing, reopen the same PPTX immediately before the PPTX operation and confirm the Local UI mutation broker re-closes/freezes it and performs the actual PPTX mutation within the same critical section, or returns NOT_MUTATED without overwriting user work.
+4c. Repeat but prevent/interrupt re-close and confirm Core suspends before the next write and leaves the journal for later recovery.
+
+5. Make an unsaved PowerPoint edit, then save QMD.
+6. Confirm PowerPoint is not automatically closed and VS Code offers Cancel / Compare.
+7. Choose Cancel and confirm neither side loses work.
+8. Repeat and choose Compare; confirm the snapshot includes current unsaved PowerPoint edits and the original remains dirty.
+9. Restore a clean PowerPoint state, save it, and keep QMD open-clean.
+10. Confirm the QMD briefly freezes/reloads and reflects the PowerPoint save.
+10a. Before commit ownership starts, reopen/edit the same QMD and confirm the freeze is invalidated with zero destructive writes and the editor buffer is preserved.
+10b. During a separately instrumented/slow committing window, reopen/edit the QMD immediately before the QMD operation and confirm the Workspace mutation broker preserves dirty work and either performs the mutation under the same freeze critical section or returns NOT_MUTATED/TransactionSuspended.
+10c. Prevent/interrupt re-freeze and confirm TransactionSuspended occurs before the next mutation with the buffer preserved.
+
+11. Make an unsaved QMD edit, then save PowerPoint.
+12. Confirm QMD is not automatically closed and Cancel / Compare is shown.
+13. Compare and confirm current unsaved editor text is included without forcing a QMD save.
+14. Exercise pause/resume and several rapid saves.
+15. Using a prepared pending M3 transaction/recovery fixture, confirm automatic sync freezes the paired QMD/PowerPoint views before recovery writes occur.
+15a. Invalidate before recovery claims commit ownership and confirm recovery performs zero destructive writes.
+15b. Crash/suspend after the first recovery mutation; confirm the next recovery requires a new pair freeze/session and checkpoint state follows the transaction outcome.
+15c. Use a fixture where checkpoint bytes were already replaced but the journal is still committing. Confirm startup performs freeze + journal recovery before using checkpoint to choose a sync direction.
+16. Confirm status UI is understandable and no reconnect/OOM regression occurs.
+
+Expected:
+- normal saves synchronize automatically;
+- clean destination is temporarily frozen/closed only during sync;
+- dirty destination is never automatically closed;
+- before commit ownership, reopen/edit invalidates the session and causes zero destructive writes;
+- after commit ownership, normal reopen becomes pending, while Workspace/Local UI loss suspends Core before the next mutation;
+- suspended transactions leave the journal for recovery under a new freeze session;
+- automatic recovery never writes before pair freeze;
+- conflicts use Cancel / Compare;
+- comparison snapshots preserve latest unsaved work;
+- no self-trigger loop, infinite retry, reconnect failure, or OOM occurs.
+
+Result: HUMAN_REQUIRED
+```

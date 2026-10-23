@@ -207,3 +207,184 @@ M3 acceptance criteria are verified against the retained implementation and regr
   - Verification: AUTOMATED + Test/Architecture review
   - Status: PASS
   - Evidence: `tests/fixtures/m3/structure.pptx`, `tests/fixtures/m3/selfintroduction/structure.pptx`, `tests/fixtures/m3/structure-report.json`, and `python tests/test_m3_feasibility_fixture.py`; real Dev Container renders completed from both repository template sources. This verifies package-level save/reopen, not a new Microsoft PowerPoint desktop save cycle.
+
+## M4: Docker Sync Engine
+
+M4 turns the M3 manual roundtrip into safe save-driven synchronization. AC IDs already introduced during design review remain stable; superseded lease-model criteria are retained as DEFERRED history rather than reused.
+
+- **AC-M4-01:** A save of an eligible managed QMD triggers exactly one effective M3-capable render after debounce, without requiring the manual Build command.
+  - Verification: AUTOMATED + HUMAN_REQUIRED Windows E2E
+  - Status: UNVERIFIED
+- **AC-M4-02:** A save of the paired managed PPTX triggers exactly one effective M3 import after debounce, without requiring manual `slidegen import`.
+  - Verification: AUTOMATED + HUMAN_REQUIRED Windows E2E
+  - Status: UNVERIFIED
+- **AC-M4-03:** Rapid duplicate filesystem events for one logical save are coalesced; correctness does not depend on a magic delay alone.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M4-04:** At most one render/import runs per managed document. Saves arriving while an operation is active become one coalesced pending intent and the newest state is re-evaluated after completion.
+  - Verification: AUTOMATED concurrency tests
+  - Status: UNVERIFIED
+- **AC-M4-05:** Writes committed by md-slide-tool render/import are deterministically recognized by expected hashes/fingerprints and do not trigger an opposite-direction loop. A mismatching write is not silently suppressed.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M4-06:** Sync state persists/retains only minimal fingerprints/identity needed for synchronization and does not create a second canonical title/body text store.
+  - Verification: Architecture review + source scan
+  - Status: UNVERIFIED
+- **AC-M4-07:** Before QMD -> PPTX auto-render, the system can determine whether the paired presentation is closed, open-saved, or open-dirty in desktop PowerPoint. Open-dirty causes conflict instead of automatic overwrite.
+  - Verification: T-401 feasibility + HUMAN_REQUIRED Windows E2E
+  - Status: UNVERIFIED
+- **AC-M4-08:** Before PPTX -> QMD auto-import, VS Code's actual paired QMD editor dirty state is checked. Unsaved editor text causes conflict instead of automatic overwrite.
+  - Verification: AUTOMATED extension tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-09:** Saved independent changes on both sides since the last successful synchronization are detected as conflict; M4 never silently selects QMD or PowerPoint as winner.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M4-10:** Conflict notification uses non-destructive actions equivalent to **Cancel** and **Compare**. Cancel leaves both current states untouched.
+  - Verification: AUTOMATED UI/state tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-11:** Compare can snapshot the latest unsaved PowerPoint state without force-saving the original presentation, using SaveCopyAs or equivalent, and the original dirty/saved state remains unchanged.
+  - Verification: T-401 + HUMAN_REQUIRED Windows PowerPoint
+  - Status: UNVERIFIED
+- **AC-M4-12:** Compare can snapshot the latest unsaved QMD editor text without forcing a save to the real QMD file.
+  - Verification: AUTOMATED extension tests
+  - Status: UNVERIFIED
+- **AC-M4-13:** Comparison snapshot/reconstruction is non-committing and cannot overwrite canonical QMD/PPTX/assets. Temporary artifacts are identifiable and safely cleanable.
+  - Verification: AUTOMATED failure/recovery tests + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-14:** VS Code exposes useful per-document state (Synced/Building/Importing/Pending/Conflict/Error/Paused or equivalent), auto-starts synchronization for eligible pairs, and provides pause/resume.
+  - Verification: AUTOMATED extension tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-15:** Operation failures do not enter infinite retry loops. A later save/retry can re-evaluate safely, while M3 transaction/recovery guarantees remain intact.
+  - Verification: AUTOMATED failure injection
+  - Status: UNVERIFIED
+- **AC-M4-16:** Diagnostics distinguish render/import failure, remote/Dev Container disconnect, host bridge failure, and PowerPoint status/launch failure instead of reporting all as "build failed".
+  - Verification: AUTOMATED + targeted E2E
+  - Status: UNVERIFIED
+- **AC-M4-17:** PowerPoint targeting remains correct with multiple presentations open; a similarly named or unrelated presentation is never used as the dirty-state/snapshot source.
+  - Verification: T-401 + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-18:** M4 does not implement automatic semantic merge, final M5 winner-selection UI, keystroke-level live sync, incremental rendering, arbitrary-shape expansion, Marketplace publication, or PPTX -> Word.
+  - Verification: scope scan + Review/Architecture
+  - Status: UNVERIFIED
+- **AC-M4-19:** Existing M1 build/open, M2 stable layout, M3 manual render/import and transaction recovery, and docx generation continue to pass regression tests.
+  - Verification: AUTOMATED regression + CI
+  - Status: UNVERIFIED
+- **AC-M4-20:** Dirty-state/fingerprint validation is performed both before candidate work and immediately before canonical commit. If QMD or PowerPoint changes between those checks, the candidate is not published and the document is re-evaluated into PENDING/CONFLICT.
+  - Verification: AUTOMATED race injection + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-21:** QMD and PPTX events arriving in the same debounce window are resolved by one pair-level state evaluation, never by event arrival order.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M4-22:** The durable sync checkpoint includes a full-QMD fingerprint that detects front-matter-only edits and is committed/recovered in the same recoverable transaction boundary as the synchronized render/import outputs.
+  - Verification: AUTOMATED crash recovery + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-23:** A crash cannot leave canonical outputs committed with a silently stale last-synchronized checkpoint that later authorizes overwrite. Restart/recovery either completes the matching checkpoint or stops for safe re-evaluation/manual recovery.
+  - Verification: AUTOMATED crash injection
+  - Status: UNVERIFIED
+- **AC-M4-24:** The Workspace/Core -> Windows Local UI request/response path for PowerPoint state and comparison snapshot is explicitly correlated and fails closed on timeout, disconnect, restart, PowerPoint exit, malformed response, or stale response.
+  - Verification: T-401 cross-host feasibility + AUTOMATED bridge tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-25:** Manual render/import and automatic sync never bypass the M3 document lock. Automatic DOCUMENT_BUSY becomes a bounded pending re-evaluation rather than spin retry or destructive failure.
+  - Verification: AUTOMATED concurrency tests
+  - Status: UNVERIFIED
+
+### Superseded publication-lease criteria
+
+AC-M4-26 through AC-M4-34 were introduced while exploring a layered publication-lease/filesystem-lease model. That model was intentionally replaced by the simpler destination-freeze design. These IDs are retained only as design history and are not M4 completion gates.
+
+- **AC-M4-26 — DEFERRED (superseded):** commit-barrier publication lease.
+- **AC-M4-27 — DEFERRED (superseded):** QMD version-bound publication lease.
+- **AC-M4-28 — DEFERRED (superseded):** PowerPoint exclusive publish lease.
+- **AC-M4-29 — DEFERRED (superseded):** COMMITTING event handling under publication barrier.
+- **AC-M4-30 — DEFERRED (superseded):** prior publication-barrier variant of DOCUMENT_BUSY handling.
+- **AC-M4-31 — DEFERRED (superseded):** Core/Workspace QMD lease RPC.
+- **AC-M4-32 — DEFERRED (superseded):** Windows-visible filesystem lease for every target.
+- **AC-M4-33 — DEFERRED (superseded):** filesystem-lease expected-absence/CAS requirement.
+- **AC-M4-34 — DEFERRED (superseded):** Windows-wide writer exclusion requirement.
+
+### Destination-freeze criteria
+
+- **AC-M4-35:** An open-saved paired PowerPoint presentation is temporarily closed without saving before QMD -> PPTX publication and the exact updated presentation is reopened after commit; an open-dirty presentation is never automatically closed.
+  - Verification: T-401 + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-36:** A clean paired QMD editor can be temporarily frozen/closed for PPTX -> QMD publication and restored/reopened afterward without content loss or false dirty state; a dirty QMD is never automatically closed.
+  - Verification: T-401 + AUTOMATED extension tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-37:** If M3 import still writes PPTX metadata, PPTX -> QMD synchronization does not keep the same PPTX actively editable in PowerPoint during that writeback. It either closes/reopens the clean presentation or uses a separately verified no-writeback design.
+  - Verification: T-401 + AUTOMATED regression + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-38:** M4's formal concurrency guarantee covers VS Code for QMD and Microsoft PowerPoint desktop for PPTX. Arbitrary external writers during the short destination-freeze/commit interval are explicitly outside the M4 guarantee; M4 still performs final saved-state validation and M3 recoverable transaction handling.
+  - Verification: Architecture review + documentation scan
+  - Status: UNVERIFIED
+- **AC-M4-39:** If destination close/freeze succeeds but publication or restore/reopen later fails, canonical file consistency follows M3 transaction/recovery and the UI/host failure is reported separately without pretending the opposite side is synchronized.
+  - Verification: AUTOMATED failure injection + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-40:** T-401 proves the simplified destination-freeze operations and cross-host close/reopen/state requests using supported APIs before production implementation begins.
+  - Verification: T-401 feasibility
+  - Status: UNVERIFIED
+
+- **AC-M4-41:** The VS Code Workspace extension is the automatic M4 orchestrator. It establishes a correlated pair freeze before starting any Core command that may run M3 recovery or publish files.
+  - Verification: AUTOMATED extension/integration tests + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-42:** Reopening/editing before Core owns `committing` invalidates the freeze and yields zero destructive writes. After commit ownership, reopen is handled by the owning per-target mutation broker; it does not reuse the pre-ownership invalidation rule, and user work is preserved for post-transaction re-evaluation.
+  - Verification: T-401 + AUTOMATED freeze-invalidation/broker tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-43:** Automatic M3 transaction recovery runs only after the paired VS Code/PowerPoint views are frozen. Before recovery commit ownership, invalidation yields zero destructive writes; after ownership, QMD/PPTX recovery mutations use the same broker/suspend rules as normal commit operations.
+  - Verification: AUTOMATED crash/recovery integration + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-44:** Workspace -> Local UI freeze/restore/state requests and Local UI -> Workspace reopen-invalidation events are correlated by freezeSessionId; timeout/disconnect/restart cannot be interpreted as a valid freeze.
+  - Verification: T-401 + AUTOMATED cross-host tests
+  - Status: UNVERIFIED
+
+- **AC-M4-45:** Workspace and Core coordinate freeze validity through one atomic shared guard keyed by documentId/freezeSessionId. Core must atomically claim `frozen -> committing` immediately before the first destructive transaction/recovery mutation.
+  - Verification: AUTOMATED guard/race tests + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-46:** Reopen/edit before Core claims `committing` invalidates the guard and results in zero destructive writes. Reopen/edit after `committing` does not trigger ad-hoc rollback; supported-app reopen is rejected/re-closed, `pendingReopen` is recorded, and the transaction reaches a stable committed/rolled-back/manual-recovery state before re-evaluation.
+  - Verification: T-401 + AUTOMATED first-write race tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-47:** A crash during `committing` leaves the M3 journal authoritative. A stale guard never authorizes recovery; a brand-new pair freeze/session is required before recovery can perform destructive writes.
+  - Verification: AUTOMATED crash/recovery tests + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-48:** Checkpoint state after partial commit plus reopen/invalidation follows the M3 transaction outcome: committed output has the new checkpoint, rolled-back output has the old checkpoint, and ManualRecoveryRequired never fabricates a synchronized checkpoint.
+  - Verification: AUTOMATED failure injection
+  - Status: UNVERIFIED
+
+- **AC-M4-49:** The `frozen -> invalidated` and `frozen -> committing` race is serialized by competing atomic rename of the same runtime state token. There is no stale read followed by unconditional state overwrite; exactly one transition wins.
+  - Verification: AUTOMATED high-iteration race test + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-50:** Post-ownership reopen notification uses an append-only/create-if-absent `pending-reopen` marker and cannot overwrite the primary committing state.
+  - Verification: AUTOMATED concurrency tests
+  - Status: UNVERIFIED
+- **AC-M4-51:** Every automatic Core process has a freezeSessionId-bound Workspace control channel. Core checks it before each destructive transaction/recovery mutation. Workspace/Local UI loss after commit ownership prevents the next mutation.
+  - Verification: AUTOMATED IPC/failure-injection + T-401
+  - Status: UNVERIFIED
+- **AC-M4-52:** Control loss after one or more transaction operations causes a typed TransactionSuspended path that leaves the journal in `committing` and does not run the normal immediate rollback path. A new pair freeze/session is required before recovery resumes.
+  - Verification: AUTOMATED partial-commit/crash tests + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-53:** A suspended transaction does not advance the durable sync checkpoint unless the transaction had already reached `committed`; recovery under a later valid freeze determines the final checkpoint/file state.
+  - Verification: AUTOMATED checkpoint/recovery tests
+  - Status: UNVERIFIED
+
+- **AC-M4-54:** After commit ownership, a supported-app reopen is handled by the owning per-target mutation broker. For QMD/PPTX, freeze validation/re-establishment and the actual file mutation occur in one broker critical section; timeout/failure/unknown outcome causes TransactionSuspended instead of a later Core replace.
+  - Verification: AUTOMATED IPC/broker race tests + T-401 + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-55:** TransactionSuspended bypasses FileTransaction.commit()'s generic immediate-rollback path. Suspension during commit preserves a `committing` journal; suspension during rollback recovery may preserve `rolling_back`; both require later recovery under a new valid pair freeze.
+  - Verification: AUTOMATED transaction failure injection + Architecture/Review
+  - Status: UNVERIFIED
+- **AC-M4-56:** A suspension after the final target replacement but before the journal is durably marked `committed` remains an incomplete transaction and is resolved by journal recovery, not inferred as successful from target hashes alone.
+  - Verification: AUTOMATED crash/suspend fixture
+  - Status: UNVERIFIED
+- **AC-M4-57:** On startup, pending transaction journal detection/recovery precedes any use of the sync checkpoint to decide render/import/conflict. After recovery stabilizes, checkpoint and current fingerprints are re-read before pair evaluation.
+  - Verification: AUTOMATED restart/recovery tests
+  - Status: UNVERIFIED
+
+- **AC-M4-58:** For automatic M4 QMD/PPTX writes, the component that owns the supported-app freeze performs the actual create/replace/delete in the same broker critical section and returns only a post-mutation result; Core never performs a later QMD/PPTX replace based on an earlier permission response.
+  - Verification: T-401 + AUTOMATED broker/race tests + Architecture/Review
+  - Status: UNVERIFIED
+- **AC-M4-59:** A reopen injected after broker freeze validation but before the actual QMD/PPTX file operation cannot be silently overwritten: the broker must keep/re-establish the supported-app freeze through mutation or return NOT_MUTATED/UNKNOWN so Core suspends and recovery resolves the journal.
+  - Verification: T-401 race probe + AUTOMATED broker failure injection
+  - Status: UNVERIFIED
+- **AC-M4-60:** QMD mutation is brokered by Workspace, PPTX mutation by Windows Local UI, while Core remains journal/transaction authority. Broker requests are correlated by documentId/freezeSessionId/transaction/op index and verify expected old hash/absence and final outcome.
+  - Verification: AUTOMATED integration + T-401
+  - Status: UNVERIFIED
+

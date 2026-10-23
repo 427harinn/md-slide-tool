@@ -2,83 +2,108 @@
 
 ## マイルストーン名
 
-M3: PPTX -> QMD Import
+M4: Docker Sync Engine
 
 ## 背景
 
-M0 Repository Cleanup、M1 QMD -> PPTX -> Microsoft PowerPoint、M2 Stable IDs and Element Layout は完了した。
+M0〜M3で、QMD -> PPTX、stable ID、assets、managed PPTX -> QMD import、recoverable transactionまで完了した。
 
-M2でQMD/PPTX/assetsの間に `slide-id` / `element-id` を導入し、画像のx/y/width/heightを永続化できるようになった。PowerPoint desktop保存後もstable IDが保持されることを実機確認済み。
+M4では、この手動往復を保存ベースの自動同期へ進める。
 
-M3では、このidentityを利用して、md-slide-toolが生成したPPTXをPowerPointで編集した結果を既存QMD/assetsへ安全に戻す。
-
-詳細仕様は `docs/M3_PPTX_IMPORT.md`。
+詳細仕様は `docs/M4_SYNC_ENGINE.md`。
 
 ## 目的
 
 ```text
-QMD + assets
-  -> slidegen render
-  -> managed PPTX
-  -> PowerPoint edit/save
-  -> slidegen import
-  -> rebuilt QMD + updated assets
+QMD save  -> automatic render -> PPTX
+PPTX save -> automatic import -> QMD/assets
 ```
+
+通常は自動同期し、相手側に未保存/独立変更がある場合だけ自動処理を止める。
+
+```text
+possible conflict
+  -> [Cancel] [Compare]
+```
+
+## M4の簡略化方針
+
+M4は、PowerPoint/VS Codeを編集可能なまま複数leaseで同時保護する方式を採用しない。
+
+正式サポートする編集経路は:
+
+```text
+QMD  -> VS Code
+PPTX -> Microsoft PowerPoint desktop
+```
+
+同期中は書き込み先を短時間だけfreezeする。
+
+- QMD -> PPTX: PowerPointがopen-dirtyならCONFLICT。open-cleanなら対象presentationを一時closeしてからpublishし、完了後reopen。
+- PPTX -> QMD: QMDがdirtyならCONFLICT。open-cleanならVS Code側でeditorを一時close/hideしてからpublishし、完了後restore。
+- automatic pathは journal check -> 必要ならpair freeze+recovery -> checkpoint/fingerprint再読込 -> pair evaluation -> direction選択 -> freeze/prepare -> transaction -> restore の順。
+- arbitrary external processとの同時書き込みをM4の保証範囲にしない。
+- ただしcommit直前のexpected hash確認とM3 recoverable transactionは維持する。
 
 ## 設計原則
 
-- arbitrary PPTXを推測変換せず、presentation-level managed markerを持つM3-managed PPTXだけをimportする。
-- M3-capable renderはmanaged marker / format-version / document-id / QMD body SHA-256 baselineをPPTXへ埋め込む。
-- QMD normal-slide bodyがrender後に変更されていたらimportをpre-commit FAILし、意図しない上書きを防ぐ。
-- front matterは既存QMDからbyte-preserveする。
-- front-matter title slideはreserved internal role markerで位置と独立に識別する。
-- normal slideはstable `slide-id`、visual elementは `element-id` で識別する。
-- 新規supported slide/imageにはIDを発行しPPTXにも書き戻す。
-- title/bodyはnormalized QMDへ書き戻し、persistent intermediate text JSONは作らない。
-- image geometryとcropはassetsへ保存する。
-- crop導入でassets schema v2へmigrationし、v1はno-cropとして後方互換で読む。
-- unsupported slide-local user contentを黙って捨てない。
-- importはtransaction journal + backup + recoveryによりrecoverable consistencyを保証する。
-- M4 watcher/sync、M5 full conflict handlingを先取りしない。
+- 自動同期オーケストレーターはDev Container側のVS Code Workspace extension。Coreはrecovery/render/import/transaction primitiveを担当。
+- Workspace extensionはCore起動前にQMD/PowerPoint pairをfreezeするため、M3 recoveryもfreeze後に実行される。
+- watcher/debounce/state machineはDev Container側。
+- VS Codeはdirty-state、QMD freeze、status、Conflict/Compare UI。
+- Windows Local UIはPowerPoint state、close/reopen、SaveCopyAs。
+- running中の複数saveは1件のPENDINGにcoalesce。
+- freezeSessionIdはDev Container内のephemeral session directoryでCoreと共有する。
+- Workspaceのinvalidating renameとCoreのcommitting renameは同じ `frozen` tokenをsourceにするため、exactly oneだけ成功する。
+- claim前のQMD/PPTX reopen/editはinvalidatedが勝てばdestructive write 0件。
+- claim後の通常reopenはpending-reopen markerとして記録。
+- QMD/PPTX actual mutationはfreeze所有側brokerがfreeze確認/再確立と同じcritical section内で実行し、完了後resultを返す。ACK後にCoreが後からreplaceする方式は禁止。
+- QMD brokerはWorkspace、PPTX brokerはWindows Local UI。
+- broker timeout/failure/UNKNOWN、Workspace/Local UI control lossはTransactionSuspendedとなり、journalを残して即時rollbackしない。
+- TransactionSuspendedはFileTransactionのgeneric BaseException rollback経路を明示的に迂回。
+- crash/suspend後は新しいpair freeze/session後にrecovery。
+- startupはcheckpointで方向判定する前にpending journalをfreeze+recoveryし、安定化後にcheckpoint/fingerprintを再読込。
+- self-generated writesはhash/fingerprintで抑制。
+- sync checkpointはfront matter込みQMD hashとPPTX fingerprintを持つが、本文を複製しない。
+- checkpointは同期outputsと同じrecoverable transactionでcommit。
+- M4はConflict検出/Compare snapshotまで。Semantic Diffとwinner selectionはM5。
+- incremental buildはM4初期要件にしない。
 
 ## 対象外
 
-- arbitrary external PPTX conversion
-- heuristic legacy M2 import（M3-capable renderを一度実行する）
-- automatic file watch / sync
-- full dirty-state conflict merge
-- force import over changed QMD
-- arbitrary shapes / SmartArt / charts / free-position text boxes
-- rotation / z-order
-- title slide/front matter reverse import
-- PowerPoint Add-in
+- keystroke-level live sync
+- automatic semantic merge
+- final M5 diff/resolution UI
+- arbitrary external editors/processesとの完全な同時書き込み保証
+- Windows-wide filesystem lease
+- long-lived QMD/PowerPoint publish lease
+- incremental render optimization
+- arbitrary PowerPoint shapes beyond M3
 - Marketplace publication
 - PPTX -> Word
 
 ## 完了条件
 
-- managed marker/version/document-idによってmanaged PPTXを明確に判定できる。
-- current QMD bodyがrender baselineと違う場合にimportを止められる。
-- title slideをpositionではなくreserved role markerで識別できる。
-- title marker移動/削除/duplicate/ambiguous lossを安全に扱える。
-- `slidegen import <pptx>` がsame-stem QMDを対象に動作する。
-- QMD front matterを維持する。
-- title / paragraph / bullet / numbered listをnormalized QMDへ復元できる。
-- slide reorder/delete/new slideをstable IDで反映できる。
-- existing imageのmove/resizeをassetsへ反映できる。
-- assets v1を読み、v2へ安全にmigrationできる。
-- image cropをv2 assetsへ保存し、次renderで見た目を再現できる。
-- same identified shapeの画像差し替えでelement-idを維持できる。
-- 新規imageへelement-idを発行し、画像を安全に抽出してQMD/PPTX/assetsへ反映できる。
-- image削除をQMD/assetsへ反映できる。
-- template/master/layoutとuser contentをexplicit structural ruleで分類できる。
-- unsupported destructive contentを検出した場合はcommit前にFAILする。
-- handled commit failureはrollbackし、simulated crashは次回commandでrecoverできる。
-- unknown post-crash editsをrecoveryが勝手に上書きしない。
-- existing render / M1 open / M2 assets / docx regressionを壊さない。
+- QMD saveでautomatic render。
+- PPTX saveでautomatic import。
+- duplicate event debounce / pending coalescing。
+- self-write loop防止。
+- PowerPoint dirty/clean/closed判定。
+- QMD dirty/clean判定。
+- QMD -> PPTX時にclean presentationを安全にclose/reopen。
+- commit ownership前のPowerPoint reopen/editは安全にinvalidateして0 write、ownership後はLocal UI mutation brokerでfreeze+actual mutationを同一critical sectionにできる。
+- PPTX -> QMD時にclean QMD editorを安全にfreeze/restore。
+- commit ownership前のQMD reopen/editはbufferを保持してinvalidate、ownership後はWorkspace mutation brokerでfreeze+actual mutationを同一critical sectionにできる。
+- transaction recoveryはpair freeze成立後にのみautomatic pathで実行される。
+- dirty destinationは自動で閉じずCONFLICT。
+- conflictはCancel / Compare。
+- Compareはunsaved PowerPoint/QMDの最新状態を壊さずsnapshot化。
+- checkpoint / crash recoveryがM3 transactionと整合。
+- DOCUMENT_BUSYはbounded pending re-evaluation。
+- status bar / pause-resume。
+- M1/M2/M3/docx regressionを維持。
 
 ## 状態
 
-T-301 feasibility gate、M3 implementation、automated test/review/architecture gatesは完了し、PASS。
-AC-M3-01..19を確認済み。T-301とT-310の根拠は `.ai/ACCEPTANCE_CRITERIA.md`、`.ai/TEST_PLAN.md`、`docs/M3_PPTX_IMPORT.md` を参照。
-Dev ContainerでPython 60 tests、`npm test` 60 tests、実PPTX -> QMD -> PPTX roundtrip、M2/PPTX・DOCX regressionを実行した。H-M3-01ではWindows実機でPowerPoint desktopのedit/save/close/import/re-renderを確認し、cropを含む内容・見た目の保持がPASSした。実際のテンプレートからのPython/Open XML save/reopen範囲はT-301 fixtureでも判定している。
+設計中。destination freeze方式へ再整理済み。
+T-401でPowerPoint close/reopen、QMD editor freeze/restore、cross-host controlを実機検証してからproduction implementationへ進む。
