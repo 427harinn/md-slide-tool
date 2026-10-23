@@ -259,3 +259,8 @@ Detailed design: `docs/M4_SYNC_ENGINE.md`.
 - Initial M4 does not require incremental/selective rendering; optimize only after the sync engine is stable.
 - Windows PowerPoint dirty-state + comparison-copy behavior is a mandatory T-401 feasibility gate before production implementation.
 
+- M4 destructive publication uses two-phase safety validation: admission + immediate pre-commit revalidation.
+- QMD/PPTX events coalesced in the same debounce window trigger one pair-level re-evaluation, not first-event-wins.
+- Durable sync checkpoint includes full-QMD hash (front matter included) and must share the recoverable transaction boundary with synchronized outputs.
+- Cross-host Workspace/Core -> Windows Local UI requests for PowerPoint state/snapshot require correlated responses and fail-closed timeout/disconnect behavior.
+- Manual M3 operations and automatic M4 sync share the document lock; automatic DOCUMENT_BUSY becomes bounded pending re-evaluation.
