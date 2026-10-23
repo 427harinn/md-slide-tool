@@ -56,8 +56,10 @@ PPTX -> Microsoft PowerPoint desktop
 - freezeSessionIdはDev Container内のephemeral session directoryでCoreと共有する。
 - Workspaceのinvalidating renameとCoreのcommitting renameは同じ `frozen` tokenをsourceにするため、exactly oneだけ成功する。
 - claim前のQMD/PPTX reopen/editはinvalidatedが勝てばdestructive write 0件。
-- claim後の通常reopenはpending-reopen markerとして記録し、Coreは次mutation前にmatching re-freeze ACKを必須確認。
-- re-freeze ACK timeout/failure/stale、Workspace/Local UI control lossはTransactionSuspendedとなり、journalを残して即時rollbackしない。
+- claim後の通常reopenはpending-reopen markerとして記録。
+- QMD/PPTX actual mutationはfreeze所有側brokerがfreeze確認/再確立と同じcritical section内で実行し、完了後resultを返す。ACK後にCoreが後からreplaceする方式は禁止。
+- QMD brokerはWorkspace、PPTX brokerはWindows Local UI。
+- broker timeout/failure/UNKNOWN、Workspace/Local UI control lossはTransactionSuspendedとなり、journalを残して即時rollbackしない。
 - TransactionSuspendedはFileTransactionのgeneric BaseException rollback経路を明示的に迂回。
 - crash/suspend後は新しいpair freeze/session後にrecovery。
 - startupはcheckpointで方向判定する前にpending journalをfreeze+recoveryし、安定化後にcheckpoint/fingerprintを再読込。
