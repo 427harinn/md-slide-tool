@@ -141,7 +141,7 @@ Steps:
 3. Open the PPTX and leave it saved. Edit/save QMD.
 4. Confirm the target presentation briefly closes and reopens with the updated content.
 4a. During a repeat sync before commit ownership starts, manually reopen the same PPTX and confirm the invalidation token wins and no destructive write occurs.
-4b. During a separately instrumented/slow commit after Core has entered committing, reopen the same PPTX and confirm Core pauses before its next write until PowerPoint is re-closed and the matching re-freeze ACK is received.
+4b. During a separately instrumented/slow commit after Core has entered committing, reopen the same PPTX immediately before the PPTX operation and confirm the Local UI mutation broker re-closes/freezes it and performs the actual PPTX mutation within the same critical section, or returns NOT_MUTATED without overwriting user work.
 4c. Repeat but prevent/interrupt re-close and confirm Core suspends before the next write and leaves the journal for later recovery.
 
 5. Make an unsaved PowerPoint edit, then save QMD.
@@ -151,7 +151,7 @@ Steps:
 9. Restore a clean PowerPoint state, save it, and keep QMD open-clean.
 10. Confirm the QMD briefly freezes/reloads and reflects the PowerPoint save.
 10a. Before commit ownership starts, reopen/edit the same QMD and confirm the freeze is invalidated with zero destructive writes and the editor buffer is preserved.
-10b. During a separately instrumented/slow committing window, reopen/edit the QMD and confirm Core pauses before its next write until QMD is frozen again and the matching re-freeze ACK is received.
+10b. During a separately instrumented/slow committing window, reopen/edit the QMD immediately before the QMD operation and confirm the Workspace mutation broker preserves dirty work and either performs the mutation under the same freeze critical section or returns NOT_MUTATED/TransactionSuspended.
 10c. Prevent/interrupt re-freeze and confirm TransactionSuspended occurs before the next mutation with the buffer preserved.
 
 11. Make an unsaved QMD edit, then save PowerPoint.
