@@ -15,6 +15,10 @@ production implementation前の必須gate。
 - comparison copy作成後もoriginalのdirty/saved stateが変わらないこと
 - multiple presentations open時にwrong documentを選ばないこと
 - PowerPoint/COM unavailable時にsafe FAILすること
+- Core -> Workspace extension のQMD lease RPC（acquire / renew / release）が成立すること
+- leaseはdocumentId / path / expected version / expected text hashに結びつき、transaction完了まで保持されること
+- lease expiry / renew failure / Remote切断 / Workspace再起動 / Core切断がfail closedすること
+- lease中のQMD edit/saveが未観測のままoverwriteされないこと
 - Workspace/Core -> Windows Local UI のdirty-state request/responseが成立すること
 - comparison snapshot request/responseがrequest IDで正しくcorrelateされること
 - timeout / Remote切断 / Local UI再起動 / PowerPoint終了中のrequestがfail closedすること
@@ -55,6 +59,10 @@ production implementation前の必須gate。
 - operation完了後にlatest stateを再評価
 - admission validationとpre-commit validationの二段階確認
 - pre-commit成功後にCOMMIT_BARRIERを取得し、canonical publication完了まで保持
+- 全replace/delete targetについてexclusive filesystem publish leaseをdeterministic path orderで取得
+- lease保持中にmanifest expected old hash / expected absenceを再確認し、全targetが一致した場合のみreplace開始
+- FileTransaction.commitはunconditional replaceを禁止し、publication lease set + expected-old preconditionを必須化
+- Windows host processがleased targetを書けないことをreal Windows-backed workspaceでfeasibility検証
 - COMMITTING中のsave/change eventは1件PENDINGとして記録し、barrier release後に必ず再評価
 - protected sideのdocument version / dirty token / saved fingerprintが途中で変わったらpublishしない
 - M3 document lock/transactionとの整合
@@ -127,6 +135,9 @@ production implementation前の必須gate。
 - final token check後〜first canonical replace前にPowerPoint編集を注入 -> barrier acquire/validation失敗しuser change保持
 - multi-file COMMITTING途中にchange/save event注入 -> current commitはbarrier contractどおり完了/abortし、eventをPENDINGとしてrelease後re-evaluate
 - barrier acquire/release timeout/disconnect -> fail closed
+- closed PPTXを別Windows processがfinal check後に変更 -> filesystem CAS/leaseがpublicationをabortしuser change保持
+- create targetがcommit直前に外部生成 -> expected absence mismatchでabort
+- filesystem lease中に外部write attempt -> overwrite競合が未観測で通らないこと
 - M3 transaction commitとsync checkpointのcrash recovery
 - front-matter-only changeをrestart後も検出
 - manual operationによるDOCUMENT_BUSY -> bounded pending/re-evaluation
