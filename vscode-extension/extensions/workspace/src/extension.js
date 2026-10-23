@@ -3,8 +3,11 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { buildPptxForHost } from './hostBridge.js';
+import { cleanupT401HostPptxProbe, stageT401HostPptxProbe } from './t401Probe.js';
 
 const BUILD_COMMAND = 'mdSlideTool.buildRemotePptx';
+const T401_STAGE_COMMAND = 'mdSlideTool.t401.stageHostPptx';
+const T401_CLEANUP_COMMAND = 'mdSlideTool.t401.cleanupHostPptx';
 
 function runRender(qmdPath, workspacePath) {
   return new Promise((resolve, reject) => {
@@ -52,6 +55,20 @@ export function activate(context) {
       output.appendLine(error?.stack ?? String(error));
       throw error;
     }
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand(T401_STAGE_COMMAND, async (probeId) => {
+    const workspace = vscode.workspace.workspaceFolders?.[0];
+    if (!workspace) throw new Error('Open the repository in the Dev Container before running T-401.');
+    return stageT401HostPptxProbe({
+      workspacePath: workspace.uri.fsPath,
+      hostWorkspace: process.env.MD_SLIDE_TOOL_HOST_WORKSPACE,
+      probeId,
+    });
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand(T401_CLEANUP_COMMAND, async (probeId) => {
+    const workspace = vscode.workspace.workspaceFolders?.[0];
+    if (!workspace) throw new Error('Open the repository in the Dev Container before running T-401.');
+    return cleanupT401HostPptxProbe({ workspacePath: workspace.uri.fsPath, probeId });
   }));
 }
 

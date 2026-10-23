@@ -11,5 +11,5 @@
   "extensionKind": ["workspace"],
   "extensionDependencies": ["md-slide-tool.md-slide-tool-powerpoint-ui"],
   "main": "./src/extension.js",
-  "activationEvents": ["onCommand:mdSlideTool.buildRemotePptx"]
+  "activationEvents": ["onCommand:mdSlideTool.buildRemotePptx", "onCommand:mdSlideTool.t401.stageHostPptx", "onCommand:mdSlideTool.t401.cleanupHostPptx"]
 }
