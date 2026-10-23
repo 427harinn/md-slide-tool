@@ -269,3 +269,7 @@ Detailed design: `docs/M4_SYNC_ENGINE.md`.
 - PPTX->QMD publication requires a VS Code editor publish lease or version-conditional primitive tied to the exact TextDocument version through replacement.
 - COMMITTING change events are coalesced as PENDING and re-evaluated after barrier release.
 - Automatic DOCUMENT_BUSY uses bounded timed re-check even when manual work produces no watched-file event.
+- Core -> Workspace QMD lease RPC is explicit: acquire/renew/release tied to documentId/path/TextDocument version/text hash, held through the recoverable commit, fail-closed on lease loss.
+- Automatic publication also requires host-visible exclusive filesystem leases for every replace/delete target and expected-old-hash/expected-absence checks while leased.
+- FileTransaction commit is no longer allowed to assume staged old state remains current; it must consume the publication lease set and CAS preconditions.
+- Closed PPTX and external-process writes are protected by the filesystem publication layer, independently of PowerPoint dirty-state handling.
