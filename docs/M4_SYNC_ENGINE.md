@@ -152,10 +152,9 @@ Core treats any of the following as control loss:
 - Local UI disconnect/restart/PowerPoint-control loss reported by Workspace;
 - session ID mismatch.
 
-Core checks both:
-- control-channel health; and
-- whether any pending reopen has a matching completed re-freeze ACK
-immediately before every destructive transaction/recovery file mutation.
+Core checks control-channel health before every transaction/recovery operation.
+
+For QMD/PPTX targets, Core does **not** perform the final canonical replace/delete itself in the automatic M4 path. The component that owns the supported-app freeze performs that mutation as one synchronous broker operation and returns only a post-mutation result.
 
 ### Commit boundary rule
 
@@ -174,10 +173,11 @@ Immediately before the first destructive mutation:
 
 After `committing`:
 - supported-app reopen attempts create `pending-reopen`;
-- Workspace/Local UI must re-close/freeze the reopened view and send an explicit **re-freeze ACK** for the same freezeSessionId;
-- Core must wait for a current re-freeze ACK before the **next destructive file mutation**;
-- if the ACK is not received, times out, or the host/control plane is lost, Core raises `TransactionSuspended` before that next mutation;
-- a normal reopen therefore does not force ad-hoc rollback, but it also cannot be ignored while subsequent writes continue.
+- before a QMD/PPTX mutation, Core sends one correlated mutation request to the component that owns that destination freeze;
+- that component re-establishes/validates the freeze and performs the actual replace/delete inside the same broker critical section;
+- the response is a **post-mutation ACK**, not permission for Core to mutate later;
+- if freeze cannot be established, the request times out, or control is lost, no broker mutation starts and Core raises `TransactionSuspended`;
+- therefore there is no re-freeze-ACK -> later-Core-replace gap for supported QMD/PPTX targets.
 
 If the Workspace/Local UI control plane is lost after `committing`:
 - Core must not begin the next destructive file mutation;
@@ -191,6 +191,39 @@ If the Workspace/Local UI control plane is lost after `committing`:
 This separates two cases cleanly:
 - ordinary reopen while control is healthy -> transaction ownership continues;
 - loss of the mechanism that enforces freeze -> suspend at the next mutation boundary and defer recovery.
+
+### Per-target mutation broker
+
+Automatic M4 keeps Core as the transaction/journal authority, but delegates the final mutation of files owned by supported interactive editors:
+
+- managed `.qmd` replace/delete -> **Workspace mutation broker**;
+- managed `.pptx` replace/delete -> **Windows Local UI mutation broker**;
+- assets/checkpoint/imported images and other non-interactive managed targets -> Core may mutate directly.
+
+Broker request includes:
+- documentId / freezeSessionId;
+- target canonical path;
+- operation: create / replace / delete;
+- expected old hash or expected absence;
+- staged source path/new hash when applicable;
+- transaction id + operation index.
+
+Broker contract:
+1. verify the exact freezeSessionId/control context;
+2. re-freeze/re-close the owned supported view if necessary;
+3. if dirty user work exists, do not discard it and fail/suspend the mutation;
+4. re-check expected old hash/absence;
+5. perform the actual atomic file mutation **before returning**;
+6. verify resulting hash/absence;
+7. return typed MUTATED / NOT_MUTATED / UNKNOWN result.
+
+The freeze check and actual mutation must be one broker critical section. There is no pre-mutation ACK handed back to Core.
+
+If the broker process dies during a mutation request, Core does not guess whether it happened. It raises TransactionSuspended and later M3 recovery decides from old/new hashes.
+
+T-401 must prove the broker critical section for QMD and PPTX on the real VS Code/Windows/PowerPoint environment. If it cannot be made reliable, M4 production implementation stops.
+
+This is not a transaction-wide Windows filesystem lease. It is a short per-operation mutation primitive only for the two files owned by supported interactive editors.
 
 ### TransactionSuspended integration with M3 FileTransaction
 
@@ -359,11 +392,12 @@ If the rename fails because Core already owns `committing`, the event is handled
 A mid-transaction invalidation is not allowed to force ad-hoc rollback.
 
 Instead:
-- Workspace immediately closes/hides a reopened clean QMD editor, creates the `pending-reopen` marker, and emits a re-freeze ACK only after the editor is actually frozen again;
-- Local UI immediately closes a reopened clean PowerPoint presentation; Workspace creates the same `pending-reopen` marker and records a re-freeze ACK only after Local UI confirms the presentation is closed again;
-- if the user manages to create unsaved work before the close completes, that buffer/presentation must not be force-saved or discarded; it is preserved for post-transaction conflict handling;
-- Core does not perform the next destructive mutation until the latest pending reopen has a confirmed re-freeze ACK;
-- if re-freeze confirmation fails or control is lost, Core suspends before the next destructive mutation and leaves the journal for recovery under a new freeze session;
+- Workspace/Local UI records `pending-reopen` and preserves any dirty user buffer/presentation;
+- Core does not perform QMD/PPTX replacement itself;
+- the next QMD/PPTX transaction operation is sent to the owning mutation broker;
+- the broker must re-close/freeze and then perform the actual mutation before it returns success;
+- if a reopen occurs while the broker is attempting the critical section, the broker must either keep/re-establish the freeze before mutation or return NOT_MUTATED; Core then suspends/re-evaluates;
+- if control is lost or broker outcome is unknown, Core suspends and leaves the journal for recovery under a new freeze session;
 - after the stable state, Workspace re-evaluates the preserved user work against the resulting files.
 
 T-401 must prove that supported-app reopen can be blocked/re-closed reliably once `state=committing`. If this cannot be made safe enough, the destination-freeze design fails feasibility.
@@ -414,51 +448,64 @@ Crash behavior:
 
 ## 9. QMD save -> PPTX flow
 
+Startup gate for every automatic event:
+
 ```text
-QMD save
-  -> debounce
+save event / debounce
+  -> JOURNAL_CHECK
+  -> if pending journal:
+       freeze pair
+       recover journal to stable state
+       re-read checkpoint + current fingerprints
+  -> if no journal:
+       read checkpoint + current fingerprints
   -> pair-level evaluation
+```
+
+Only after that gate may QMD -> PPTX direction be chosen:
+
+```text
+pair evaluation chooses QMD -> PPTX
   -> freeze clean paired QMD + PowerPoint views
       dirty -> CONFLICT
-  -> Core starts
-  -> M3 transaction recovery if needed
-  -> render candidate
-  -> verify freezeSessionId still valid
-  -> final saved-file hash validation
-  -> M3 transaction:
-       PPTX
-       assets
-       sync checkpoint
-  -> reopen presentation if M4 closed it
+  -> Core prepares render candidate
+  -> claim committing
+  -> transaction operations
+       PPTX operation -> Local UI mutation broker
+       assets/checkpoint -> Core transaction operations
+  -> restore views
   -> re-evaluate pending
 ```
 
-If closing or reopening PowerPoint fails:
-- canonical transaction result remains authoritative;
-- report a host/UI error separately;
-- do not misreport a successful render as a render failure.
+If closing/reopening PowerPoint or the PPTX mutation broker fails:
+- do not pretend synchronization completed;
+- M3 journal/hash state is authoritative;
+- report host/UI/broker failure separately from render failure.
 
 ## 10. PPTX save -> QMD flow
 
+The same journal-first startup gate applies. Pair evaluation occurs only **after** any pending journal has been recovered and checkpoint/fingerprints have been re-read.
+
 ```text
-PPTX save
-  -> debounce / wait until package is stable
+save event / package stable
+  -> JOURNAL_CHECK
+  -> recover pending journal under pair freeze if needed
+  -> re-read checkpoint + current fingerprints
   -> pair-level evaluation
-  -> freeze clean paired QMD + PowerPoint views
-      either dirty -> CONFLICT
-  -> Core starts
-  -> M3 transaction recovery if needed
-  -> reconstruct import candidate
-  -> verify freezeSessionId still valid
-  -> final saved-file hash validation
-  -> M3 transaction:
-       QMD
-       assets/imported images as needed
-       PPTX metadata writeback if M3 still requires it
-       sync checkpoint
-  -> restore/reopen QMD editor
-  -> re-evaluate pending
+  -> if direction is PPTX -> QMD:
+       freeze clean paired QMD + PowerPoint views
+       dirty -> CONFLICT
+       prepare import candidate
+       claim committing
+       transaction operations
+         QMD operation -> Workspace mutation broker
+         PPTX metadata writeback -> Local UI mutation broker
+         assets/images/checkpoint -> Core operations
+       restore views
+       re-evaluate pending
 ```
+
+No checkpoint or pre-recovery pair evaluation may select PPTX -> QMD before the journal-first startup gate completes.
 
 ## 11. Manual command interaction / DOCUMENT_BUSY
 
@@ -591,13 +638,16 @@ Required control-loss checks:
 - checkpoint is not advanced unless transaction already reached committed;
 - next automatic recovery requires a new freeze/session.
 
-Required re-freeze checks:
-- after Core owns committing, reopen QMD/PPTX;
-- pending-reopen is recorded;
-- Core blocks before the next destructive mutation until Workspace/Local UI confirms the view is frozen again;
-- successful re-freeze ACK allows the next mutation;
-- missing/late/failed ACK causes TransactionSuspended;
-- ACK belongs to the exact freezeSessionId and reopen generation; stale ACK cannot release a newer pending reopen.
+Required mutation-broker checks:
+- after Core owns committing, reopen QMD/PPTX immediately before a broker mutation;
+- broker re-freezes the exact supported view and performs mutation in the same critical section before returning;
+- there is no separate pre-mutation ACK;
+- inject reopen after freeze validation but before the broker's file operation; prove the broker either still blocks/re-closes it or returns NOT_MUTATED without overwriting user work;
+- Workspace broker handles managed QMD mutation;
+- Windows Local UI broker handles managed PPTX mutation;
+- expected-old-hash/absence mismatch returns NOT_MUTATED;
+- broker crash/disconnect before, during and after atomic replace produces a typed/unknown result that M3 recovery can resolve from hashes;
+- unrelated assets/checkpoint/image operations may remain Core-local.
 
 Required FileTransaction suspension checks:
 - TransactionSuspended bypasses the generic BaseException immediate-rollback path;
@@ -619,6 +669,8 @@ Required recovery/order checks:
 
 Required cross-host checks:
 - Workspace -> Local UI state/freeze/restore/SaveCopyAs requests return correlated typed results;
+- Workspace -> Local UI PPTX mutation-broker request is correlated by freezeSessionId/transaction/op index and returns only after mutation outcome is known;
+- Workspace QMD broker executes QMD mutation inside its own freeze critical section;
 - Local UI disconnect/restart while committing is surfaced to Workspace quickly enough to close/suspend the Core control channel before another unchecked mutation;
 - PowerPoint reopen invalidation event is correlated to the correct freezeSessionId;
 - timeout, disconnect, Local UI restart and PowerPoint exit fail safely;
