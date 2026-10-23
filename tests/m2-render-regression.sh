@@ -32,17 +32,25 @@ QMD
 
 node "$ROOT/cli/slidegen.js" render "$WORK/presentation.qmd"
 
-python3 - "$WORK/presentation.qmd" "$WORK/presentation.assets.json" <<'PY'
+python3 - "$WORK/presentation.qmd" "$WORK/presentation.assets.json" "$WORK/presentation.pptx" "$ROOT" <<'PY'
 import json
 import re
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[4]) / "scripts"))
+from m3_core import read_custom_properties
 
 qmd = Path(sys.argv[1])
 assets_path = Path(sys.argv[2])
 assets = json.loads(assets_path.read_text(encoding="utf-8"))
 entry = assets["elements"][0]
-assert assets["schemaVersion"] == 1
+assert assets["schemaVersion"] == 2
+assert re.fullmatch(r"document-[0-9a-f-]{36}", assets["documentId"])
+props = read_custom_properties(Path(sys.argv[3]))
+assert props["md-slide-tool.managed"] == "1"
+assert props["md-slide-tool.format-version"] == "1"
+assert props["md-slide-tool.document-id"] == assets["documentId"]
+assert re.fullmatch(r"[0-9a-f]{64}", props["md-slide-tool.qmd-body-sha256"])
 assert entry["type"] == "image"
 assert all(type(entry[key]) is int for key in ("x", "y", "width", "height"))
 ids = (entry["slideId"], entry["elementId"])
@@ -61,14 +69,21 @@ PY
 
 node "$ROOT/cli/slidegen.js" render "$WORK/presentation.qmd"
 
-python3 - "$WORK/presentation.assets.json" "$WORK/m2-layout.json" "$WORK/presentation.pptx" <<'PY'
+python3 - "$WORK/presentation.assets.json" "$WORK/m2-layout.json" "$WORK/presentation.pptx" "$ROOT" <<'PY'
 import json
 import sys
 from pathlib import Path
 from pptx import Presentation
+sys.path.insert(0, str(Path(sys.argv[4]) / "scripts"))
+from m3_core import read_custom_properties
 
 assets = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 snapshot = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+assert assets["schemaVersion"] == 2
+assert assets["documentId"].startswith("document-")
+props = read_custom_properties(Path(sys.argv[3]))
+assert props["md-slide-tool.document-id"] == assets["documentId"]
+assert props["md-slide-tool.managed"] == "1"
 expected = snapshot["ids"]
 entry = assets["elements"][0]
 assert [entry["slideId"], entry["elementId"]] == expected

@@ -1,0 +1,18 @@
+---
+title: M3 self-introduction template fixture
+format:
+  pptx:
+    reference-doc: template.pptx
+---
+
+## Structural fixture slide {slide-id="slide-01532718-36cb-484b-91c6-6cb172b071eb"}
+
+Ordinary paragraph in a supported body placeholder.
+
+- Bullet item one
+- Bullet item two
+
+1. Numbered item one
+2. Numbered item two
+
+![Caption fixture](caption.png) {element-id="element-fb6edd07-207b-479a-ba09-e49cb0cc6f97"}

@@ -153,7 +153,7 @@ Marketplace公開、publisher設定、通常のReopen in Containerでの自動ex
 
 ## M3: PPTX -> QMD Import
 
-状態: 設計レビュー指摘を反映済み・未実装。
+状態: 完了 (2026-10-23)。T-301 feasibility、実装、Test / Review / Architecture gateはPASS。根拠は `.ai/ACCEPTANCE_CRITERIA.md` と `.ai/TEST_PLAN.md`。
 
 詳細: `docs/M3_PPTX_IMPORT.md`
 

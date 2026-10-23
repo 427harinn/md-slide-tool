@@ -199,6 +199,7 @@ Initial classification contract:
 - Objects inherited only from slide master/layout are not imported as user content.
 - Supported title placeholders (for example title/center-title placeholder roles) are interpreted as slide title only on supported normal slides.
 - Supported body/content placeholders are interpreted as paragraph/list content only when their paragraph structure is within the M3 supported subset.
+- Imported title, paragraph, and list text is Markdown-escaped as literal PowerPoint text before QMD reconstruction; PPTX punctuation cannot introduce headings, links/images, raw HTML, or additional list structure.
 - Picture shapes are supported image elements as described below.
 - md-slide-tool-generated image caption textboxes are supported internal companion objects and are classified by a reserved deterministic marker, not by position/text appearance.
 - All other slide-local autoshapes, arbitrary text boxes, groups, tables, charts, SmartArt/diagram content, OLE/media, and other unclassified slide-local objects are unsupported and cause pre-commit FAIL unless a future design explicitly adds support.
@@ -223,6 +224,7 @@ Rules:
 - duplicate caption companions for one element cause FAIL;
 - caption text is imported as the Markdown image alt/caption text for that image;
 - moving or styling the caption textbox does not create an independently persisted layout element in M3;
+- on the next render, the caption companion is regenerated directly below its image using the saved image rectangle; a picture moved to the slide edge can leave insufficient room and clip/overlap the caption visually;
 - a user-created arbitrary textbox that lacks the reserved marker remains unsupported;
 - legacy M2-generated caption textboxes have no marker, so an M3-capable render must regenerate/upgrade the PPTX before M3 import is allowed.
 
@@ -379,9 +381,10 @@ Bootstrap rules:
 - every M3-capable render/import entrypoint resolves the same paired QMD path before any schema migration or document-id generation;
 - schema v1 / missing-documentId state acquires the bootstrap lock first;
 - while holding the bootstrap lock, re-read assets/PPTX metadata because another completed process may already have migrated the project;
-- if `documentId` is still absent, generate exactly one document-id and complete the schema v2 / PPTX metadata migration while the bootstrap lock remains held;
-- **the process that performed the migration must then acquire the newly created document-id lock while still holding the bootstrap lock**;
-- only after the document-id lock has been acquired successfully may that process release the bootstrap lock and continue render/recovery work under the document lock;
+- if `documentId` is still absent, choose exactly one provisional document-id while the bootstrap lock remains held, without publishing a partial schema-v2/PPTX pair;
+- the process must acquire the corresponding document-id lock while still holding the bootstrap lock;
+- while holding both locks, render a candidate and publish schema-v2 assets plus managed PPTX metadata in one recoverable transaction;
+- release bootstrap only after that paired migration transaction commits; retain the document lock through render completion;
 - later commands use the normal document-id lock;
 - if migration is already complete after the re-read, do not generate another ID; acquire the existing document-id lock while still holding bootstrap, then release bootstrap.
 
@@ -398,13 +401,14 @@ For an already managed schema v2 document, use:
 To avoid races during the transition:
 
 1. bootstrap state: acquire bootstrap lock;
-2. re-read pairing metadata;
-3. if still unmigrated, generate the document-id and complete migration while bootstrap lock remains held;
-4. whether migration was performed by this process or discovered after re-read, acquire the corresponding document-id lock **before releasing bootstrap**;
-5. once the document lock is held, release bootstrap and continue exclusively under the document lock;
-6. never acquire bootstrap after already holding the document lock.
+2. re-read pairing metadata and recover any interrupted first-render transaction;
+3. if still unmigrated, choose one provisional document-id without changing either paired output;
+4. acquire the corresponding document-id lock while bootstrap remains held;
+5. for first render, keep both locks through candidate rendering and transactional publication of schema-v2 assets and managed PPTX metadata;
+6. release bootstrap only after the paired transaction commits; retain the document lock through operation completion;
+7. never acquire bootstrap after already holding the document lock.
 
-There is therefore no interval in which a migrated document is unlocked between bootstrap ownership and document-lock ownership.
+There is therefore no interval in which a partially migrated document is visible without either bootstrap or document-lock ownership. A legacy PPTX is not given the managed marker until the M3 render candidate and schema-v2 assets can be committed together.
 
 This guarantees two concurrent first M3 renders for one schema v1 project serialize on the same bootstrap key and cannot generate competing document IDs.
 
@@ -431,6 +435,8 @@ Each manifest target records:
 - old hash when it existed;
 - new hash when the committed state contains a file;
 - operation: create / replace / delete.
+
+Each transaction also records the canonical paired-QMD path and its bootstrap key. Initial `.init` directory names encode that key before the manifest is published. Bootstrap recovery only examines state owned by the requested QMD and acquires the corresponding document lock before cleanup or rollback; unidentified or foreign init state is left untouched.
 
 ### State machine
 

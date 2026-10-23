@@ -15,9 +15,10 @@ from m2_identity import atomic_write_text, new_id, validate_id
 
 HEADING_PATTERN = re.compile(r'^\s*##\s+(.+?)\s*$')
 IMAGE_ONLY_LINE_PATTERN = re.compile(
-    r'^\s*!\[(?P<alt>[^\]]*)\]\((?P<path>[^)]+)\)\s*(?:\{(?P<attrs>[^}]*)\})?\s*$'
+    r'^\s*!\[(?P<alt>(?:\\.|[^\]])*)\]\((?P<path>[^)]+)\)\s*(?:\{(?P<attrs>[^}]*)\})?\s*$'
 )
 FENCE_PATTERN = re.compile(r"^\s*(`{3,}|~{3,})")
+MARKDOWN_ESCAPED_PUNCTUATION = re.compile(r"\\([!\"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~])")
 
 
 @dataclass
@@ -69,6 +70,11 @@ def set_attr(line: str, key: str, value: str) -> str:
         separator = " "
         attrs = f'{key}="{value}"'
     return f"{body}{separator}{{{attrs}}}{ending}"
+
+
+def unescape_markdown_punctuation(value: str) -> str:
+    """Decode CommonMark backslash escapes for render metadata comparisons."""
+    return MARKDOWN_ESCAPED_PUNCTUATION.sub(r"\1", value)
 
 
 def main() -> int:
@@ -181,6 +187,7 @@ def main() -> int:
             attrs_match = re.search(r"\s+\{([^{}]*)\}\s*$", raw_heading)
             attrs = parse_attrs(attrs_match.group(1) if attrs_match else None)
             title = raw_heading[:attrs_match.start()].strip() if attrs_match else raw_heading
+            title = unescape_markdown_punctuation(title)
             slide_id = attrs.get("slide-id") or new_id("slide")
             if not attrs.get("slide-id"):
                 line = set_attr(line, "slide-id", slide_id)
@@ -198,7 +205,7 @@ def main() -> int:
         if image_match and current_slide is not None:
             attrs = parse_attrs(image_match.group("attrs"))
             place = attrs.get("place", "").strip().lower()
-            caption = image_match.group("alt").strip()
+            caption = unescape_markdown_punctuation(image_match.group("alt").strip())
             element_id = attrs.get("element-id") or new_id("element")
             if not attrs.get("element-id"):
                 line = set_attr(line, "element-id", element_id)

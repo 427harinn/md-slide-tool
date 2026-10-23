@@ -183,16 +183,16 @@ program
             return;
         }
 
-        const renderScriptPath = path.join(rootDir, "scripts", "render-current.sh");
+        const entryPath = path.join(rootDir, "scripts", "m3_entry.py");
 
-        if (!fs.existsSync(renderScriptPath) || !fs.statSync(renderScriptPath).isFile()) {
-            console.error(`Error: render script not found: ${renderScriptPath}`);
+        if (!fs.existsSync(entryPath) || !fs.statSync(entryPath).isFile()) {
+            console.error(`Error: render entry not found: ${entryPath}`);
             process.exitCode = 1;
             return;
         }
 
         process.exitCode = await new Promise((resolve) => {
-            const child = spawn("bash", [renderScriptPath, absoluteQmdPath], {
+            const child = spawn("python3", [entryPath, "render", absoluteQmdPath], {
                 stdio: "inherit",
                 shell: false,
             });
@@ -211,6 +211,36 @@ program
 
                 resolve(code ?? 1);
             });
+        });
+    });
+
+program
+    .command("import")
+    .description("M3 managed PPTXから対応するQMDへ手動インポートする")
+    .argument("<file>", "M3-managed PPTXファイル")
+    .action(async (file) => {
+        const absolutePptxPath = path.resolve(file);
+        if (!fs.existsSync(absolutePptxPath) || !fs.statSync(absolutePptxPath).isFile()) {
+            console.error(`Error: PPTX file not found: ${absolutePptxPath}`);
+            process.exitCode = 1;
+            return;
+        }
+        if (path.extname(absolutePptxPath).toLowerCase() !== ".pptx") {
+            console.error("Error: input must be a .pptx file");
+            process.exitCode = 1;
+            return;
+        }
+        const entryPath = path.join(rootDir, "scripts", "m3_entry.py");
+        process.exitCode = await new Promise((resolve) => {
+            const child = spawn("python3", [entryPath, "import", absolutePptxPath], {
+                stdio: "inherit",
+                shell: false,
+            });
+            child.once("error", (error) => {
+                console.error(`Error: failed to start M3 import: ${error.message}`);
+                resolve(1);
+            });
+            child.once("close", (code, signal) => resolve(signal ? 1 : (code ?? 1)));
         });
     });
 

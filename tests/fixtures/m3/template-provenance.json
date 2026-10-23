@@ -1,0 +1,10 @@
+{
+  "sourceTemplate": "templates/pptx/template/template.pptx",
+  "preservedSourceCopy": "tests/fixtures/m3/template.source.pptx",
+  "referenceDoc": "tests/fixtures/m3/template.pptx",
+  "template-source-sha256": "628640d44dc0f423832a3d32371119d4882d82f5198c852da3bf4ed3d811f383",
+  "preserved-copy-sha256": "628640d44dc0f423832a3d32371119d4882d82f5198c852da3bf4ed3d811f383",
+  "rendered-sibling-sha256": "fb4c85e7b0f3c7ca1dbe609f6ce710ebc89b1eaac22dbbba49c6842887ba8262",
+  "preservedSourceMatchesRepositorySource": true,
+  "renderedSiblingMayDifferAfterNormalization": true
+}

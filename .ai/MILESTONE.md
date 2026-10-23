@@ -79,4 +79,6 @@ QMD + assets
 
 ## 状態
 
-設計レビュー指摘を反映済み。再Review / Architecture待ち。未実装。
+T-301 feasibility gate、M3 implementation、automated test/review/architecture gatesは完了し、PASS。
+AC-M3-01..19を確認済み。T-301とT-310の根拠は `.ai/ACCEPTANCE_CRITERIA.md`、`.ai/TEST_PLAN.md`、`docs/M3_PPTX_IMPORT.md` を参照。
+Dev ContainerでPython 60 tests、`npm test` 60 tests、実PPTX -> QMD -> PPTX roundtrip、M2/PPTX・DOCX regressionを実行した。Microsoft PowerPoint desktopによる新規save/reopenは行っていない。実際のテンプレートからのPython/Open XML save/reopen範囲で判定している。

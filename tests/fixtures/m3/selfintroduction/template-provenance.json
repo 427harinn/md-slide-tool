@@ -1,0 +1,8 @@
+{
+  "sourceTemplate": "projects/selfintroduction/template.pptx",
+  "preservedSourceCopy": "tests/fixtures/m3/selfintroduction/template.source.pptx",
+  "referenceDocBeforeNormalization": "tests/fixtures/m3/selfintroduction/template.pptx",
+  "sourceSha256": "a91a5174571516de6cc5f961e2e9dd42b87e810e53bdbfb475d2fce312501fa1",
+  "referenceDocSha256BeforeNormalization": "a91a5174571516de6cc5f961e2e9dd42b87e810e53bdbfb475d2fce312501fa1",
+  "byteIdenticalBeforeNormalization": true
+}

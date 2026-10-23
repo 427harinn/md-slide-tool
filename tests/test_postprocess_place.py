@@ -18,18 +18,28 @@ def _dummy_pt(value):
     return value
 
 
-sys.modules.setdefault("PIL", types.SimpleNamespace(Image=types.SimpleNamespace(open=None)))
-sys.modules.setdefault("PIL.Image", types.SimpleNamespace(open=None))
-sys.modules.setdefault("pptx", types.SimpleNamespace(Presentation=_DummyPresentation))
-sys.modules.setdefault("pptx.enum", types.SimpleNamespace())
-sys.modules.setdefault("pptx.enum.text", types.SimpleNamespace(PP_ALIGN=types.SimpleNamespace(CENTER=1), MSO_AUTO_SIZE=types.SimpleNamespace(TEXT_TO_FIT_SHAPE=1)))
-sys.modules.setdefault("pptx.util", types.SimpleNamespace(Inches=_dummy_inches, Pt=_dummy_pt))
-
-
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "postprocess-pptx.py"
-spec = importlib.util.spec_from_file_location("postprocess_pptx", MODULE_PATH)
-postprocess = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(postprocess)
+_stub_modules = {
+    "PIL": types.SimpleNamespace(Image=types.SimpleNamespace(open=None)),
+    "PIL.Image": types.SimpleNamespace(open=None),
+    "pptx": types.SimpleNamespace(Presentation=_DummyPresentation),
+    "pptx.enum": types.SimpleNamespace(),
+    "pptx.enum.text": types.SimpleNamespace(PP_ALIGN=types.SimpleNamespace(CENTER=1), MSO_AUTO_SIZE=types.SimpleNamespace(TEXT_TO_FIT_SHAPE=1)),
+    "pptx.util": types.SimpleNamespace(Inches=_dummy_inches, Pt=_dummy_pt),
+}
+_missing = object()
+_saved_modules = {name: sys.modules.get(name, _missing) for name in _stub_modules}
+try:
+    sys.modules.update(_stub_modules)
+    spec = importlib.util.spec_from_file_location("postprocess_pptx", MODULE_PATH)
+    postprocess = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(postprocess)
+finally:
+    for name, module in _saved_modules.items():
+        if module is _missing:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = module
 
 
 def cand(name, mode="vertical"):
