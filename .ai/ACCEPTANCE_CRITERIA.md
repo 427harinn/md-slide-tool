@@ -210,110 +210,77 @@ M3 acceptance criteria are verified against the retained implementation and regr
 
 ## M4: Docker Sync Engine
 
-M4 turns the M3 manual roundtrip into safe save-driven synchronization. All criteria are UNVERIFIED until implementation evidence exists.
+M4 turns the M3 manual roundtrip into save-driven synchronization using a simplified **destination freeze** model. All criteria are UNVERIFIED until implementation evidence exists.
 
-- **AC-M4-01:** A save of an eligible managed QMD triggers exactly one effective M3-capable render after debounce, without requiring the manual Build command.
-  - Verification: AUTOMATED + HUMAN_REQUIRED Windows E2E
+- **AC-M4-01:** Saving an eligible managed QMD triggers exactly one effective automatic render after debounce.
+  - Verification: AUTOMATED + HUMAN_REQUIRED
   - Status: UNVERIFIED
-- **AC-M4-02:** A save of the paired managed PPTX triggers exactly one effective M3 import after debounce, without requiring manual `slidegen import`.
-  - Verification: AUTOMATED + HUMAN_REQUIRED Windows E2E
+- **AC-M4-02:** Saving the paired managed PPTX triggers exactly one effective automatic import after debounce.
+  - Verification: AUTOMATED + HUMAN_REQUIRED
   - Status: UNVERIFIED
-- **AC-M4-03:** Rapid duplicate filesystem events for one logical save are coalesced; correctness does not depend on a magic delay alone.
+- **AC-M4-03:** Rapid duplicate filesystem events are coalesced, and QMD/PPTX events in the same debounce window are resolved by one pair-level re-evaluation rather than event order.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M4-04:** At most one render/import runs per managed document. Saves arriving while an operation is active become one coalesced pending intent and the newest state is re-evaluated after completion.
-  - Verification: AUTOMATED concurrency tests
-  - Status: UNVERIFIED
-- **AC-M4-05:** Writes committed by md-slide-tool render/import are deterministically recognized by expected hashes/fingerprints and do not trigger an opposite-direction loop. A mismatching write is not silently suppressed.
+- **AC-M4-04:** At most one sync operation runs per managed document. Changes during an active operation become one coalesced PENDING intent and are re-evaluated after completion.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M4-06:** Sync state persists/retains only minimal fingerprints/identity needed for synchronization and does not create a second canonical title/body text store.
-  - Verification: Architecture review + source scan
-  - Status: UNVERIFIED
-- **AC-M4-07:** Before QMD -> PPTX auto-render, the system can determine whether the paired presentation is closed, open-saved, or open-dirty in desktop PowerPoint. Open-dirty causes conflict instead of automatic overwrite.
-  - Verification: T-401 feasibility + HUMAN_REQUIRED Windows E2E
-  - Status: UNVERIFIED
-- **AC-M4-08:** Before PPTX -> QMD auto-import, VS Code's actual paired QMD editor dirty state is checked. Unsaved editor text causes conflict instead of automatic overwrite.
-  - Verification: AUTOMATED extension tests + HUMAN_REQUIRED
-  - Status: UNVERIFIED
-- **AC-M4-09:** Saved independent changes on both sides since the last successful synchronization are detected as conflict; M4 never silently selects QMD or PowerPoint as winner.
+- **AC-M4-05:** Self-generated QMD/PPTX/assets events are suppressed by expected committed fingerprints/identity, not a time-only ignore window.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M4-10:** Conflict notification uses non-destructive actions equivalent to **Cancel** and **Compare**. Cancel leaves both current states untouched.
-  - Verification: AUTOMATED UI/state tests + HUMAN_REQUIRED
+- **AC-M4-06:** The durable sync checkpoint stores only minimal identity/fingerprints, including full-QMD hash with front matter, and does not duplicate canonical title/body content.
+  - Verification: AUTOMATED + Architecture review
   - Status: UNVERIFIED
-- **AC-M4-11:** Compare can snapshot the latest unsaved PowerPoint state without force-saving the original presentation, using SaveCopyAs or equivalent, and the original dirty/saved state remains unchanged.
-  - Verification: T-401 + HUMAN_REQUIRED Windows PowerPoint
-  - Status: UNVERIFIED
-- **AC-M4-12:** Compare can snapshot the latest unsaved QMD editor text without forcing a save to the real QMD file.
-  - Verification: AUTOMATED extension tests
-  - Status: UNVERIFIED
-- **AC-M4-13:** Comparison snapshot/reconstruction is non-committing and cannot overwrite canonical QMD/PPTX/assets. Temporary artifacts are identifiable and safely cleanable.
-  - Verification: AUTOMATED failure/recovery tests + Architecture review
-  - Status: UNVERIFIED
-- **AC-M4-14:** VS Code exposes useful per-document state (Synced/Building/Importing/Pending/Conflict/Error/Paused or equivalent), auto-starts synchronization for eligible pairs, and provides pause/resume.
-  - Verification: AUTOMATED extension tests + HUMAN_REQUIRED
-  - Status: UNVERIFIED
-- **AC-M4-15:** Operation failures do not enter infinite retry loops. A later save/retry can re-evaluate safely, while M3 transaction/recovery guarantees remain intact.
-  - Verification: AUTOMATED failure injection
-  - Status: UNVERIFIED
-- **AC-M4-16:** Diagnostics distinguish render/import failure, remote/Dev Container disconnect, host bridge failure, and PowerPoint status/launch failure instead of reporting all as "build failed".
-  - Verification: AUTOMATED + targeted E2E
-  - Status: UNVERIFIED
-- **AC-M4-17:** PowerPoint targeting remains correct with multiple presentations open; a similarly named or unrelated presentation is never used as the dirty-state/snapshot source.
-  - Verification: T-401 + HUMAN_REQUIRED
-  - Status: UNVERIFIED
-- **AC-M4-18:** M4 does not implement automatic semantic merge, final M5 winner-selection UI, keystroke-level live sync, incremental rendering, arbitrary-shape expansion, Marketplace publication, or PPTX -> Word.
-  - Verification: scope scan + Review/Architecture
-  - Status: UNVERIFIED
-- **AC-M4-19:** Existing M1 build/open, M2 stable layout, M3 manual render/import and transaction recovery, and docx generation continue to pass regression tests.
-  - Verification: AUTOMATED regression + CI
-  - Status: UNVERIFIED
-
-- **AC-M4-20:** Dirty-state/fingerprint validation is performed both before candidate work and immediately before canonical commit. If QMD or PowerPoint changes between those checks, the candidate is not published and the document is re-evaluated into PENDING/CONFLICT.
-  - Verification: AUTOMATED race injection + HUMAN_REQUIRED
-  - Status: UNVERIFIED
-- **AC-M4-21:** QMD and PPTX events arriving in the same debounce window are resolved by one pair-level state evaluation, never by event arrival order.
-  - Verification: AUTOMATED
-  - Status: UNVERIFIED
-- **AC-M4-22:** The durable sync checkpoint includes a full-QMD fingerprint that detects front-matter-only edits and is committed/recovered in the same recoverable transaction boundary as the synchronized render/import outputs.
+- **AC-M4-07:** Sync checkpoint advancement is committed/recovered in the same recoverable transaction boundary as the synchronized outputs.
   - Verification: AUTOMATED crash recovery + Architecture review
   - Status: UNVERIFIED
-- **AC-M4-23:** A crash cannot leave canonical outputs committed with a silently stale "last synchronized" checkpoint that later authorizes overwrite. Restart/recovery either completes the matching checkpoint or stops for safe re-evaluation/manual recovery.
-  - Verification: AUTOMATED crash injection
+- **AC-M4-08:** Before QMD -> PPTX publication, desktop PowerPoint state is classified as closed, open-saved, or open-dirty for the exact paired presentation.
+  - Verification: T-401 + HUMAN_REQUIRED
   - Status: UNVERIFIED
-- **AC-M4-24:** The Workspace/Core -> Windows Local UI request/response path for PowerPoint dirty-state and comparison snapshot is explicitly correlated and fails closed on timeout, disconnect, restart, PowerPoint exit, malformed response, or stale response.
-  - Verification: T-401 cross-host feasibility + AUTOMATED bridge tests + HUMAN_REQUIRED
+- **AC-M4-09:** An open-dirty PowerPoint presentation is never automatically closed or overwritten; the operation enters CONFLICT.
+  - Verification: AUTOMATED host-mock + HUMAN_REQUIRED
   - Status: UNVERIFIED
-- **AC-M4-25:** Manual render/import and automatic sync never bypass the M3 document lock. Automatic DOCUMENT_BUSY becomes a bounded pending re-evaluation rather than spin retry or destructive failure.
-  - Verification: AUTOMATED concurrency tests
+- **AC-M4-10:** An open-saved paired PowerPoint presentation can be temporarily closed without saving, the PPTX can be updated, and the same updated presentation can be reopened.
+  - Verification: T-401 + HUMAN_REQUIRED
   - Status: UNVERIFIED
-
-- **AC-M4-26:** After final validation and before the first canonical replacement, M4 acquires a commit barrier or equivalent version-conditional publication guard and holds it through the recoverable commit. No user edit/save can be silently overwritten during that interval.
-  - Verification: AUTOMATED race injection + Architecture review + HUMAN_REQUIRED where host behavior is involved
+- **AC-M4-11:** Before PPTX -> QMD publication, the paired VS Code QMD editor dirty state is checked. Dirty QMD causes CONFLICT and is never automatically closed.
+  - Verification: AUTOMATED extension tests + HUMAN_REQUIRED
   - Status: UNVERIFIED
-- **AC-M4-27:** QMD publication is tied to the exact VS Code TextDocument version/in-memory fingerprint through the replacement interval; a plain version check followed by unconditional filesystem replacement is insufficient.
-  - Verification: AUTOMATED extension feasibility/race tests
+- **AC-M4-12:** A clean open QMD can be temporarily frozen/closed for publication and restored/reopened afterward without content loss or false dirty state.
+  - Verification: T-401 + HUMAN_REQUIRED
   - Status: UNVERIFIED
-- **AC-M4-28:** PowerPoint publication while the presentation is open is allowed only if the Windows host adapter can acquire an exclusive publish lease (or equivalent atomic host-side publication primitive) tied to the exact validated presentation token. If this cannot be proven, automatic open-PowerPoint publication is disabled/re-scoped.
-  - Verification: T-401 feasibility + HUMAN_REQUIRED
-  - Status: UNVERIFIED
-- **AC-M4-29:** Save/change events observed during COMMITTING are retained as one PENDING intent and trigger pair-level re-evaluation after the barrier is released; they are never discarded as self-generated solely because commit is active.
+- **AC-M4-13:** Immediately before commit, Core validates the expected saved-file state/hashes. Unexpected state stops publication and causes pair-level re-evaluation.
   - Verification: AUTOMATED
   - Status: UNVERIFIED
-- **AC-M4-30:** Automatic DOCUMENT_BUSY re-evaluation does not depend on a watched file changing. A bounded timer/backoff re-checks lock availability and transitions to re-evaluation or attention-required state without spin retry.
+- **AC-M4-14:** M4 formally guarantees interactive editing through VS Code for QMD and PowerPoint desktop for PPTX; arbitrary concurrent external writers during the short freeze/commit interval are outside M4 guarantees and this limitation is documented.
+  - Verification: Architecture review + docs scan
+  - Status: UNVERIFIED
+- **AC-M4-15:** If M3 import still writes PPTX metadata, PPTX -> QMD synchronization does not leave the same PPTX actively editable in PowerPoint during that writeback. The implementation must either close/reopen a clean presentation or separately prove a no-writeback design.
+  - Verification: T-401 + AUTOMATED regression + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-16:** Conflict UX presents non-destructive actions equivalent to **Cancel** and **Compare**; M4 never silently selects a winner.
+  - Verification: AUTOMATED UI tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-17:** Compare snapshots the latest unsaved PowerPoint state without force-saving the original, and snapshots the current unsaved QMD editor text without forcing the real QMD save.
+  - Verification: T-401 + AUTOMATED extension tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-18:** Comparison reconstruction is non-committing and does not overwrite canonical QMD/PPTX/assets.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M4-19:** Status UI exposes useful states equivalent to Synced/Building/Importing/Syncing/Pending/Conflict/Error/Paused and supports pause/resume.
+  - Verification: AUTOMATED + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-20:** Manual render/import and automatic sync share the M3 document lock. Automatic DOCUMENT_BUSY becomes a bounded PENDING re-evaluation even when no watched file changes.
   - Verification: AUTOMATED concurrency tests
   - Status: UNVERIFIED
-
-- **AC-M4-31:** Core and the VS Code Workspace extension have an explicit correlated QMD lease RPC with acquire/renew/release semantics tied to documentId, canonical path, TextDocument version, and in-memory text fingerprint. The lease is held for the full recoverable commit interval and lease loss fails closed.
-  - Verification: AUTOMATED IPC/integration tests + Architecture review
+- **AC-M4-21:** Failures do not enter infinite retry loops. Destination restore/reopen is attempted in cleanup, and host/UI failures are diagnosed separately from render/import failures.
+  - Verification: AUTOMATED failure injection + HUMAN_REQUIRED
   - Status: UNVERIFIED
-- **AC-M4-32:** Every existing canonical file target replaced/deleted by an automatic sync is protected by an exclusive filesystem publication lease visible to competing Windows writers, and its expected old hash is revalidated while that lease is held before replacement.
-  - Verification: T-401 Windows feasibility + AUTOMATED transaction tests + HUMAN_REQUIRED
+- **AC-M4-22:** Workspace -> Windows Local UI state/close/reopen/SaveCopyAs requests are correlated and fail safely on timeout, disconnect, restart, or PowerPoint exit.
+  - Verification: T-401 + AUTOMATED bridge tests
   - Status: UNVERIFIED
-- **AC-M4-33:** Create operations verify expected absence under the same filesystem publication guard. If any target's expected old hash/absence precondition fails, the multi-file transaction does not silently overwrite that target and does not advance the sync checkpoint as if synchronization succeeded.
-  - Verification: AUTOMATED race/failure injection
+- **AC-M4-23:** M4 does not implement keystroke-level live sync, automatic semantic merge, final M5 resolution UI, Windows-wide filesystem lease coordination, long-lived publication leases, incremental rendering, Marketplace publication, or PPTX -> Word.
+  - Verification: scope scan + Review/Architecture
   - Status: UNVERIFIED
-- **AC-M4-34:** M4 does not rely on Linux-only advisory locking over the Windows bind mount unless T-401 proves it excludes relevant Windows writers. If no reliable host-visible filesystem lease exists, automatic destructive publication for that target is disabled/re-scoped.
-  - Verification: T-401 + Architecture review
+- **AC-M4-24:** Existing M1 build/open, M2 stable layout, M3 import/transaction recovery, and docx generation remain functional.
+  - Verification: AUTOMATED regression + CI
   - Status: UNVERIFIED
