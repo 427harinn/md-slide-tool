@@ -98,23 +98,76 @@ PowerPoint/VS Code do not contain render/import/merge logic.
 
 ### Freeze session contract
 
-Every automatic M4 operation has a short-lived `freezeSessionId` owned by the Workspace orchestrator.
+Every automatic M4 operation has one cooperative guard file owned jointly by the Workspace orchestrator and Core:
 
-For an automatic sync operation, freeze is established **before Core is invoked**, because Core startup may execute M3 transaction recovery before normal render/import work.
+```text
+.md-slide-tool/freeze/<document-id>.json
+```
 
-The Workspace orchestrator records:
-- documentId;
-- paired QMD/PPTX paths;
-- which QMD editor / PowerPoint presentation was open before freeze;
-- current QMD/PPTX saved fingerprints;
-- freezeSessionId;
-- freeze state: `freezing | frozen | invalidated | restoring`.
+Example logical fields:
 
-The Windows Local UI receives correlated PowerPoint freeze/restore requests using that session ID.
+```json
+{
+  "documentId": "document-...",
+  "freezeSessionId": "freeze-...",
+  "state": "frozen",
+  "pendingReopen": false
+}
+```
 
-Core automatic entrypoints receive the freezeSessionId and must refuse automatic recovery/commit if the session is absent or already invalidated. Recovery and FileTransaction mutation points must consult the same freeze guard before destructive writes.
+Allowed states:
+- `frozen`: both supported views are closed/frozen and Core has not begun destructive mutation;
+- `invalidated`: reopen/edit happened before the first destructive write; Core must not start commit/recovery mutation;
+- `committing`: Core has atomically claimed the destructive transaction window;
+- `restoring`: transaction reached a stable committed/rolled-back/recovery state and Workspace is restoring UI.
 
-This is a cooperative guard for the supported VS Code/PowerPoint workflow, not a Windows-wide filesystem lease.
+The Workspace extension creates the guard only after both supported views are successfully frozen. Automatic Core entrypoints receive the `freezeSessionId` and refuse recovery/render/import mutation if the guard is missing, mismatched, or invalidated.
+
+### Commit boundary rule
+
+The freeze invalidation policy changes at one explicit boundary: **the first destructive file mutation**.
+
+Before that boundary:
+- QMD/PPTX reopen or edit invalidates the session;
+- Core writes no canonical file;
+- the operation aborts/re-evaluates.
+
+Immediately before the first destructive mutation:
+1. Core re-reads the guard;
+2. requires exact documentId/freezeSessionId and state=`frozen`;
+3. atomically changes the guard to state=`committing`;
+4. only then may `FileTransaction.commit()`, rollback, or transaction recovery mutate canonical files.
+
+After state=`committing`:
+- reopen requests no longer cause mid-transaction abort/rollback;
+- Workspace/Local UI must reject or immediately re-close supported-app reopen attempts while preserving any unsaved buffer/presentation if one was created;
+- such attempts set `pendingReopen=true`;
+- the transaction is allowed to reach one stable state: committed, rolled back, or ManualRecoveryRequired;
+- after that, Workspace restores/re-evaluates and surfaces CONFLICT if user work exists.
+
+This removes the contradiction between "stop after invalidation" and M3 rollback. Once the transaction owns the commit window, transaction integrity takes priority until a stable state is reached.
+
+### Crash / recovery rule
+
+If Core crashes while the guard says `committing`:
+- the guard is stale and does not authorize recovery by itself;
+- the transaction journal remains authoritative;
+- next automatic invocation must establish a **new pair freeze with a new freezeSessionId first**;
+- only under that new frozen session may Core run `recover_transactions()`;
+- Core transitions the new guard to `committing` before recovery performs its first destructive mutation;
+- unknown hashes still stop with ManualRecoveryRequired.
+
+### Guard transport
+
+The guard file is the single Core-visible coordination mechanism for M4 freeze validity.
+
+Workspace writes/updates it atomically. Core does not need a reverse RPC to ask whether the session is valid.
+
+PowerPoint reopen events and QMD reopen/edit events are handled by Workspace/Local UI and reflected into the guard:
+- before commit ownership -> `state=invalidated`;
+- after commit ownership -> keep `state=committing`, set `pendingReopen=true`.
+
+This is cooperative coordination for VS Code and PowerPoint only, not an OS-wide file lock.
 
 ## 5. State machine
 
@@ -210,23 +263,29 @@ M4 does not require a long-lived publication lease after the pair is frozen.
 
 ### Reopen/edit during Syncing
 
-A freeze is not considered valid merely because the views were closed once.
+The response depends on the guard state.
 
-While a freezeSessionId is active:
-- Workspace directly observes the paired QMD being reopened/edited in VS Code;
-- Windows Local UI observes the paired PPTX being reopened in PowerPoint for the same freezeSessionId;
-- supported-app reopen/edit attempts invalidate the freeze session;
-- if a clean view is reopened, the adapter may immediately close it again, but the session is still marked invalidated so Core cannot continue an unverified commit;
-- if the reopened view becomes dirty, its buffer/presentation is preserved and the operation transitions to CONFLICT after Core stops/rolls back safely;
-- Workspace does not restore the original view automatically after an invalidation until re-evaluation completes.
+#### Before Core owns the destructive window (`state=frozen`)
 
-Core automatic recovery and transaction mutation points must check that the freeze session is still valid immediately before destructive writes. If invalidated:
-- do not begin the next destructive write;
-- allow the existing M3 transaction machinery to roll back/recover any already-staged/partially committed work according to its hash rules;
-- return a typed `FREEZE_INVALIDATED` result;
-- Workspace re-evaluates both sides and enters CONFLICT when both contain changes.
+If the paired QMD is reopened/edited or the paired PPTX is reopened:
+- Workspace/Local UI atomically changes the guard to `invalidated`;
+- Core must observe this before changing the guard to `committing`;
+- Core performs no destructive transaction mutation;
+- user state is preserved;
+- Workspace re-evaluates both sides and enters CONFLICT when appropriate.
 
-T-401 must prove that VS Code reopen/change observation and PowerPoint PresentationOpen observation are reliable enough for this cooperative supported-app freeze. If not, destination-freeze M4 is not feasible as designed.
+#### After Core owns the destructive window (`state=committing`)
+
+A mid-transaction invalidation is not allowed to force ad-hoc rollback.
+
+Instead:
+- Workspace immediately closes/hides a reopened clean QMD editor and records `pendingReopen=true`;
+- Local UI immediately closes a reopened clean PowerPoint presentation and records `pendingReopen=true`;
+- if the user manages to create unsaved work before the close completes, that buffer/presentation must not be force-saved or discarded; it is preserved for post-transaction conflict handling;
+- Core continues the existing transaction to a stable committed/rolled-back/manual-recovery state;
+- after the stable state, Workspace re-evaluates the preserved user work against the resulting files.
+
+T-401 must prove that supported-app reopen can be blocked/re-closed reliably once `state=committing`. If this cannot be made safe enough, the destination-freeze design fails feasibility.
 
 ## 7. Pre-commit validation
 
@@ -269,7 +328,8 @@ Crash behavior:
 - rolled-back transaction -> old checkpoint remains;
 - committed transaction -> new checkpoint is completed/recovered with the committed outputs;
 - unknown hashes -> stop for safe recovery; never guess which side won;
-- restart -> hash both sides against the durable checkpoint before automatic sync.
+- a stale freeze guard never authorizes recovery;
+- restart -> establish a new pair freeze first, then run M3 recovery under the new freezeSessionId, then hash both sides against the durable checkpoint.
 
 ## 9. QMD save -> PPTX flow
 
@@ -441,8 +501,11 @@ Required recovery/order checks:
 - create a pending M3 transaction, then start automatic M4 sync;
 - Workspace freezes both supported views before Core is invoked;
 - Core recovery runs only after freeze establishment;
-- recovery destructive writes check the freeze guard;
-- reopen/invalidate during recovery stops further destructive work and preserves M3 hash-guarded recovery semantics.
+- before the first recovery mutation, Core atomically changes the exact guard from frozen -> committing;
+- reopen before that transition invalidates and recovery performs no destructive mutation;
+- reopen after that transition is blocked/re-closed, sets pendingReopen, and recovery is allowed to reach a stable state;
+- crash while committing leaves the journal; next recovery requires a brand-new pair freeze/session first;
+- checkpoint state after partial commit/rollback matches the M3 journal outcome.
 
 Required cross-host checks:
 - Workspace -> Local UI state/freeze/restore/SaveCopyAs requests return correlated typed results;
