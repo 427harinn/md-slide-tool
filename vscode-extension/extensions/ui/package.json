@@ -11,12 +11,17 @@
   "categories": ["Other"],
   "extensionKind": ["ui"],
   "main": "./src/extension.js",
-  "activationEvents": ["onCommand:mdSlideTool.buildAndOpenPowerPoint"],
+  "activationEvents": ["onCommand:mdSlideTool.buildAndOpenPowerPoint", "onCommand:mdSlideTool.t401.verifyHostPptxAccess"],
   "contributes": {
     "commands": [
       {
         "command": "mdSlideTool.buildAndOpenPowerPoint",
         "title": "Build and Open in Microsoft PowerPoint",
+        "category": "md-slide-tool"
+      },
+      {
+        "command": "mdSlideTool.t401.verifyHostPptxAccess",
+        "title": "T-401 Probe: Verify Windows Access to Staged PPTX",
         "category": "md-slide-tool"
       }
     ],

@@ -1,5 +1,11 @@
 import * as vscode from 'vscode';
+import { randomUUID } from 'node:crypto';
 import { buildAndOpenLocally } from './hostBridge.js';
+import { inspectT401StagedFile } from './t401Probe.js';
+
+const T401_PROBE_ID = 'mdSlideTool.t401.verifyHostPptxAccess';
+const T401_STAGE_COMMAND = 'mdSlideTool.t401.stageHostPptx';
+const T401_CLEANUP_COMMAND = 'mdSlideTool.t401.cleanupHostPptx';
 
 export function activate(context) {
   const output = vscode.window.createOutputChannel('md-slide-tool PowerPoint');
@@ -29,6 +35,25 @@ export function activate(context) {
     } catch (error) {
       output.appendLine(error?.stack ?? String(error));
       vscode.window.showErrorMessage(error.message);
+    }
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand(T401_PROBE_ID, async () => {
+    const probeId = randomUUID();
+    let staged;
+    try {
+      staged = await vscode.commands.executeCommand(T401_STAGE_COMMAND, probeId);
+      if (!staged?.hostPath || !staged?.sha256) throw new Error('Workspace probe did not return a mapped staged file.');
+      const result = await inspectT401StagedFile({ hostPath: staged.hostPath, expectedHash: staged.sha256 });
+      if (result.status !== 'READ_OK') throw new Error(`Local UI could not verify staged PPTX: ${result.reason ?? result.status}`);
+      vscode.window.showInformationMessage(`T-401 staged PPTX is readable from Windows Local UI (${result.bytesRead} bytes, SHA-256 verified).`);
+      return { ...result, containerPath: staged.containerPath, probeId };
+    } catch (error) {
+      vscode.window.showErrorMessage(`T-401 staged PPTX access failed: ${error.message}`);
+      return { status: 'UNAVAILABLE', probeId, error: error.message };
+    } finally {
+      if (staged?.probeId) {
+        await vscode.commands.executeCommand(T401_CLEANUP_COMMAND, staged.probeId).catch(() => {});
+      }
     }
   }));
 }
