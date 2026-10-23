@@ -140,19 +140,23 @@ Steps:
 2. With PowerPoint closed, edit/save managed QMD and confirm automatic render.
 3. Open the PPTX and leave it saved. Edit/save QMD.
 4. Confirm the target presentation briefly closes and reopens with the updated content.
-4a. During a repeat sync, manually reopen the same PPTX while Syncing and confirm the sync is invalidated/stopped safely rather than overwriting the reopened work.
+4a. During a repeat sync before commit ownership starts, manually reopen the same PPTX and confirm the freeze is invalidated and no destructive write occurs.
+4b. During a separately instrumented/slow commit after Core has entered committing, reopen the same PPTX and confirm it is re-closed, the transaction reaches a stable state, and the reopen is handled afterward as pending/conflict rather than forcing an ad-hoc rollback.
 5. Make an unsaved PowerPoint edit, then save QMD.
 6. Confirm PowerPoint is not automatically closed and VS Code offers Cancel / Compare.
 7. Choose Cancel and confirm neither side loses work.
 8. Repeat and choose Compare; confirm the snapshot includes current unsaved PowerPoint edits and the original remains dirty.
 9. Restore a clean PowerPoint state, save it, and keep QMD open-clean.
 10. Confirm the QMD briefly freezes/reloads and reflects the PowerPoint save.
-10a. During a repeat sync, reopen/edit the same QMD while Syncing and confirm the sync is invalidated/stopped safely and the editor buffer is preserved.
+10a. Before commit ownership starts, reopen/edit the same QMD and confirm the freeze is invalidated with zero destructive writes and the editor buffer is preserved.
+10b. During a separately instrumented/slow committing window, reopen/edit the QMD and confirm the buffer is preserved, the view is re-closed/blocked as designed, the transaction reaches a stable state, and the change is re-evaluated afterward.
 11. Make an unsaved QMD edit, then save PowerPoint.
 12. Confirm QMD is not automatically closed and Cancel / Compare is shown.
 13. Compare and confirm current unsaved editor text is included without forcing a QMD save.
 14. Exercise pause/resume and several rapid saves.
 15. Using a prepared pending M3 transaction/recovery fixture, confirm automatic sync freezes the paired QMD/PowerPoint views before recovery writes occur.
+15a. Invalidate before recovery claims commit ownership and confirm recovery performs zero destructive writes.
+15b. Crash after the first recovery mutation; confirm the next recovery requires a new pair freeze/session and checkpoint state follows the transaction outcome.
 16. Confirm status UI is understandable and no reconnect/OOM regression occurs.
 
 Expected:
