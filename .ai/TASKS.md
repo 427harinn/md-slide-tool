@@ -19,6 +19,9 @@ production implementation前の必須gate。
 - comparison snapshot request/responseがrequest IDで正しくcorrelateされること
 - timeout / Remote切断 / Local UI再起動 / PowerPoint終了中のrequestがfail closedすること
 - admission時とpre-commit時の2回問い合わせで変更token差分を検出できること
+- pre-commit後〜publication完了までを守るexclusive presentation publish lease / commit barrierを取得・解放できること
+- barrier中のedit/saveが未観測のままoverwriteされないこと
+- barrier acquire/releaseのtimeout / disconnect / host crashがfail closedすること
 - file lock/timestamp heuristicだけでdirty判定しないこと
 
 成立しない場合はPowerPoint Add-in等を勝手に実装せず、設計をReviewへ戻す。
@@ -51,9 +54,14 @@ production implementation前の必須gate。
 - queueをevent数だけ積まない
 - operation完了後にlatest stateを再評価
 - admission validationとpre-commit validationの二段階確認
+- pre-commit成功後にCOMMIT_BARRIERを取得し、canonical publication完了まで保持
+- COMMITTING中のsave/change eventは1件PENDINGとして記録し、barrier release後に必ず再評価
 - protected sideのdocument version / dirty token / saved fingerprintが途中で変わったらpublishしない
 - M3 document lock/transactionとの整合
+- QMD側はTextDocument versionに結びついたeditor publish leaseまたはversion-conditional publicationを必須とし、単純なversion check + unconditional replaceは禁止
+- PowerPoint側はvalidated tokenに結びついたexclusive presentation publish leaseまたは同等のatomic host publicationを必須
 - manual render/importと競合してDOCUMENT_BUSYなら1件pendingとしてbounded re-evaluationし、spin retryしない
+- DOCUMENT_BUSY後に監視対象fileが変わらなくても、約250msから最大約2sのbounded backoff（総待機約10s）でlock解放を再確認
 
 ### T-405: Self-generated write suppression
 
@@ -115,6 +123,10 @@ production implementation前の必須gate。
 - QMD/PPTX eventsが同じdebounce windowに到着 -> pair-level re-evaluation
 - dirty-state admission後〜commit直前にQMD編集 -> no publish + CONFLICT/PENDING
 - dirty-state admission後〜commit直前にPowerPoint編集 -> no publish + CONFLICT/PENDING
+- final token check後〜first canonical replace前にQMD編集を注入 -> barrier/conditional publishが失敗しuser change保持
+- final token check後〜first canonical replace前にPowerPoint編集を注入 -> barrier acquire/validation失敗しuser change保持
+- multi-file COMMITTING途中にchange/save event注入 -> current commitはbarrier contractどおり完了/abortし、eventをPENDINGとしてrelease後re-evaluate
+- barrier acquire/release timeout/disconnect -> fail closed
 - M3 transaction commitとsync checkpointのcrash recovery
 - front-matter-only changeをrestart後も検出
 - manual operationによるDOCUMENT_BUSY -> bounded pending/re-evaluation
