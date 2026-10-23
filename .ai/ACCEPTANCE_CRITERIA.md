@@ -323,3 +323,16 @@ AC-M4-26 through AC-M4-34 were introduced while exploring a layered publication-
   - Verification: T-401 feasibility
   - Status: UNVERIFIED
 
+- **AC-M4-41:** The VS Code Workspace extension is the automatic M4 orchestrator. It establishes a correlated pair freeze before starting any Core command that may run M3 recovery or publish files.
+  - Verification: AUTOMATED extension/integration tests + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-42:** Reopening or editing the paired QMD or PPTX in the supported application while a freeze session is active invalidates that session. Core performs no further destructive automatic write after observing invalidation, and the newest user buffer/presentation is preserved for re-evaluation/CONFLICT.
+  - Verification: T-401 + AUTOMATED freeze-invalidation tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-43:** Automatic M3 transaction recovery runs only after the paired VS Code/PowerPoint views are frozen. Recovery destructive mutation points honor the same freeze-session guard and stop safely if it is invalidated.
+  - Verification: AUTOMATED crash/recovery integration + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-44:** Workspace -> Local UI freeze/restore/state requests and Local UI -> Workspace reopen-invalidation events are correlated by freezeSessionId; timeout/disconnect/restart cannot be interpreted as a valid freeze.
+  - Verification: T-401 + AUTOMATED cross-host tests
+  - Status: UNVERIFIED
+
