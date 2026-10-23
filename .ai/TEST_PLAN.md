@@ -153,210 +153,103 @@ Any unavailable verification must be reported as UNVERIFIED or HUMAN_REQUIRED, n
 - Review Gate: PASS. Architecture Gate: PASS. Independent agents inspected the final change set; the Architecture review records a non-blocking visual risk that a caption regenerated below an image moved to the slide edge may clip or overlap nearby content.
 - `git diff --check`: PASS. An earlier smoke-test run passed; a later repeat was interrupted during extension `npm ci` and is not counted as a final rerun.
 
-## M4 Test Plan
+## M4 v2 Test Plan
 
-### T-401 pair-freeze feasibility
+### T-402A versioned PowerPoint preview feasibility
 
-Run before production sync-engine implementation.
+Run before production M4 v2 implementation.
 
-#### PowerPoint
-- commit ownership前にpaired PPTXを再open -> invalidated、destructive write 0件;
-- commit ownership後のPPTX reopenはLocal UI mutation brokerのcritical section/suspend ruleで扱い、pre-ownership invalidationとして扱わない;
+- render managed QMD to a new preview path distinct from canonical PPTX;
+- preview carries documentId/generation/preview identity;
+- Local UI opens exact preview in desktop PowerPoint;
+- prior exact md-slide-tool preview open-clean -> close;
+- prior preview dirty -> leave open;
+- unrelated presentations -> untouched;
+- canonical PPTX open-clean/open-dirty -> preview generation still does not mutate it;
+- Japanese/space paths;
+- repeated previews -> bounded best-effort cleanup;
+- preview save/edit event -> never canonical import trigger;
+- canonical checkpoint unchanged by preview render.
 
-1. Closed target -> report closed.
-2. Exact paired target open and saved -> report open-saved.
-3. Modify without save -> report open-dirty.
-4. Open-saved target can be closed without save prompt or data loss.
-5. Open-dirty target is never automatically closed.
-6. After canonical PPTX update, reopen the exact same path and show the updated presentation.
-7. Multiple presentations open -> only the paired target is closed/reopened.
-8. SaveCopyAs/equivalent contains current unsaved edits while original stays dirty.
-9. PowerPoint close/reopen/exit failure returns a typed failure and does not become "safe".
-10. For PPTX -> QMD, verify the M3 PPTX metadata writeback path: either close/reopen the clean presentation around commit, or prove a separately reviewed no-writeback implementation.
+### T-402B editor-mediated QMD apply feasibility
 
-#### VS Code QMD
-- Workspace extension owns automatic sync orchestration;
-- paired QMD/PPTX freeze completes before Core process starts;
-- commit ownership前のQMD reopen/edit -> invalidated、destructive write 0件;
-- commit ownership後のQMD reopen/editはWorkspace mutation brokerのcritical section/suspend ruleで扱い、dirty bufferは保持;
+- exact paired QMD closed/open-clean/open-dirty detection;
+- create import candidate without writing canonical QMD first;
+- apply candidate text to exact open-clean document via VS Code API;
+- save via VS Code;
+- inject document version/editor change between candidate creation and apply;
+- stale candidate must not overwrite newer editor content;
+- dirty buffer preserved;
+- determine coherent handling of assets/images/PPTX metadata/checkpoint around editor-mediated QMD save;
+- crash/failure fixture for partial non-QMD outputs.
 
-11. Exact paired QMD dirty/clean state is reported.
-12. Dirty QMD is never automatically closed.
-13. Open-clean QMD can be closed/hidden for the publication window.
-14. After commit, QMD can be restored/reopened without content loss or false dirty state.
-15. If the user reopens/edits during Syncing, current buffer is preserved and later pair-level evaluation can surface conflict rather than silently discard it.
+Decision:
+- PASS -> editor-mediated open-clean QMD path may enter production;
+- FAIL -> open QMD uses Pending-until-closed fallback.
 
-#### Shared freeze guard / transaction boundary
-- runtime session is ephemeral: `/tmp/md-slide-tool/freeze/<workspace-key>/<document-id>/<freezeSessionId>/`;
-- one primary state token exists: frozen / invalidated / committing / restoring;
-- Workspace invalidation uses atomic same-directory rename `frozen -> invalidated`;
-- Core ownership claim uses atomic same-directory rename `frozen -> committing`;
-- race them repeatedly; exactly one rename succeeds and the loser observes missing source;
-- no JSON read-modify-write is used for the frozen/invalidated/committing decision;
-- post-ownership reopen uses create-if-absent `pending-reopen`, which cannot replace the primary state token;
-- Workspace creates the ephemeral freeze session directory and initial `frozen` token for the exact freezeSessionId;
-- Core receives expected session ID and rejects missing/mismatched/invalidated guard;
-- reopen immediately before frozen -> committing CAS -> invalidated, zero destructive writes;
-- Core atomically changes frozen -> committing before first FileTransaction/recovery mutation;
-- reopen immediately after committing transition but before first QMD/PPTX replace -> pending-reopen; owner mutation broker must perform freeze+mutation atomically as one critical section or return NOT_MUTATED;
-- reopen immediately after first replace -> no ad-hoc rollback caused by freeze invalidation; existing transaction semantics finish commit/rollback;
-- token rename race is injected repeatedly to prove invalidated and committing can never both win;
-- stale runtime session after process death cannot be reused.
+### Preview generation
 
-#### Per-target mutation broker
-- reopen after committing -> pending-reopen recorded;
-- Core does not later mutate QMD/PPTX after receiving a pre-write ACK;
-- QMD operation is sent to Workspace mutation broker;
-- PPTX operation is sent to Windows Local UI mutation broker;
-- broker validates exact freezeSessionId/transaction/op index;
-- broker re-establishes/holds supported-app freeze and performs expected-old check + actual create/replace/delete before returning;
-- inject reopen after broker freeze validation but before actual file operation;
-- expected result: broker keeps/re-establishes freeze through mutation OR returns NOT_MUTATED without overwriting user work;
-- broker timeout/disconnect/UNKNOWN -> TransactionSuspended and journal retained;
-- stale response from earlier operation/session is rejected;
-- broker crash after atomic replace but before reply -> next recovery determines old/new state from hashes;
-- repeat for QMD and PowerPoint.
+- one logical QMD save -> one effective preview render;
+- rapid duplicate events coalesce;
+- preview path monotonically/version uniquely changes;
+- canonical PPTX bytes remain unchanged;
+- preview event does not trigger import;
+- prior clean preview close/open newest behavior;
+- dirty preview preservation;
+- cleanup never deletes canonical PPTX or open/unknown preview.
 
-#### Control-loss / suspend
-- Workspace spawns Core with a dedicated control pipe/channel bound to freezeSessionId;
-- Core checks control health immediately before every destructive file mutation;
-- Workspace shutdown/restart -> pipe EOF;
-- Local UI disconnect/restart while committing -> Workspace signals suspend/closes control channel;
-- inject control loss before first mutation -> zero destructive writes;
-- inject control loss after operation 1 of N -> Core raises TransactionSuspended before operation 2;
-- TransactionSuspended leaves journal phase=committing and does not enter normal immediate rollback;
-- instrument FileTransaction.commit() so TransactionSuspended is excluded from generic BaseException rollback;
-- suspend while recover_transactions() is executing rolling_back -> journal remains rolling_back and resumes under next valid freeze;
-- checkpoint remains old unless phase already reached committed;
-- suspend after final target replacement but before phase=committed -> journal remains incomplete; next frozen recovery resolves it;
-- next automatic attempt creates a new freeze session before recovery.
+### Canonical PPTX import
 
-#### Recovery / ordering
-- pending M3 transaction fixture + automatic sync -> pair freeze happens before recover_transactions();
-- recovery destructive step checks valid freezeSessionId;
-- QMD/PPTX reopen before recovery owns committing -> invalidation and zero destructive writes;
-- after recovery owns committing, QMD/PPTX target mutations use Workspace/Local UI mutation broker respectively;
-- reopen injected inside recovery broker critical section -> safe mutation or NOT_MUTATED/TransactionSuspended, never silent overwrite;
+- exact canonical managed PPTX save -> import candidate;
+- preview PPTX save -> ignored as canonical import;
+- QMD closed -> existing M3 path;
+- QMD open-clean -> T-402B result determines editor-mediated apply vs Pending fallback;
+- QMD open-dirty -> CONFLICT;
+- generated QMD save from editor-mediated apply does not trigger an unsafe opposite-direction canonical sync.
 
-#### Cross-host
-- freeze/restore request and reopen invalidation event share freezeSessionId;
+### Checkpoint
 
-16. Workspace -> Local UI state request works with typed correlated response.
-17. Workspace -> Local UI close/reopen request targets the exact presentation.
-18. SaveCopyAs request returns the correct temporary result.
-19. Timeout, Remote disconnect, Local UI restart, PowerPoint exit, malformed response and stale response fail safely.
-19a. If disconnect occurs before commit ownership, the session invalidates and Core performs zero destructive writes.
-19b. If disconnect occurs after commit ownership, Core suspends before the next mutation and leaves the transaction journal for recovery under a new freeze session.
-20. No Windows-wide filesystem lease is required for M4 completion.
-
-If the destination-freeze operations cannot be made reliable with supported APIs, feasibility FAILS and production implementation stops.
-
-### Watch / debounce / pending
-
-- one QMD logical save -> one effective render;
-- one PPTX logical save -> one effective import;
-- duplicate events coalesce;
-- same-window QMD + PPTX events -> one pair-level evaluation;
-- repeated events during active sync -> one PENDING intent;
-- no unbounded FIFO queue;
-- assets/imported-image generated events do not become independent user triggers.
-
-### QMD -> PPTX
-- before direction selection, run JOURNAL_CHECK; if journal exists, freeze + recover first, then re-read checkpoint/fingerprints;
-- pair-level evaluation happens only after that recovery gate;
-
-- PowerPoint closed -> render/commit succeeds;
-- PowerPoint open-saved -> close, render/commit, reopen;
-- PowerPoint open-dirty -> CONFLICT, no automatic close;
-- final saved PPTX hash differs from expected before commit -> abort/re-evaluate;
-- close failure -> no unsafe publication;
-- commit succeeds but reopen fails -> file result remains authoritative and host/UI error is reported;
-- M4-generated PPTX event does not trigger import loop.
-
-### PPTX -> QMD
-- before direction selection, run JOURNAL_CHECK; if journal exists, freeze + recover first, then re-read checkpoint/fingerprints;
-- pair-level evaluation happens only after that recovery gate;
-
-- QMD closed -> import/commit succeeds;
-- QMD open-clean -> freeze, import/commit, restore;
-- QMD dirty -> CONFLICT, no automatic close;
-- final saved QMD hash differs from expected before commit -> abort/re-evaluate;
-- restore failure -> committed file remains authoritative and UI error is reported;
-- M3 PPTX metadata writeback path is safe when PowerPoint was open;
-- M4-generated QMD/PPTX metadata events do not trigger render/import loop.
-
-### Checkpoint / recovery
-- startup detects pending journal before reading checkpoint for sync-direction/conflict decisions;
-- if journal exists, freeze + recover first;
-- only after stable recovery re-read checkpoint + QMD/PPTX fingerprints;
-- fixture: checkpoint target already contains new bytes but journal phase=committing -> checkpoint must not be trusted before recovery;
-
-- full-QMD hash detects front-matter-only changes;
-- checkpoint commits in the same transaction as synchronized outputs;
-- crash after partial commit follows M3 recovery;
-- automatic recovery is entered only after pair freeze is established;
-- invalidation rename wins before recovery claim -> recovery performs zero destructive writes;
-- Core committing rename wins -> recovery owns transaction window while control remains healthy;
-- control loss during recovery after one mutation -> TransactionSuspended, no immediate rollback, journal retained;
-- crash after first recovery replace -> journal retained; new pair freeze/session required before next recovery;
-- checkpoint verified for committed, rolled-back, and ManualRecoveryRequired outcomes;
-- committed transaction recovery completes matching checkpoint;
-- rolled-back transaction retains old checkpoint;
-- unknown hash state stops instead of guessing;
-- restart re-evaluates both sides against durable checkpoint.
-
-### DOCUMENT_BUSY
-
-- manual render/import holds document lock -> automatic sync records PENDING;
-- bounded timer/backoff detects lock release even if no watched file changed;
-- no spin retry;
-- after release, both sides are re-evaluated from checkpoint.
+- preview render does not change canonical checkpoint;
+- successful canonical PPTX -> QMD sync updates checkpoint;
+- journal recovery precedes checkpoint interpretation for canonical transaction recovery;
+- preview metadata/fingerprint never chooses canonical sync direction.
 
 ### Conflict / Compare
 
-- saved independent changes on both sides -> CONFLICT;
-- Cancel is non-destructive;
-- unsaved PowerPoint Compare uses latest SaveCopyAs snapshot;
-- unsaved QMD Compare uses current editor buffer;
-- comparison reconstruction never commits canonical files;
-- internal IDs/hashes are not required in normal comparison presentation.
+- dirty QMD + canonical PPTX save -> CONFLICT;
+- saved canonical changes on both sides -> CONFLICT;
+- preview-only changes do not create canonical conflict;
+- Cancel non-destructive;
+- Compare uses latest canonical/user-visible states.
 
-### Status / controls / diagnostics
+### Status / controls
 
-- auto-start;
+- Rendering Preview;
+- Preview Ready;
+- Importing;
+- Applying QMD or Pending;
+- Conflict / Error / Paused;
 - pause/resume;
-- Syncing state visible while destination is frozen;
-- Building/Importing/Pending/Conflict/Error transitions;
-- render/import failure distinct from Remote/host/PowerPoint close-reopen failure;
 - no infinite retry.
-
-### Unsupported external-writer scope
-
-- documentation states arbitrary external concurrent writers during freeze/commit are outside M4 guarantee;
-- unexpected saved-file hash detected before commit causes safe stop;
-- tests do not claim Windows-wide writer exclusion.
 
 ### Regression
 
-- root Python/npm tests;
+- root npm tests;
+- Python tests;
+- extension tests;
 - M2 render regression;
 - M3 PPTX -> QMD -> PPTX roundtrip;
-- M3 transaction/crash recovery;
-- VS Code extension bridge tests;
 - smoke;
 - DOCX regression;
-- latest PR head CI.
+- source scan confirms v1 cross-host mutation-broker production code is not introduced.
 
 ### HUMAN_REQUIRED
 
-After all agent-executable gates pass:
+After automated feasibility gates:
 - Windows + Docker Desktop + VS Code Dev Container;
-- PowerPoint closed QMD save auto-render;
-- PowerPoint open-clean QMD save -> brief close/reopen with updated content;
-- PowerPoint open-dirty QMD save -> Cancel/Compare, no close;
-- QMD open-clean PowerPoint save -> brief freeze/reload with imported content;
-- QMD dirty PowerPoint save -> Cancel/Compare, no close;
-- Compare both unsaved sides correctly;
-- repeated saves/pending;
-- pause/resume;
-- no reconnect/OOM regression.
+- save QMD repeatedly while PowerPoint stays open and observe newest preview;
+- canonical PPTX remains untouched during preview refresh;
+- dirty prior preview is not closed;
+- Open Editable PowerPoint opens canonical file;
+- canonical PPTX save with QMD closed imports correctly;
+- T-402B open-clean QMD path only if feasibility PASS.
