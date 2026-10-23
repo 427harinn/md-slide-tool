@@ -118,3 +118,43 @@ Expected:
 
 Result: PASS — User confirmed the memory limit removal and WSL/Docker restart stabilized the environment; `OOMKilled=false`, no `Cannot reconnect` recurrence, closed/running/repeated Build and Open PowerPoint runs succeeded, and the complete PowerPoint edit/save/import/QMD-assets/re-render cycle retained content and visual appearance including crop. This evidence supports AC-M3-06, AC-M3-07, AC-M3-11, and AC-M3-16 in `.ai/ACCEPTANCE_CRITERIA.md`.
 ```
+
+## M4 status
+
+No manual implementation gate is requested while M4 is design-only.
+
+After automated feasibility and implementation gates pass, M4 requires one grouped Windows/PowerPoint E2E gate.
+
+```text
+HUMAN_REQUIRED
+
+H-M4-01: Verify save-driven sync and non-destructive conflict handling
+
+Precondition:
+- T-401 feasibility PASS
+- automated Test / Review / Architecture PASS
+- latest CI PASS
+
+Steps:
+1. Open the repository through Docker Desktop + VS Code Dev Container.
+2. With PowerPoint closed, edit/save managed QMD and confirm automatic render.
+3. Open the paired PPTX and leave it saved; edit/save QMD and confirm safe automatic update behavior.
+4. Make an unsaved PowerPoint edit, then save QMD.
+5. Confirm automatic overwrite does not occur and VS Code offers Cancel / Compare.
+6. Cancel and confirm neither current QMD nor the unsaved PowerPoint work is lost.
+7. Repeat and choose Compare; confirm the comparison snapshot includes the current unsaved PowerPoint edit and the original presentation remains dirty.
+8. Make an unsaved QMD editor edit, then save PowerPoint.
+9. Confirm Cancel / Compare; Compare must include the current unsaved editor buffer without forcing the real QMD save.
+10. Save PowerPoint normally with clean QMD and confirm automatic import updates QMD/assets.
+11. Exercise pause/resume and 2-3 rapid/repeated saves.
+12. Confirm no reconnect/OOM regression and status UI reflects the operation.
+
+Expected:
+- normal saves synchronize automatically;
+- conflicts never silently choose a winner;
+- Cancel is non-destructive;
+- Compare captures both latest states without force-saving either canonical side;
+- no self-trigger loop, OOM/disconnect, or infinite retry occurs.
+
+Result: HUMAN_REQUIRED
+```
