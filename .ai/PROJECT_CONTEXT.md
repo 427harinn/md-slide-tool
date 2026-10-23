@@ -242,6 +242,10 @@ Detailed design: `docs/M4_SYNC_ENGINE.md`.
   - QMD save -> automatic render -> PPTX.
   - PPTX save -> automatic import -> QMD/assets.
 - M4 uses a **destination freeze** model instead of layered PowerPoint/QMD/filesystem publication leases.
+- The VS Code Workspace extension (running in the Dev Container extension host) is the automatic M4 orchestrator. It freezes the pair before invoking Core; Core does not initiate editor freeze.
+- Every automatic operation gets a freezeSessionId shared with the Windows Local UI for PowerPoint freeze/restore/invalidation.
+- Pair freeze is established before Core startup because Core may run M3 transaction recovery before render/import.
+- Reopening/editing the paired QMD or PPTX during Syncing invalidates the freeze session; Core must stop further destructive automatic writes and the Workspace orchestrator re-evaluates/enters CONFLICT as needed.
 - Supported interactive editors are VS Code for QMD and Microsoft PowerPoint desktop for PPTX.
 - QMD -> PPTX:
   - PowerPoint open-dirty -> CONFLICT.
@@ -251,7 +255,7 @@ Detailed design: `docs/M4_SYNC_ENGINE.md`.
   - QMD dirty -> CONFLICT.
   - open-clean -> temporarily close/hide/freeze the QMD editor, commit, restore.
 - If M3 import still writes PPTX metadata, a clean open PowerPoint presentation must also be closed/reopened around that commit, unless a separately tested no-writeback design replaces it.
-- Core order is conceptually: document lock -> pair evaluation -> prepare candidate -> destination freeze -> final saved-file hash check -> M3 recoverable transaction + sync checkpoint -> destination restore -> pending re-evaluation -> unlock.
+- Automatic M4 order is conceptually: pair evaluation -> pair freeze -> Core start -> M3 document lock -> recovery if needed -> prepare candidate -> freeze validity + final saved-file hash check -> M3 recoverable transaction + sync checkpoint -> pair restore -> pending re-evaluation.
 - Arbitrary external programs writing managed files during the short freeze/commit interval are outside M4's formal guarantee. M4 still performs final hash validation and uses M3 transaction/recovery.
 - QMD/PPTX events in the same debounce window are evaluated together.
 - Repeated saves while busy coalesce into one PENDING re-evaluation.
