@@ -302,11 +302,11 @@ AC-M4-26 through AC-M4-34 were introduced while exploring a layered publication-
 - **AC-M4-33 — DEFERRED (superseded):** filesystem-lease expected-absence/CAS requirement.
 - **AC-M4-34 — DEFERRED (superseded):** Windows-wide writer exclusion requirement.
 
-### Destination-freeze criteria
+### Superseded M4 v1 destination-freeze criteria
 
 - **AC-M4-35:** An open-saved paired PowerPoint presentation is temporarily closed without saving before QMD -> PPTX publication and the exact updated presentation is reopened after commit; an open-dirty presentation is never automatically closed.
   - Verification: T-401 + HUMAN_REQUIRED
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-36:** A clean paired QMD editor can be temporarily frozen/closed for PPTX -> QMD publication and restored/reopened afterward without content loss or false dirty state; a dirty QMD is never automatically closed.
   - Verification: T-401 + AUTOMATED extension tests + HUMAN_REQUIRED
   - Status: UNVERIFIED
@@ -388,3 +388,51 @@ AC-M4-26 through AC-M4-34 were introduced while exploring a layered publication-
   - Verification: AUTOMATED integration + T-401
   - Status: UNVERIFIED
 
+
+
+### M4 v2 preview-first criteria
+
+AC-M4-61 through AC-M4-74 replace the v1 destination-freeze/mutation-broker completion requirements.
+
+- **AC-M4-61:** Saving an eligible managed QMD produces a new versioned preview PPTX at a distinct path without replacing the canonical managed PPTX.
+  - Verification: AUTOMATED + T-402A + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-62:** The latest preview can be opened in desktop PowerPoint while the PowerPoint application remains running; a previous md-slide-tool preview is closed only when it is exact-target and clean.
+  - Verification: T-402A + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-63:** A dirty preview or unrelated presentation is never automatically closed or overwritten.
+  - Verification: T-402A + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-64:** Preview PPTX files are explicitly marked non-canonical and never trigger canonical PPTX -> QMD import or canonical conflict decisions.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M4-65:** Preview generation does not advance the canonical QMD/PPTX sync checkpoint.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M4-66:** The canonical managed PPTX remains the only automatic PowerPoint import source and can be opened explicitly via an editable-PowerPoint command.
+  - Verification: AUTOMATED + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-67:** Canonical PPTX save with paired QMD closed imports through the existing M3-safe canonical path.
+  - Verification: AUTOMATED regression + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-68:** T-402B determines whether an open-clean paired QMD can be updated through VS Code editor APIs without external file replacement, preserving exact-target identity and editor version safety.
+  - Verification: T-402B
+  - Status: UNVERIFIED
+- **AC-M4-69:** An open-dirty paired QMD is never automatically overwritten; canonical PPTX save enters CONFLICT / Compare handling.
+  - Verification: AUTOMATED + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-70:** If T-402B cannot prove coherent editor-mediated QMD publication with the remaining M3 outputs, open QMD uses Pending-until-closed fallback rather than adding cross-host mutation fencing.
+  - Verification: T-402B + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-71:** Preview cleanup is bounded and best-effort; failure to delete an old preview cannot corrupt canonical QMD/PPTX state.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M4-72:** Watch/debounce logic treats saved canonical QMD and saved canonical PPTX as primary triggers, while preview/staging/generated events cannot create an opposite-direction loop.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M4-73:** M4 v2 production code does not implement v1 pair-wide freeze, QMD/PPTX mutation brokers, UNKNOWN broker fencing/settlement, or TransactionSuspended cross-host coordination.
+  - Verification: source scan + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-74:** Production M4 implementation begins only after T-402A is PASS and T-402B has either PASS or an explicit Pending-until-closed fallback decision.
+  - Verification: milestone gate
+  - Status: UNVERIFIED
