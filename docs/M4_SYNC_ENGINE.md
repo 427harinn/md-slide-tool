@@ -98,30 +98,61 @@ PowerPoint/VS Code do not contain render/import/merge logic.
 
 ### Freeze session contract
 
-Every automatic M4 operation has one cooperative guard file owned jointly by the Workspace orchestrator and Core:
+Every automatic M4 operation gets an ephemeral runtime directory shared only by the Workspace orchestrator and Core inside the Dev Container:
 
 ```text
-.md-slide-tool/freeze/<document-id>.json
+/tmp/md-slide-tool/freeze/<workspace-key>/<document-id>/<freezeSessionId>/
 ```
 
-Example logical fields:
+It is runtime coordination state, not canonical project data and not part of recovery authority.
 
-```json
-{
-  "documentId": "document-...",
-  "freezeSessionId": "freeze-...",
-  "state": "frozen",
-  "pendingReopen": false
-}
+The session directory contains exactly one primary state token:
+
+```text
+frozen
+invalidated
+committing
+restoring
 ```
 
-Allowed states:
-- `frozen`: both supported views are closed/frozen and Core has not begun destructive mutation;
-- `invalidated`: reopen/edit happened before the first destructive write; Core must not start commit/recovery mutation;
-- `committing`: Core has atomically claimed the destructive transaction window;
-- `restoring`: transaction reached a stable committed/rolled-back/recovery state and Workspace is restoring UI.
+and may additionally contain an append-only marker:
 
-The Workspace extension creates the guard only after both supported views are successfully frozen. Automatic Core entrypoints receive the `freezeSessionId` and refuse recovery/render/import mutation if the guard is missing, mismatched, or invalidated.
+```text
+pending-reopen
+```
+
+The state transition from `frozen` is resolved by atomic same-directory rename, not by read-modify-write JSON.
+
+- Workspace invalidation: `rename(frozen, invalidated)`
+- Core commit claim: `rename(frozen, committing)`
+
+Both race for the same source path. Exactly one rename can succeed.
+
+Therefore:
+- if Workspace wins, Core cannot claim commit ownership;
+- if Core wins, later invalidation cannot overwrite `committing`;
+- there is no stale-read-then-write CAS window.
+
+After `committing` exists, reopen attempts do not rewrite the primary state token. Workspace creates `pending-reopen` using atomic create-if-absent semantics.
+
+A stale runtime directory from a crashed process never authorizes recovery. New automatic work always creates a new freezeSessionId/session directory.
+
+### Workspace -> Core control channel
+
+Workspace spawns every automatic Core process with a dedicated control pipe/channel tied to the same freezeSessionId.
+
+The channel has two purposes:
+- prove that the Workspace orchestrator is still alive and owns the active freeze;
+- deliver a suspend signal when Local UI/PowerPoint control is lost.
+
+Core treats any of the following as control loss:
+- control-pipe EOF;
+- explicit suspend message;
+- Workspace extension shutdown/restart;
+- Local UI disconnect/restart/PowerPoint-control loss reported by Workspace;
+- session ID mismatch.
+
+Core checks control health immediately before every destructive transaction/recovery file mutation.
 
 ### Commit boundary rule
 
@@ -133,41 +164,50 @@ Before that boundary:
 - the operation aborts/re-evaluates.
 
 Immediately before the first destructive mutation:
-1. Core re-reads the guard;
-2. requires exact documentId/freezeSessionId and state=`frozen`;
-3. atomically changes the guard to state=`committing`;
-4. only then may `FileTransaction.commit()`, rollback, or transaction recovery mutate canonical files.
+1. Core verifies the control channel is healthy and bound to the expected freezeSessionId;
+2. Core attempts atomic `rename(frozen, committing)`;
+3. if the rename fails because `invalidated` already won, Core performs zero destructive writes and returns FREEZE_INVALIDATED;
+4. only after `committing` exists may transaction/recovery mutate canonical files.
 
-After state=`committing`:
-- reopen requests no longer cause mid-transaction abort/rollback;
-- Workspace/Local UI must reject or immediately re-close supported-app reopen attempts while preserving any unsaved buffer/presentation if one was created;
-- such attempts set `pendingReopen=true`;
-- the transaction is allowed to reach one stable state: committed, rolled back, or ManualRecoveryRequired;
-- after that, Workspace restores/re-evaluates and surfaces CONFLICT if user work exists.
+After `committing`:
+- supported-app reopen attempts create `pending-reopen` and are rejected/re-closed when the control plane is healthy;
+- a normal reopen does not force ad-hoc rollback;
+- the transaction may continue toward a stable committed/rolled-back state while control remains healthy.
 
-This removes the contradiction between "stop after invalidation" and M3 rollback. Once the transaction owns the commit window, transaction integrity takes priority until a stable state is reached.
+If the Workspace/Local UI control plane is lost after `committing`:
+- Core must not begin the next destructive file mutation;
+- Core raises a dedicated `TransactionSuspended` condition;
+- M4 transaction handling must **not** run the normal immediate rollback path for this condition;
+- the journal remains in `committing` with any already-applied operations intact;
+- Core exits with a typed SUSPENDED result;
+- no synchronized checkpoint may be declared complete unless its transaction had already reached committed;
+- next automatic attempt requires a brand-new pair freeze/session, then M3 recovery resolves the journal under that new freeze.
+
+This separates two cases cleanly:
+- ordinary reopen while control is healthy -> transaction ownership continues;
+- loss of the mechanism that enforces freeze -> suspend at the next mutation boundary and defer recovery.
 
 ### Crash / recovery rule
 
-If Core crashes while the guard says `committing`:
-- the guard is stale and does not authorize recovery by itself;
-- the transaction journal remains authoritative;
-- next automatic invocation must establish a **new pair freeze with a new freezeSessionId first**;
-- only under that new frozen session may Core run `recover_transactions()`;
-- Core transitions the new guard to `committing` before recovery performs its first destructive mutation;
+If Core crashes or returns SUSPENDED while the runtime token says `committing`:
+- the runtime token is stale and carries no recovery authority;
+- the M3 journal is authoritative;
+- next automatic invocation establishes a new pair freeze/session first;
+- recovery uses the new session's control channel;
+- recovery claims the new session's `frozen -> committing` token before its first destructive mutation;
+- control loss during recovery suspends again before the next mutation and leaves the journal for another frozen recovery attempt;
 - unknown hashes still stop with ManualRecoveryRequired.
 
 ### Guard transport
 
-The guard file is the single Core-visible coordination mechanism for M4 freeze validity.
+The ephemeral state-token directory plus the dedicated control channel are the only Core-visible M4 coordination mechanisms.
 
-Workspace writes/updates it atomically. Core does not need a reverse RPC to ask whether the session is valid.
+Workspace does not mutate Core's `committing` token. Reopen/edit events are represented as:
+- before commit ownership: winning `frozen -> invalidated` rename;
+- after commit ownership with healthy control: atomic creation of `pending-reopen`;
+- after control loss: control-pipe EOF/suspend causes Core to stop before its next mutation.
 
-PowerPoint reopen events and QMD reopen/edit events are handled by Workspace/Local UI and reflected into the guard:
-- before commit ownership -> `state=invalidated`;
-- after commit ownership -> keep `state=committing`, set `pendingReopen=true`.
-
-This is cooperative coordination for VS Code and PowerPoint only, not an OS-wide file lock.
+This remains cooperative coordination for VS Code and PowerPoint only, not an OS-wide canonical-file lock.
 
 ## 5. State machine
 
@@ -265,24 +305,26 @@ M4 does not require a long-lived publication lease after the pair is frozen.
 
 The response depends on the guard state.
 
-#### Before Core owns the destructive window (`state=frozen`)
+#### Before Core owns the destructive window (`frozen` token exists)
 
 If the paired QMD is reopened/edited or the paired PPTX is reopened:
-- Workspace/Local UI atomically changes the guard to `invalidated`;
-- Core must observe this before changing the guard to `committing`;
-- Core performs no destructive transaction mutation;
+- Workspace attempts atomic `rename(frozen, invalidated)`;
+- if it succeeds, Core can no longer claim `committing`;
+- Core performs zero destructive transaction mutation;
 - user state is preserved;
 - Workspace re-evaluates both sides and enters CONFLICT when appropriate.
 
-#### After Core owns the destructive window (`state=committing`)
+If the rename fails because Core already owns `committing`, the event is handled by the post-ownership rule below.
+
+#### After Core owns the destructive window (`committing` token exists)
 
 A mid-transaction invalidation is not allowed to force ad-hoc rollback.
 
 Instead:
-- Workspace immediately closes/hides a reopened clean QMD editor and records `pendingReopen=true`;
-- Local UI immediately closes a reopened clean PowerPoint presentation and records `pendingReopen=true`;
+- Workspace immediately closes/hides a reopened clean QMD editor and atomically creates the `pending-reopen` marker;
+- Local UI immediately closes a reopened clean PowerPoint presentation and Workspace creates the same `pending-reopen` marker;
 - if the user manages to create unsaved work before the close completes, that buffer/presentation must not be force-saved or discarded; it is preserved for post-transaction conflict handling;
-- Core continues the existing transaction to a stable committed/rolled-back/manual-recovery state;
+- Core continues while the Workspace/Local UI control channel remains healthy. If that control is lost, Core suspends before the next destructive mutation and leaves the journal for recovery under a new freeze session;
 - after the stable state, Workspace re-evaluates the preserved user work against the resulting files.
 
 T-401 must prove that supported-app reopen can be blocked/re-closed reliably once `state=committing`. If this cannot be made safe enough, the destination-freeze design fails feasibility.
@@ -497,11 +539,24 @@ Required VS Code checks:
 - closing/restoring a clean editor does not lose cursor-independent file content or create false dirty state;
 - if the user reopens/changes the destination during Syncing, the operation detects the changed saved/dirty state before commit when feasible and otherwise preserves that user buffer for subsequent conflict handling.
 
+Required guard-race checks:
+- Workspace and Core race atomic renames of the same `frozen` token thousands of times; exactly one of invalidated/committing wins per session;
+- there is no JSON read-modify-write state transition for frozen -> invalidated/committing;
+- pending-reopen is append-only/create-if-absent and cannot overwrite the primary state token.
+
+Required control-loss checks:
+- Core receives a dedicated control pipe tied to freezeSessionId;
+- Workspace death/restart produces EOF and Core detects it before the next destructive mutation;
+- Local UI disconnect/restart after committing causes Workspace to signal suspend;
+- injected control loss after operation 1 of N leaves phase=committing and does not invoke immediate rollback;
+- checkpoint is not advanced unless transaction already reached committed;
+- next automatic recovery requires a new freeze/session.
+
 Required recovery/order checks:
 - create a pending M3 transaction, then start automatic M4 sync;
 - Workspace freezes both supported views before Core is invoked;
 - Core recovery runs only after freeze establishment;
-- before the first recovery mutation, Core atomically changes the exact guard from frozen -> committing;
+- before the first recovery mutation, Core atomically renames the new session token from frozen -> committing;
 - reopen before that transition invalidates and recovery performs no destructive mutation;
 - reopen after that transition is blocked/re-closed, sets pendingReopen, and recovery is allowed to reach a stable state;
 - crash while committing leaves the journal; next recovery requires a brand-new pair freeze/session first;
@@ -509,6 +564,7 @@ Required recovery/order checks:
 
 Required cross-host checks:
 - Workspace -> Local UI state/freeze/restore/SaveCopyAs requests return correlated typed results;
+- Local UI disconnect/restart while committing is surfaced to Workspace quickly enough to close/suspend the Core control channel before another unchecked mutation;
 - PowerPoint reopen invalidation event is correlated to the correct freezeSessionId;
 - timeout, disconnect, Local UI restart and PowerPoint exit fail safely;
 - no arbitrary Windows-wide filesystem lease is required for M4 completion.
