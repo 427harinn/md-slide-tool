@@ -186,6 +186,16 @@ Run before production sync-engine implementation.
 14. After commit, QMD can be restored/reopened without content loss or false dirty state.
 15. If the user reopens/edits during Syncing, current buffer is preserved and later pair-level evaluation can surface conflict rather than silently discard it.
 
+#### Shared freeze guard / transaction boundary
+- Workspace creates `.md-slide-tool/freeze/<document-id>.json` atomically with exact freezeSessionId;
+- Core receives expected session ID and rejects missing/mismatched/invalidated guard;
+- reopen immediately before frozen -> committing CAS -> invalidated, zero destructive writes;
+- Core atomically changes frozen -> committing before first FileTransaction/recovery mutation;
+- reopen immediately after committing transition but before first replace -> pendingReopen, supported view re-closed, transaction continues to stable state;
+- reopen immediately after first replace -> no ad-hoc rollback caused by freeze invalidation; existing transaction semantics finish commit/rollback;
+- guard write/read race is injected repeatedly to prove no invalidated session can be claimed as committing;
+- stale committing guard after process death cannot be reused.
+
 #### Recovery / ordering
 - pending M3 transaction fixture + automatic sync -> pair freeze happens before recover_transactions();
 - recovery destructive step checks valid freezeSessionId;
@@ -239,7 +249,10 @@ If the destination-freeze operations cannot be made reliable with supported APIs
 - checkpoint commits in the same transaction as synchronized outputs;
 - crash after partial commit follows M3 recovery;
 - automatic recovery is entered only after pair freeze is established;
-- freeze invalidation during recovery stops additional destructive writes;
+- invalidation before recovery claims committing -> recovery performs zero destructive writes;
+- reopen after recovery claims committing -> pendingReopen and recovery completes to stable state;
+- crash after first recovery replace -> journal retained; new pair freeze/session required before next recovery;
+- checkpoint verified for committed, rolled-back, and ManualRecoveryRequired outcomes;
 - committed transaction recovery completes matching checkpoint;
 - rolled-back transaction retains old checkpoint;
 - unknown hash state stops instead of guessing;
