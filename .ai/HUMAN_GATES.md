@@ -123,38 +123,42 @@ Result: PASS — User confirmed the memory limit removal and WSL/Docker restart 
 
 No manual implementation gate is requested while M4 is design-only.
 
-After automated feasibility and implementation gates pass, M4 requires one grouped Windows/PowerPoint E2E gate.
+After T-401 feasibility, automated tests, and independent Review/Architecture PASS, run one grouped Windows E2E gate.
 
 ```text
 HUMAN_REQUIRED
 
-H-M4-01: Verify save-driven sync and non-destructive conflict handling
+H-M4-01: Verify destination-freeze save-driven synchronization
 
 Precondition:
-- T-401 feasibility PASS
+- T-401 PASS
 - automated Test / Review / Architecture PASS
 - latest CI PASS
 
 Steps:
 1. Open the repository through Docker Desktop + VS Code Dev Container.
 2. With PowerPoint closed, edit/save managed QMD and confirm automatic render.
-3. Open the paired PPTX and leave it saved; edit/save QMD and confirm safe automatic update behavior.
-4. Make an unsaved PowerPoint edit, then save QMD.
-5. Confirm automatic overwrite does not occur and VS Code offers Cancel / Compare.
-6. Cancel and confirm neither current QMD nor the unsaved PowerPoint work is lost.
-7. Repeat and choose Compare; confirm the comparison snapshot includes the current unsaved PowerPoint edit and the original presentation remains dirty.
-8. Make an unsaved QMD editor edit, then save PowerPoint.
-9. Confirm Cancel / Compare; Compare must include the current unsaved editor buffer without forcing the real QMD save.
-10. Save PowerPoint normally with clean QMD and confirm automatic import updates QMD/assets.
-11. Exercise pause/resume and 2-3 rapid/repeated saves.
-12. Confirm no reconnect/OOM regression and status UI reflects the operation.
+3. Open the PPTX and leave it saved. Edit/save QMD.
+4. Confirm the target presentation briefly closes and reopens with the updated content.
+5. Make an unsaved PowerPoint edit, then save QMD.
+6. Confirm PowerPoint is not automatically closed and VS Code offers Cancel / Compare.
+7. Choose Cancel and confirm neither side loses work.
+8. Repeat and choose Compare; confirm the snapshot includes current unsaved PowerPoint edits and the original remains dirty.
+9. Restore a clean PowerPoint state, save it, and keep QMD open-clean.
+10. Confirm the QMD briefly freezes/reloads and reflects the PowerPoint save.
+11. Make an unsaved QMD edit, then save PowerPoint.
+12. Confirm QMD is not automatically closed and Cancel / Compare is shown.
+13. Compare and confirm current unsaved editor text is included without forcing a QMD save.
+14. Exercise pause/resume and several rapid saves.
+15. Confirm status UI is understandable and no reconnect/OOM regression occurs.
 
 Expected:
 - normal saves synchronize automatically;
-- conflicts never silently choose a winner;
-- Cancel is non-destructive;
-- Compare captures both latest states without force-saving either canonical side;
-- no self-trigger loop, OOM/disconnect, or infinite retry occurs.
+- clean destination is temporarily frozen/closed only during sync;
+- dirty destination is never automatically closed;
+- conflicts use Cancel / Compare;
+- comparison snapshots preserve latest unsaved work;
+- no self-trigger loop, infinite retry, reconnect failure, or OOM occurs.
 
 Result: HUMAN_REQUIRED
 ```
