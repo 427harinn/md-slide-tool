@@ -1,186 +1,119 @@
 # TASKS
 
-## M3: PPTX -> QMD Import
+## M4: Docker Sync Engine
 
-Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.md`、Acceptance Criteria、Test Planを確認する。
+Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M4_SYNC_ENGINE.md`、Acceptance Criteria、Test Planを確認する。
 
-### T-301: Import feasibility / structural fixtures
+### T-401: Windows PowerPoint dirty-state / snapshot feasibility
 
-実装開始前の必須gate。
+production implementation前の必須gate。
 
-- M2 stable slide/element metadataを読む方法を確認
-- supported templateで生成したPPTXのslide/master/layout/placeholder/shape構造をfixture化
-- title/body/list placeholder構造をfixture化
-- picture bytes / format / crop raw OOXML値をfixture化
-- inherited master/layout decorationとslide-local objectの差を確認
-- current supported templateが未知のslide-local decorative shapeを生成する場合は、位置heuristicではなくdeterministic marker/structural ruleを設計してから先へ進む
-- presentation custom propertiesとreserved title-slide markerがPowerPoint-compatible save/reopenで保持できる方式を検証
+- paired presentationをPowerPointで正しく特定できること
+- closed / open-saved / open-dirtyを区別できること
+- unsaved stateを読むこと自体がpresentation stateを変えないこと
+- SaveCopyAs相当でcurrent in-memory stateの一時copyを作れること
+- comparison copy作成後もoriginalのdirty/saved stateが変わらないこと
+- multiple presentations open時にwrong documentを選ばないこと
+- PowerPoint/COM unavailable時にsafe FAILすること
+- file lock/timestamp heuristicだけでdirty判定しないこと
 
-**状態:** 完了 (2026-10-22)
+成立しない場合はPowerPoint Add-in等を勝手に実装せず、設計をReviewへ戻す。
 
-実証fixture: 両方のrepository PPTX template source
-(`templates/pptx/template/template.pptx` と
-`projects/selfintroduction/template.pptx`) を使い、Dev Container内の実際の
-`slidegen render` で生成。出力PPTX、source/render provenance、shape/paragraph
-XML、template構造、画像、save/reopen検証は `tests/fixtures/m3/` と
-`tests/test_m3_feasibility_fixture.py` に記録した。
+### T-402: Sync state model / fingerprints
 
-- 標準templateのslide/master/layout/placeholder構造を列挙。
-- title placeholder (type 3)、normal title (type 1)、body/content (type 7) を確認。
-- ordinary paragraph (`a:buNone`)、template継承bullet、numbered list (`a:buAutoNum`) を確認。
-- captionがslide-local non-placeholder textboxであり、M3 marker付与前の現状名は一般名であることを確認。
-- image bytes/formatとraw `a:srcRect` cropの読取・負値再適用を確認。
-- master/layout shapeとslide-local shape collectionの分離を確認。
-- `docProps/custom.xml` managed property、title role、slide/element/caption names、cropがpython-pptx save/reopen/save後に保持されることを確認。
-- 制約: Microsoft PowerPoint desktopでの新規M3 metadata/cropのsave確認はこの自動gateに含めていない。M3実装後、Open XML fixtureで再現できない差が見つかった場合のみhuman gateに追加する。
+- per-document IDLE/DEBOUNCING/RENDERING/IMPORTING/PENDING/CONFLICT/ERROR/PAUSED state
+- minimal last-synchronized fingerprints
+- no second canonical title/body JSON
+- managed documentIdとのpairing
+- restart/resume時のre-evaluation
 
-### T-302: Managed presentation metadata / QMD baseline guard
+### T-403: Watcher / debounce
 
-- M3-capable renderでmanaged marker / format version / document-idをPPTXへ保存
-- assets schema v2のtop-level documentIdへ同じdocument-idを保存
-- stable ID normalization後のcanonical QMD normal-slide body SHA-256を保存
-- BOM / front matter境界 / LF-CRLF-CR正規化ルールを共通helperとして固定
-- same-stem QMD必須
-- unmarked legacy/arbitrary PPTXをrejectし、re-renderを案内
-- current QMD body hash mismatchは `QMD_CHANGED_SINCE_RENDER` としてpre-commit FAIL
-- force import/mergeは追加しない
+- managed QMD/PPTX pairのみprimary trigger
+- rapid duplicate event coalescing
+- atomic rename/temp-save patterns
+- configurable initial debounce around 500-1000ms
+- assets/self-generated image writesをuser trigger化しない
 
-**状態:** 完了 (2026-10-23)
+### T-404: Running / pending serialization
 
-### T-303: Title-slide role / normal slide IDs
+- one active operation per managed document
+- active operation中のsaveはcoalesced pending
+- queueをevent数だけ積まない
+- operation完了後にlatest stateを再評価
+- M3 document lock/transactionとの整合
 
-- front-matter title slideへreserved internal role markerを付与
-- markerはpositionに依存しない
-- moved/deleted title slideを安全に扱う
-- duplicate title markerをFAIL
-- ID-less title-layout slideがambiguousならFAIL
-- existing normal `slide-id` を読む
-- new supported normal slideへUUID stable IDを発行しQMD/PPTXへ反映
-- malformed/duplicate slide-idをFAIL
-- slide order/deleteをPPTX順で反映
+### T-405: Self-generated write suppression
 
-**状態:** 完了 (2026-10-23)
+- render/import expected output hash/fingerprintでself-write判定
+- fixed time ignore onlyを禁止
+- generated outputと一致しないeventはexternal changeとして再評価
+- infinite render/import loop防止fixture
 
-### T-304: Text reconstruction / caption companion
+### T-406: Automatic QMD -> PPTX sync
 
-- md-slide-tool生成caption textboxへ `mdst-caption-<element-uuid>` markerを付与
-- caption markerはassociated picture `element-id` と1:1で対応
-- caption textをMarkdown image alt/captionへ復元
-- orphan/duplicate caption markerをFAIL
-- arbitrary unmarked textboxはunsupportedのまま
+- QMD save検知
+- QMD editor dirty-state確認
+- host PowerPoint dirty-state確認
+- safeならM3-capable render
+- self writes抑制
+- synchronized fingerprint更新
 
-**状態:** 完了 (2026-10-23)
+### T-407: Automatic PPTX -> QMD sync
 
-### T-304b: Text reconstruction
+- PPTX save検知
+- package stable/readable待ち
+- VS Code QMD dirty-state確認
+- safeならM3 import
+- self writes抑制
+- synchronized fingerprint更新
 
-- title
-- ordinary paragraph
-- bullet list
-- numbered list
-をnormalized Markdownへ変換する。
+### T-408: Conflict detection / snapshots
 
-- front matter byte-preserve
-- front-matter title slideはreverse import対象外
-- unsupported text structuresは明示的にFAIL
+- opposite side unsaved or independently changedならCONFLICT
+- destructive automatic syncを停止
+- VS Code promptはCancel / Compare
+- unsaved PowerPointはSaveCopyAs相当でtemporary PPTX snapshot
+- unsaved QMDはeditor in-memory textからtemporary QMD snapshot
+- comparison reconstructionはnon-committing
+- snapshot cleanup/recovery
+- M5へcomparison entrypoint/dataを渡す
+- M4ではwinner selection/mergeを実装しない
 
-**状態:** 完了 (2026-10-23)
+### T-409: VS Code status / controls / diagnostics
 
-### T-305: Existing/new/replaced image handling
+- status bar: Synced / Building / Importing / Pending / Conflict / Error / Paused
+- workspace activate時にauto start
+- pause/resume
+- concise error + logs
+- build/import failure、remote disconnect、host bridge failure、PowerPoint failureを区別
 
-- existing `element-id` を保持
-- malformed/duplicate element-idをFAIL
-- same identified picture shapeのreplacementをsame elementとして扱う
-- new pictureへ `element-id` を発行しPPTXへ書き戻す
-- changed/new imageを `img/imported/<element-id>.<ext>` に抽出
-- shared original sourceを破壊的に上書きしない
-- deleted imageをQMD/assetsから除外
-
-**状態:** 完了 (2026-10-23)
-
-### T-306: Assets schema v2 / geometry / crop
-
-- schema v1をno-cropとして読み込む
-- M3 writeでschema v2へmigration
-- x/y/width/heightをEMU整数で保存
-- cropはraw OOXML percentage整数で保存（100000 = 100%）
-- negative PowerPoint-valid cropを保持
-- effective source rectがnon-positive、非integer、grossly invalidな値はFAIL
-- next renderでv1/v2両方を読み、v2 cropを再適用
-- source image自体はcrop目的で加工しない
-- rotation / z-orderはunsupported
-
-**状態:** 完了 (2026-10-23)
-
-### T-307: Unsupported content guard / template classification
-
-- inherited master/layout objectはuser contentにしない
-- supported title/body/content placeholderとpictureのみ明示対応
-- slide-local autoshape / arbitrary textbox / group / table / chart / SmartArt / OLE/media / unknownはpre-commit FAIL
-- unknown contentをdecorativeと推測しない
-- T-301 fixturesでclassification ruleを固定してから実装
-
-**状態:** 完了 (2026-10-23)
-
-### T-308: Recoverable transaction / crash recovery
-
-- documentId未生成のschema v1ではcanonical same-stem QMD path由来のbootstrap lockを先に取得
-- bootstrap lock保持中にassets/PPTX metadataを再読込し、既にmigration済みなら既存documentIdを再利用
-- unmigratedならdocumentIdを1つだけ選び、bootstrap lockを保持したまま対応するdocument lockを取得
-- 両lockを保持して初回render candidateを生成し、schema v2 assetsとmanaged PPTX metadataを同一transactionでpublish
-- paired migration transactionのcommit後にのみbootstrap lockを解放し、document lockはrender/import完了まで保持
-- re-readでmigration済みを発見したprocessもbootstrap保持中にexisting document lockを取得してからbootstrapを解放
-- bootstrap -> document lockのhandoffにunlock gapを作らず、逆順取得は禁止
-- 通常はper-document lockをatomicに取得し、concurrent render/importは `DOCUMENT_BUSY`
-- `.md-slide-tool/transactions/<document-id>/<txid>/` にmanifest/old/newをstage
-- create / replace / delete operationとold/new SHA-256をmanifestへ記録
-- state machine: prepared -> committing -> committed -> cleanup / rolling_back -> rolled_back -> cleanup
-- per-file atomic replaceを使用
-- handled commit failureではcreate/replace/deleteをrollbackしてからFAIL
-- abrupt termination時はphase別にrecovery
-- committedならrollbackせずnew state検証後cleanup
-- current hashがold/newどちらでもない場合は自動上書きせずmanual-recovery error
-- failure injectionとsimulated abrupt terminationをテスト
-
-**状態:** 完了 (2026-10-23)
-
-### T-309: Tests / regression
+### T-410: Tests / regression
 
 最低限:
+- QMD save -> exactly one render
+- PPTX save -> exactly one import
+- duplicate events debounce
+- render self-write does not trigger import
+- import self-write does not trigger render
+- running + repeated saves -> one pending re-evaluation
+- simultaneous/independent change -> CONFLICT
+- QMD dirty / PowerPoint dirty paths
+- Cancel is non-destructive
+- Compare snapshots latest in-memory state
+- PowerPoint SaveCopyAs original dirty state unchanged
+- multi-presentation targeting
+- pause/resume
+- error no infinite retry
+- remote disconnect diagnostic
+- M1/M2/M3/docx regression
+- Windows real E2E human gate after automated gates
 
-- managed marker valid/missing/invalid
-- concurrent first M3 render from schema v1 produces exactly one documentId
-- bootstrap re-read/reuse and bootstrap->document lock handoff
-- document-id / format version validation
-- QMD body hash match/mismatch
-- title marker move/delete/duplicate/loss ambiguity
-- new slide before/after title slide
-- all previously managed normal slides deleted but presentation marker remains
-- front matter byte preservation
-- title/paragraph/bullet/numbered list import
-- slide reorder/delete/new ID writeback
-- image move/resize
-- crop schema v1 compatibility + v2 migration + valid/negative/invalid crop + re-render roundtrip
-- same-shape image replacement identity
-- new image extraction/ID/writeback
-- image deletion
-- shared-source replacement safety
-- template/master/layout fixtures
-- unsupported slide-local content FAIL
-- handled commit failure rollback after each step
-- simulated crash + next-command recovery
-- recovery unknown-hash safety stop
-- M1/M2/render/docx regression
-- smoke / CI / diff-check
+### T-411: Final documentation / independent review
 
-**状態:** 完了 (2026-10-23)
-
-### T-310: Final documentation / independent review
-
-- README / PROJECT_CONTEXT / ROADMAP更新
+- PROJECT_CONTEXT / ROADMAP更新
 - Test Agent
 - Review Agent
 - Architecture Agent
-- M4/M5を先取りしていないことを確認
-- FAILがあれば最小修正して再検証
-
-**状態:** 完了 (2026-10-23)
+- M5 Semantic Diff/resolutionを先取りしていないこと
+- FAILなら最小修正して再検証
