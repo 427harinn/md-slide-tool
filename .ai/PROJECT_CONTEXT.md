@@ -276,3 +276,9 @@ Detailed design: `docs/M4_SYNC_ENGINE.md`.
 - After Core owns committing, a supported-app reopen does not merely set pending state: Core must wait before the next destructive mutation until Workspace/Local UI confirms a matching re-freeze ACK. Failed/stale/timed-out ACK causes TransactionSuspended.
 - TransactionSuspended is a dedicated M3 transaction outcome that bypasses FileTransaction.commit()'s generic immediate rollback path; committing/rolling_back journals remain for later recovery under a new pair freeze.
 - Startup ordering is journal-first: detect pending journal -> pair freeze -> recover to stable state -> re-read checkpoint/fingerprints -> only then choose IDLE/render/import/CONFLICT. A checkpoint from an incomplete transaction is never used to choose direction before recovery.
+
+- The re-freeze ACK model is replaced for actual QMD/PPTX mutation: the freeze-owning component performs the file mutation before returning a post-mutation result.
+- QMD automatic create/replace/delete is brokered by the Workspace extension; PPTX mutation is brokered by the Windows Local UI. Core remains M3 journal/transaction authority.
+- A broker critical section includes exact session/op correlation, re-freeze/close, expected-old verification, actual mutation, and resulting-hash verification. This removes the ACK-to-Core-replace race.
+- Startup/direction ordering is journal-first everywhere: pending journal -> pair freeze -> recovery -> checkpoint/fingerprint re-read -> pair evaluation -> choose render/import/conflict.
+- Pre-ownership reopen invalidates with zero writes. Post-ownership reopen uses broker/suspend semantics instead of the old invalidation-stop rule.
