@@ -41,7 +41,7 @@ PPTX -> Microsoft PowerPoint desktop
 
 - QMD -> PPTX: PowerPointがopen-dirtyならCONFLICT。open-cleanなら対象presentationを一時closeしてからpublishし、完了後reopen。
 - PPTX -> QMD: QMDがdirtyならCONFLICT。open-cleanならVS Code側でeditorを一時close/hideしてからpublishし、完了後restore。
-- Coreは document lock -> destination freeze -> final hash check -> M3 transaction + sync checkpoint -> restore -> unlock の順で処理する。
+- automatic pathは journal check -> 必要ならpair freeze+recovery -> checkpoint/fingerprint再読込 -> pair evaluation -> direction選択 -> freeze/prepare -> transaction -> restore の順。
 - arbitrary external processとの同時書き込みをM4の保証範囲にしない。
 - ただしcommit直前のexpected hash確認とM3 recoverable transactionは維持する。
 
@@ -91,9 +91,9 @@ PPTX -> Microsoft PowerPoint desktop
 - PowerPoint dirty/clean/closed判定。
 - QMD dirty/clean判定。
 - QMD -> PPTX時にclean presentationを安全にclose/reopen。
-- Syncing中のPowerPoint reopen/editを検出して安全にinvalidateできる。
+- commit ownership前のPowerPoint reopen/editは安全にinvalidateして0 write、ownership後はLocal UI mutation brokerでfreeze+actual mutationを同一critical sectionにできる。
 - PPTX -> QMD時にclean QMD editorを安全にfreeze/restore。
-- Syncing中のQMD reopen/editを検出してbufferを保持したままinvalidateできる。
+- commit ownership前のQMD reopen/editはbufferを保持してinvalidate、ownership後はWorkspace mutation brokerでfreeze+actual mutationを同一critical sectionにできる。
 - transaction recoveryはpair freeze成立後にのみautomatic pathで実行される。
 - dirty destinationは自動で閉じずCONFLICT。
 - conflictはCancel / Compare。
