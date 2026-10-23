@@ -140,8 +140,9 @@ Steps:
 2. With PowerPoint closed, edit/save managed QMD and confirm automatic render.
 3. Open the PPTX and leave it saved. Edit/save QMD.
 4. Confirm the target presentation briefly closes and reopens with the updated content.
-4a. During a repeat sync before commit ownership starts, manually reopen the same PPTX and confirm the freeze is invalidated and no destructive write occurs.
-4b. During a separately instrumented/slow commit after Core has entered committing, reopen the same PPTX and confirm it is re-closed, the transaction reaches a stable state, and the reopen is handled afterward as pending/conflict rather than forcing an ad-hoc rollback.
+4a. During a repeat sync before commit ownership starts, manually reopen the same PPTX and confirm the invalidation token wins and no destructive write occurs.
+4b. During a separately instrumented/slow commit after Core has entered committing, reopen the same PPTX and confirm it is re-closed and recorded as pending.
+4c. During that slow commit, disconnect/restart the Local UI after the first file mutation and confirm Core suspends before the next mutation, leaves the journal for recovery, and does not immediately rollback.
 5. Make an unsaved PowerPoint edit, then save QMD.
 6. Confirm PowerPoint is not automatically closed and VS Code offers Cancel / Compare.
 7. Choose Cancel and confirm neither side loses work.
@@ -149,7 +150,8 @@ Steps:
 9. Restore a clean PowerPoint state, save it, and keep QMD open-clean.
 10. Confirm the QMD briefly freezes/reloads and reflects the PowerPoint save.
 10a. Before commit ownership starts, reopen/edit the same QMD and confirm the freeze is invalidated with zero destructive writes and the editor buffer is preserved.
-10b. During a separately instrumented/slow committing window, reopen/edit the QMD and confirm the buffer is preserved, the view is re-closed/blocked as designed, the transaction reaches a stable state, and the change is re-evaluated afterward.
+10b. During a separately instrumented/slow committing window, reopen/edit the QMD and confirm the buffer is preserved, the view is re-closed/blocked as designed, and the change is recorded as pending.
+10c. Restart/disconnect the Workspace extension host during the slow commit and confirm Core suspends before the next mutation, leaves the journal, and requires a new pair freeze before recovery.
 11. Make an unsaved QMD edit, then save PowerPoint.
 12. Confirm QMD is not automatically closed and Cancel / Compare is shown.
 13. Compare and confirm current unsaved editor text is included without forcing a QMD save.
@@ -163,7 +165,9 @@ Expected:
 - normal saves synchronize automatically;
 - clean destination is temporarily frozen/closed only during sync;
 - dirty destination is never automatically closed;
-- reopen/edit during Syncing invalidates the freeze and preserves new work;
+- before commit ownership, reopen/edit invalidates the session and causes zero destructive writes;
+- after commit ownership, normal reopen becomes pending, while Workspace/Local UI loss suspends Core before the next mutation;
+- suspended transactions leave the journal for recovery under a new freeze session;
 - automatic recovery never writes before pair freeze;
 - conflicts use Cancel / Compare;
 - comparison snapshots preserve latest unsaved work;
