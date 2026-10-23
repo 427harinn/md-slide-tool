@@ -194,7 +194,7 @@ Run before production sync-engine implementation.
 - race them repeatedly; exactly one rename succeeds and the loser observes missing source;
 - no JSON read-modify-write is used for the frozen/invalidated/committing decision;
 - post-ownership reopen uses create-if-absent `pending-reopen`, which cannot replace the primary state token;
-- Workspace creates `.md-slide-tool/freeze/<document-id>.json` atomically with exact freezeSessionId;
+- Workspace creates the ephemeral freeze session directory and initial `frozen` token for the exact freezeSessionId;
 - Core receives expected session ID and rejects missing/mismatched/invalidated guard;
 - reopen immediately before frozen -> committing CAS -> invalidated, zero destructive writes;
 - Core atomically changes frozen -> committing before first FileTransaction/recovery mutation;
