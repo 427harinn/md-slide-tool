@@ -141,8 +141,9 @@ Steps:
 3. Open the PPTX and leave it saved. Edit/save QMD.
 4. Confirm the target presentation briefly closes and reopens with the updated content.
 4a. During a repeat sync before commit ownership starts, manually reopen the same PPTX and confirm the invalidation token wins and no destructive write occurs.
-4b. During a separately instrumented/slow commit after Core has entered committing, reopen the same PPTX and confirm it is re-closed and recorded as pending.
-4c. During that slow commit, disconnect/restart the Local UI after the first file mutation and confirm Core suspends before the next mutation, leaves the journal for recovery, and does not immediately rollback.
+4b. During a separately instrumented/slow commit after Core has entered committing, reopen the same PPTX and confirm Core pauses before its next write until PowerPoint is re-closed and the matching re-freeze ACK is received.
+4c. Repeat but prevent/interrupt re-close and confirm Core suspends before the next write and leaves the journal for later recovery.
+
 5. Make an unsaved PowerPoint edit, then save QMD.
 6. Confirm PowerPoint is not automatically closed and VS Code offers Cancel / Compare.
 7. Choose Cancel and confirm neither side loses work.
@@ -150,15 +151,17 @@ Steps:
 9. Restore a clean PowerPoint state, save it, and keep QMD open-clean.
 10. Confirm the QMD briefly freezes/reloads and reflects the PowerPoint save.
 10a. Before commit ownership starts, reopen/edit the same QMD and confirm the freeze is invalidated with zero destructive writes and the editor buffer is preserved.
-10b. During a separately instrumented/slow committing window, reopen/edit the QMD and confirm the buffer is preserved, the view is re-closed/blocked as designed, and the change is recorded as pending.
-10c. Restart/disconnect the Workspace extension host during the slow commit and confirm Core suspends before the next mutation, leaves the journal, and requires a new pair freeze before recovery.
+10b. During a separately instrumented/slow committing window, reopen/edit the QMD and confirm Core pauses before its next write until QMD is frozen again and the matching re-freeze ACK is received.
+10c. Prevent/interrupt re-freeze and confirm TransactionSuspended occurs before the next mutation with the buffer preserved.
+
 11. Make an unsaved QMD edit, then save PowerPoint.
 12. Confirm QMD is not automatically closed and Cancel / Compare is shown.
 13. Compare and confirm current unsaved editor text is included without forcing a QMD save.
 14. Exercise pause/resume and several rapid saves.
 15. Using a prepared pending M3 transaction/recovery fixture, confirm automatic sync freezes the paired QMD/PowerPoint views before recovery writes occur.
 15a. Invalidate before recovery claims commit ownership and confirm recovery performs zero destructive writes.
-15b. Crash after the first recovery mutation; confirm the next recovery requires a new pair freeze/session and checkpoint state follows the transaction outcome.
+15b. Crash/suspend after the first recovery mutation; confirm the next recovery requires a new pair freeze/session and checkpoint state follows the transaction outcome.
+15c. Use a fixture where checkpoint bytes were already replaced but the journal is still committing. Confirm startup performs freeze + journal recovery before using checkpoint to choose a sync direction.
 16. Confirm status UI is understandable and no reconnect/OOM regression occurs.
 
 Expected:
