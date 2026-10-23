@@ -108,38 +108,29 @@ production implementation前の必須gate。
 - no render/import loop
 
 ### T-406: QMD -> PPTX automatic sync
+- event後まずpending journal有無を確認
+- journalがあればpair freeze -> recovery -> checkpoint/fingerprint再読込
+- recovery完了前にsync direction/conflictを決めない
+- pair-level evaluationでQMD -> PPTXが選ばれた場合のみ通常freeze/renderへ進む
 - Workspace orchestratorがCore起動前にpaired QMD + PowerPointをfreeze
-- freeze中reopen/edit -> FREEZE_INVALIDATED、commit中止/再評価
-- pending recoveryもfreeze後に実行
-
-- QMD save
-- pair-level evaluation
-- PowerPoint dirty check
-- dirty -> CONFLICT
-- clean open -> close target presentation
-- closed ->そのまま
-- candidate render
-- final on-disk hash validation
-- M3 transactionでPPTX/assets/checkpoint commit
-- M4が閉じたpresentationのみreopen
+- commit ownership前のreopen/edit -> invalidated、destructive write 0件
+- commit ownership後のPPTX operationはLocal UI mutation brokerへ委譲
+- brokerはPowerPoint freezeを確認/再確立し、expected old hash確認 + actual replace/deleteを同一critical section内で完了してからresult返却
+- ACK後にCoreが後からreplaceする方式は禁止
+- assets/checkpoint等non-interactive targetsはCore transaction operationで可
 - pending再評価
 
 ### T-407: PPTX -> QMD automatic sync
-- Workspace orchestratorがCore起動前にpaired QMD + PowerPointをfreeze
-- M3 PPTX metadata writebackも同一pair freeze内で実行
-- freeze中reopen/edit -> FREEZE_INVALIDATED、commit中止/再評価
-- pending recoveryもfreeze後に実行
-
-- PPTX save/package stable
-- pair-level evaluation
-- QMD dirty check
-- dirty -> CONFLICT
-- clean open -> QMD freeze
-- candidate import
-- final on-disk hash validation
-- M3 transactionでQMD/assets/images/PPTX metadata/checkpoint commit
-- QMD restore/reopen
-- M3 PPTX writebackがある場合はclean PowerPoint close/reopenを含める
+- event後まずpending journal有無を確認
+- journalがあればpair freeze -> recovery -> checkpoint/fingerprint再読込
+- recovery完了前にsync direction/conflictを決めない
+- pair-level evaluationでPPTX -> QMDが選ばれた場合のみ通常freeze/importへ進む
+- Workspace orchestratorがpaired QMD + PowerPointをfreeze
+- commit ownership前のreopen/edit -> invalidated、destructive write 0件
+- QMD operationはWorkspace mutation brokerへ委譲し、freeze確認 + expected old hash + actual mutationを同一critical sectionで完了
+- PPTX metadata writebackはLocal UI mutation brokerへ委譲
+- assets/images/checkpoint等non-interactive targetsはCore transaction operationで可
+- broker NOT_MUTATED/UNKNOWN/control loss -> TransactionSuspended / recovery
 - pending再評価
 
 ### T-408: Conflict / Compare
@@ -183,7 +174,9 @@ production implementation前の必須gate。
 - M3 PPTX metadata writeback path while PowerPoint was open
 - QMD/PPTX reopen before claim -> invalidated rename wins or Core committing rename wins; both never win
 - claim/invalidation race repeated stress test
-- reopen after claim with healthy control -> pending-reopen + immediate re-close
+- reopen after claim -> pending-reopen。次のQMD/PPTX operationはowner mutation brokerがfreeze+actual mutationを同一critical sectionで実行
+- reopen injected after broker freeze validation but before actual replace -> broker must block/re-close or return NOT_MUTATED; no overwrite
+- no pre-mutation ACK followed by later Core replace
 - Workspace/Local UI disconnect after claim -> TransactionSuspended before next file mutation, journal remains committing
 - TransactionSuspendedはFileTransaction.commit()のgeneric BaseException -> immediate rollback経路を明示的に迂回
 - rollback recovery中のsuspendはjournal phase=rolling_backを保持
@@ -192,7 +185,9 @@ production implementation前の必須gate。
 - final replace後/committed marker前のsuspendもjournal未完了としてrecovery
 - startupはjournal有無をcheckpointより先に確認し、pending journalがあればfreeze+recovery完了後にcheckpointを再読込してsync direction決定
 - pending M3 recovery starts only after pair freeze
-- reopen/invalidate during recovery -> safe stop/re-evaluation
+- recovery前にcheckpoint/sync directionを評価しない
+- recovery operationもQMD/PPTX targetは同じmutation broker semanticsを使用
+- ownership前reopen -> invalidation/zero write; ownership後reopen -> broker fence or suspend
 - pause/resume
 - M1/M2/M3/docx regression
 - Windows real E2E after agent gates
