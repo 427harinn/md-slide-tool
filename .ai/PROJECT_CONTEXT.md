@@ -264,3 +264,8 @@ Detailed design: `docs/M4_SYNC_ENGINE.md`.
 - Durable sync checkpoint includes full-QMD hash (front matter included) and must share the recoverable transaction boundary with synchronized outputs.
 - Cross-host Workspace/Core -> Windows Local UI requests for PowerPoint state/snapshot require correlated responses and fail-closed timeout/disconnect behavior.
 - Manual M3 operations and automatic M4 sync share the document lock; automatic DOCUMENT_BUSY becomes bounded pending re-evaluation.
+- M4 commit barrier spans the interval from final validation through recoverable canonical publication. A final token check followed by ordinary replacement is explicitly unsafe.
+- PowerPoint-open QMD->PPTX publication requires a validated-token-bound exclusive host publish lease or equivalent atomic host-side primitive; otherwise that automatic path must be disabled/re-scoped.
+- PPTX->QMD publication requires a VS Code editor publish lease or version-conditional primitive tied to the exact TextDocument version through replacement.
+- COMMITTING change events are coalesced as PENDING and re-evaluated after barrier release.
+- Automatic DOCUMENT_BUSY uses bounded timed re-check even when manual work produces no watched-file event.
