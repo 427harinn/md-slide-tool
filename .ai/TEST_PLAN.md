@@ -155,11 +155,13 @@ Any unavailable verification must be reported as UNVERIFIED or HUMAN_REQUIRED, n
 
 ## M4 Test Plan
 
-### T-401 destination-freeze feasibility
+### T-401 pair-freeze feasibility
 
 Run before production sync-engine implementation.
 
 #### PowerPoint
+- freezeSessionId開始後、paired PPTXをPowerPointで再open -> session invalidated;
+- freeze中reopen後に編集 -> user presentation preserved, no further destructive automatic write;
 
 1. Closed target -> report closed.
 2. Exact paired target open and saved -> report open-saved.
@@ -173,6 +175,10 @@ Run before production sync-engine implementation.
 10. For PPTX -> QMD, verify the M3 PPTX metadata writeback path: either close/reopen the clean presentation around commit, or prove a separately reviewed no-writeback implementation.
 
 #### VS Code QMD
+- Workspace extension owns automatic sync orchestration;
+- paired QMD/PPTX freeze completes before Core process starts;
+- freeze中QMD reopen/edit -> session invalidated;
+- dirty reopened buffer preserved for later conflict handling;
 
 11. Exact paired QMD dirty/clean state is reported.
 12. Dirty QMD is never automatically closed.
@@ -180,7 +186,14 @@ Run before production sync-engine implementation.
 14. After commit, QMD can be restored/reopened without content loss or false dirty state.
 15. If the user reopens/edits during Syncing, current buffer is preserved and later pair-level evaluation can surface conflict rather than silently discard it.
 
+#### Recovery / ordering
+- pending M3 transaction fixture + automatic sync -> pair freeze happens before recover_transactions();
+- recovery destructive step checks valid freezeSessionId;
+- QMD reopen during recovery -> invalidate, stop later destructive writes, safe re-evaluate;
+- PowerPoint reopen during recovery -> invalidate, stop later destructive writes, safe re-evaluate;
+
 #### Cross-host
+- freeze/restore request and reopen invalidation event share freezeSessionId;
 
 16. Workspace -> Local UI state request works with typed correlated response.
 17. Workspace -> Local UI close/reopen request targets the exact presentation.
@@ -225,6 +238,8 @@ If the destination-freeze operations cannot be made reliable with supported APIs
 - full-QMD hash detects front-matter-only changes;
 - checkpoint commits in the same transaction as synchronized outputs;
 - crash after partial commit follows M3 recovery;
+- automatic recovery is entered only after pair freeze is established;
+- freeze invalidation during recovery stops additional destructive writes;
 - committed transaction recovery completes matching checkpoint;
 - rolled-back transaction retains old checkpoint;
 - unknown hash state stops instead of guessing;
