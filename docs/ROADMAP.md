@@ -191,55 +191,55 @@ slidegen import presentation.pptx
 詳細: `docs/M4_SYNC_ENGINE.md`
 
 目的:
-QMD/PPTX保存をトリガーに、通常時は手動Build/importなしでほぼリアルタイムに往復できるようにする。
+QMD/PPTXの保存をトリガーに、通常時は手動Build/importなしでほぼリアルタイムに往復できるようにする。
 
 ```text
 QMD save  -> automatic render -> PPTX
 PPTX save -> automatic import -> QMD/assets
 ```
 
-主要方針:
+M4は**destination freeze方式**を採用する。
 
-- Docker / Dev Containerがwatch / debounce / running / pending / self-write suppression / conflict detectionを担当
-- VS Codeはeditor dirty-state、status UI、Cancel/Compare promptを担当
-- Windows Local UIはPowerPoint open/saved/dirty状態とnon-destructive comparison snapshotだけを担当
-- active operation中の複数saveは1つのpending intentへcoalesce
-- render/import自身の書き込みはhash/fingerprintでdeterministicに抑制し、time-only ignoreに依存しない
-- QMD/PPTXの両側に未保存または独立変更があれば自動同期を止める
-- conflict時は **Cancel / Compare**。自動で勝者を決めない
-- unsaved PowerPointの比較はSaveCopyAs相当で一時PPTXを作り、originalを強制保存しない
-- unsaved QMDの比較はVS Code editorのin-memory textを使い、real QMDを強制保存しない
-- M4はcomparison snapshot/entrypointまで。final diff/resolutionはM5
-- status barでSynced/Building/Importing/Pending/Conflict/Error/Paused等を表示
-- workspace activationでauto start、pause/resume可能
-- incremental/selective buildは初期M4の必須要件にしない
+正式サポートする編集環境:
+- QMD: VS Code
+- PPTX: Microsoft PowerPoint desktop
+
+QMD -> PPTX:
+- PowerPoint open-dirtyならCONFLICT
+- open-cleanなら対象presentationを短時間close
+- render/transaction後に同じpresentationをreopen
+- PowerPoint application自体は終了しない
+
+PPTX -> QMD:
+- QMD dirtyならCONFLICT
+- open-cleanならQMD editorを短時間freeze/close
+- import/transaction後にrestore/reopen
+- M3 importがPPTX metadataを書き戻す場合は、clean PowerPointを同様にclose/reopenするか、no-writeback設計を別途検証する
+
+共通:
+- Docker/Coreがwatch / debounce / pending / self-write suppression / checkpoint / M3 transactionを担当
+- duplicate saveはcoalesce
+- same-window QMD/PPTX eventはpair-level再評価
+- dirty destinationは自動で閉じない
+- conflict時は **Cancel / Compare**
+- Compareはunsaved PowerPointをSaveCopyAs、unsaved QMDをVS Code in-memory textからsnapshot
+- checkpointはfront matter込みQMD hash + PPTX fingerprint等の最小metadataのみ
+- checkpointは同期outputsと同じrecoverable transaction boundaryでcommit
+- DOCUMENT_BUSYはbounded pending re-evaluation
+- status bar / pause-resume
+- incremental buildは初期M4の必須要件にしない
+
+M4は、同期中に任意の外部プログラムがmanaged QMD/PPTXを同時変更することまで完全排他するWindows-wide filesystem leaseを保証しない。正式なVS Code/PowerPoint経路をfreezeすることで通常利用を安全にし、commit直前のhash確認とM3 recoveryは維持する。
 
 実装前必須gate:
-Windows PowerPointでclosed/open-saved/open-dirty判定、複数presentationの正確なtargeting、SaveCopyAsによる最新unsaved snapshot、original dirty-state保持を検証する。成立しなければPowerPoint Add-in等を勝手に追加せず、設計を再検討する。
-
-
-M4 safety additions:
-- admission-time dirty checks are repeated immediately before canonical commit;
-- same-window QMD/PPTX events are evaluated together;
-- full-QMD fingerprint (front matter included) participates in durable sync checkpointing;
-- sync checkpoint and synchronized outputs share one recoverable commit boundary;
-- Workspace/Core -> Windows Local UI dirty-state/snapshot RPC is a mandatory feasibility item;
-- automatic sync treats manual-operation DOCUMENT_BUSY as bounded pending re-evaluation.
-
-Additional M4 publication safety:
-- final dirty/token validationだけでなく、publication commit barrierを取得してcanonical file + sync checkpointのcommit完了まで保持する
-- PowerPoint open中のQMD -> PPTXはexclusive host publish leaseが実証できた場合のみ自動publicationする
-- PPTX -> QMDはVS Code editor versionに結びつくconditional publication/leaseを必須とする
-- COMMITTING中のsave/changeはPENDINGで保持し、barrier release後に再評価
-- DOCUMENT_BUSYはfilesystem event待ちだけにせずbounded timer/backoffでもlock解放を確認
-
-Additional M4 publication guarantees:
-- Core -> WorkspaceのQMD lease RPC（acquire/renew/release）を明示し、recoverable commit完了まで保持
-- 全canonical replace/delete targetでWindows host-visible exclusive filesystem leaseを取得
-- lease下でmanifestのexpected old hash / expected absenceを再確認してからpublish
-- FileTransactionのunconditional replaceは禁止
-- closed PPTXや別Windows processからの変更もfilesystem publication barrierで保護
-- reliableなhost-visible leaseが成立しないtargetはautomatic destructive publicationをre-scope
+- PowerPoint closed/open-saved/open-dirty判定
+- clean presentation close/reopen
+- QMD clean editor freeze/restore
+- SaveCopyAs
+- multiple presentation targeting
+- M3 PPTX metadata writeback path
+- cross-host state/close/reopen requests
+をWindows実機で確認する。
 
 ## M5: Conflict Handling / Semantic Diff
 
