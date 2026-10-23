@@ -153,11 +153,11 @@ M3 acceptance criteria are verified against the retained implementation and regr
 - **AC-M3-06:** Existing image elements preserve `element-id`; move/resize changes update exact EMU geometry in assets; malformed or duplicate element IDs cause FAIL.
   - Verification: AUTOMATED
   - Status: PASS
-  - Evidence: `tests/test_m3_import.py` geometry and element-ID validation fixtures.
+  - Evidence: `tests/test_m3_import.py` geometry and element-ID validation fixtures. H-M3-01 additionally confirmed PowerPoint desktop move/resize changes import into QMD/assets and survive re-render.
 - **AC-M3-07:** Assets schema v2 represents image crop with integer OOXML percentage values, reads schema v1 as no-crop, migrates safely to v2, rejects invalid crop, and re-applies crop on the next render without destructively modifying source images.
-  - Verification: AUTOMATED + representative PowerPoint-compatible roundtrip; HUMAN_REQUIRED only if desktop PowerPoint behavior cannot be proven by agent-executable fixtures.
+  - Verification: AUTOMATED + representative PowerPoint-compatible roundtrip + HUMAN_REQUIRED desktop PowerPoint save/reopen roundtrip (completed by H-M3-01).
   - Status: PASS
-  - Evidence: `tests/test_m3_core.py`, `tests/test_m3_import.py`, and `tests/m3-pptx-qmd-roundtrip.sh` cover v1/v2, crop validation and reapplication.
+  - Evidence: `tests/test_m3_core.py`, `tests/test_m3_import.py`, and `tests/m3-pptx-qmd-roundtrip.sh` cover v1/v2, crop validation and reapplication. H-M3-01 confirms desktop crop import and visual preservation after re-render.
 - **AC-M3-08:** Replacing image contents while preserving the identified picture shape keeps the same `element-id`; a newly inserted picture shape receives a new ID rather than being guessed as a replacement.
   - Verification: AUTOMATED
   - Status: PASS
@@ -173,7 +173,7 @@ M3 acceptance criteria are verified against the retained implementation and regr
 - **AC-M3-11:** Template/user content classification is structural and fixture-backed: inherited master/layout content is ignored, supported placeholders/pictures and md-slide-tool caption companion textboxes are recognized deterministically, caption text roundtrips to the image caption, and unknown slide-local content that could be lost causes pre-commit FAIL.
   - Verification: AUTOMATED + Review/Architecture
   - Status: PASS
-  - Evidence: `tests/test_m3_feasibility_fixture.py`, `tests/test_m3_import.py`, and independent Review/Architecture gates.
+  - Evidence: `tests/test_m3_feasibility_fixture.py`, `tests/test_m3_import.py`, and independent Review/Architecture gates. H-M3-01 confirms a desktop-edited caption imports into QMD/assets and survives re-render.
 - **AC-M3-12:** Import provides recoverable multi-file transactional consistency across QMD, assets, extracted images, and PPTX metadata writeback. Before a document-id exists, concurrent first M3 renders/imports serialize on a deterministic bootstrap lock derived from the canonical paired-QMD path. The process that performs or observes migration must acquire the corresponding document-id lock while still holding bootstrap, then release bootstrap; no unlocked handoff gap is permitted. Transaction state distinguishes prepared/committing/committed/rolling_back/rolled_back; create/replace/delete rollback is defined; handled commit failures roll back; simulated abrupt termination is recovered phase-specifically on the next render/import via journal and hash-checked backups.
   - Verification: AUTOMATED failure injection + crash-recovery simulation
   - Status: PASS
@@ -191,9 +191,9 @@ M3 acceptance criteria are verified against the retained implementation and regr
   - Status: PASS
   - Evidence: independent Review and Architecture scope checks found no watcher, sync, conflict-merge, arbitrary-shape, publication or Word-import work.
 - **AC-M3-16:** M3-capable render writes a valid presentation-level managed marker, format version, document-id, reserved title role/caption companion metadata, and QMD normal-body SHA-256 baseline that survive the supported PPTX save/reopen path; the same document-id is persisted in assets schema v2. The first schema-v1 -> v2 migration generates exactly one document-id even under concurrent render attempts.
-  - Verification: AUTOMATED where possible; HUMAN_REQUIRED only if desktop PowerPoint preservation cannot be proven otherwise
+  - Verification: AUTOMATED + HUMAN_REQUIRED desktop PowerPoint save/close/reopen/import roundtrip (completed by H-M3-01).
   - Status: PASS
-  - Evidence: `tests/test_m3_feasibility_fixture.py`, M3 import/transaction tests and real CLI roundtrip cover properties, IDs, title/caption markers and baseline; no desktop PowerPoint cycle is claimed.
+  - Evidence: `tests/test_m3_feasibility_fixture.py`, M3 import/transaction tests and real CLI roundtrip cover properties, IDs, title/caption markers and baseline. H-M3-01 confirms the desktop-edited presentation remains importable after save/close and that its caption/crop metadata is applied on re-render.
 - **AC-M3-17:** The QMD normal-body hash uses the documented canonical-byte algorithm (UTF-8 BOM handling, front-matter delimiter boundary, CRLF/CR -> LF only, no Unicode/whitespace normalization). If the current canonical body differs from the hash embedded at render time, import fails before staging/commit with an explicit changed-since-render error; M3 provides no force-merge override.
   - Verification: AUTOMATED
   - Status: PASS

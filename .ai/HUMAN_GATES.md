@@ -100,6 +100,21 @@ Note: PowerPoint reported an empty `slide.name` for slide 1; the user confirmed 
 
 ## M3 status
 
-No manual action is required to approve the M3 design.
+The M3 desktop PowerPoint roundtrip gate is complete. No other manual M3 gate is currently open.
 
-During implementation, prefer automated PPTX/Open XML/python-pptx fixtures. If actual Microsoft PowerPoint behavior is required to prove crop preservation or picture-replacement identity, create only the minimum necessary M3 HUMAN_REQUIRED gate after all automated/Test/Review/Architecture gates pass.
+```text
+PASS
+
+H-M3-01: Verify M3 import and crop/layout preservation in desktop PowerPoint
+Steps performed by the user:
+1. Remove the explicit `memory=1GB` limit from `%USERPROFILE%\.wslconfig`, preserving other settings, then restart WSL and Docker Desktop.
+2. In Windows + Docker Desktop + VS Code Dev Container, run Build and Open PowerPoint with PowerPoint closed, with PowerPoint already running, and repeatedly.
+3. Render a QMD and edit its title, body text, image position, image size, crop, and caption in desktop PowerPoint.
+4. Save and close PowerPoint, run `slidegen import`, confirm QMD and `assets.json` reflect the edits, then render again and inspect the result in PowerPoint.
+Expected:
+- Builds succeed without Dev Container disconnect or OOM.
+- Desktop-edited text, caption, image geometry, and crop import into QMD/assets and survive re-render.
+- The regenerated presentation retains content and visual appearance, including crop.
+
+Result: PASS — User confirmed the memory limit removal and WSL/Docker restart stabilized the environment; `OOMKilled=false`, no `Cannot reconnect` recurrence, closed/running/repeated Build and Open PowerPoint runs succeeded, and the complete PowerPoint edit/save/import/QMD-assets/re-render cycle retained content and visual appearance including crop. This evidence supports AC-M3-06, AC-M3-07, AC-M3-11, and AC-M3-16 in `.ai/ACCEPTANCE_CRITERIA.md`.
+```
