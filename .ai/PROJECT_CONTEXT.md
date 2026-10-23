@@ -234,50 +234,29 @@ Dev Containersでは `${localWorkspaceFolder}` を `remoteEnv` 等でcontainer�
 - In the rendered body, ordinary paragraph uses explicit `a:buNone`, bullets inherit the body-placeholder list style, and numbered paragraphs carry `a:buAutoNum`.
 - `tests/test_m3_feasibility_fixture.py` verifies custom properties in `docProps/custom.xml`, title/caption markers, stable IDs, picture bytes/format, and raw positive/negative crop values across python-pptx save/reopen. Microsoft PowerPoint desktop preservation of these newly introduced M3 fields is not claimed by this fixture.
 
-## M4 design direction
+## M4 v2 design direction
 
 Detailed design: `docs/M4_SYNC_ENGINE.md`.
 
-- Normal workflow is save-driven:
-  - QMD save -> automatic render -> PPTX.
-  - PPTX save -> automatic import -> QMD/assets.
-- M4 uses a **destination freeze** model instead of layered PowerPoint/QMD/filesystem publication leases.
-- The VS Code Workspace extension (running in the Dev Container extension host) is the automatic M4 orchestrator. It freezes the pair before invoking Core; Core does not initiate editor freeze.
-- Every automatic operation gets a freezeSessionId shared with the Windows Local UI for PowerPoint freeze/restore/invalidation.
-- Freeze coordination is ephemeral inside the Dev Container: `/tmp/md-slide-tool/freeze/<workspace-key>/<document-id>/<freezeSessionId>/`.
-- The primary state is one token filename. Workspace invalidation and Core commit claim race by atomic same-directory rename of the same `frozen` token to `invalidated` or `committing`; exactly one wins.
-- Post-ownership reopen uses an append-only `pending-reopen` marker and cannot overwrite the committing state.
-- Workspace spawns Core with a dedicated freezeSessionId-bound control channel. Core checks it before every destructive mutation.
-- Workspace/Local UI control loss after commit ownership causes TransactionSuspended before the next mutation; the journal remains in committing and immediate rollback is skipped.
-- A stale runtime session never authorizes recovery; next recovery requires a new pair freeze/session.
-- Pair freeze is established before Core startup because Core may run M3 transaction recovery before render/import.
-- Reopening/editing before commit ownership invalidates the freeze and yields zero destructive writes. After commit ownership, QMD/PPTX mutation is handled by the owning mutation broker; broker failure/unknown outcome suspends the transaction for later recovery.
-- Supported interactive editors are VS Code for QMD and Microsoft PowerPoint desktop for PPTX.
-- QMD -> PPTX:
-  - PowerPoint open-dirty -> CONFLICT.
-  - open-clean -> temporarily close the paired presentation, commit, reopen.
-  - closed -> commit directly.
-- PPTX -> QMD:
-  - QMD dirty -> CONFLICT.
-  - open-clean -> temporarily close/hide/freeze the QMD editor, commit, restore.
-- If M3 import still writes PPTX metadata, a clean open PowerPoint presentation must also be closed/reopened around that commit, unless a separately tested no-writeback design replaces it.
-- Automatic M4 startup is journal-first: identify pair -> detect journal -> if present pair freeze + recovery -> re-read checkpoint/fingerprints -> pair evaluation -> choose direction -> freeze/prepare/transaction -> restore -> pending re-evaluation.
-- Arbitrary external programs writing managed files during the short freeze/commit interval are outside M4's formal guarantee. M4 still performs final hash validation and uses M3 transaction/recovery.
-- QMD/PPTX events in the same debounce window are evaluated together.
-- Repeated saves while busy coalesce into one PENDING re-evaluation.
-- Durable checkpoint includes full-QMD hash including front matter and PPTX fingerprint, but not duplicated canonical text.
-- Conflict UX remains **Cancel / Compare**.
-- Compare uses SaveCopyAs for unsaved PowerPoint and VS Code in-memory text for unsaved QMD.
-- M4 prepares conflict snapshots; M5 owns Semantic Diff and winner selection.
-- Internal stable IDs/hashes remain implementation details and are hidden from normal diff UX.
-- Incremental/selective rendering is deferred until save-driven synchronization is stable.
-- T-401 must prove PowerPoint close/reopen, QMD freeze/restore, M3 PPTX writeback behavior, and cross-host requests before production implementation.
+T-401 showed the M4 v1 destination-freeze / cross-host mutation-broker design is not viable as specified.
 
-- TransactionSuspended is a dedicated M3 transaction outcome that bypasses FileTransaction.commit()'s generic immediate rollback path; committing/rolling_back journals remain for later recovery under a new pair freeze.
-- Startup ordering is journal-first: detect pending journal -> pair freeze -> recover to stable state -> re-read checkpoint/fingerprints -> only then choose IDLE/render/import/CONFLICT. A checkpoint from an incomplete transaction is never used to choose direction before recovery.
+Current direction:
 
-- For actual QMD/PPTX mutation, the freeze-owning component performs the file mutation before returning a post-mutation result; Core never receives a pre-write permission and then replaces the file later.
-- QMD automatic create/replace/delete is brokered by the Workspace extension; PPTX mutation is brokered by the Windows Local UI. Core remains M3 journal/transaction authority.
-- A broker critical section includes exact session/op correlation, re-freeze/close, expected-old verification, actual mutation, and resulting-hash verification. This removes the ACK-to-Core-replace race.
-- Startup/direction ordering is journal-first everywhere: pending journal -> pair freeze -> recovery -> checkpoint/fingerprint re-read -> pair evaluation -> choose render/import/conflict.
-- Pre-ownership reopen invalidates with zero writes. Post-ownership reopen uses broker/suspend semantics instead of the old invalidation-stop rule.
+- Do not externally replace a canonical file while its supported editor owns it.
+- QMD editing mode:
+  - QMD save generates a versioned preview PPTX under `.md-slide-tool/previews/<document-id>/`.
+  - Preview is opened in PowerPoint for visual confirmation.
+  - Canonical managed PPTX is not replaced merely to refresh preview.
+  - Preview files are non-canonical, disposable, and never automatic import sources.
+- PowerPoint editing mode:
+  - the canonical managed PPTX remains the editable/import source.
+  - canonical PPTX save creates an import candidate.
+  - QMD closed -> existing M3 transaction path.
+  - QMD open-clean -> probe editor-mediated apply through VS Code API.
+  - QMD open-dirty -> CONFLICT.
+  - if editor-mediated apply cannot be made coherently recoverable, open QMD falls back to Pending until closed.
+- Preview render does not advance canonical sync checkpoint.
+- Canonical checkpoint tracks saved QMD + canonical PPTX only.
+- Local UI opens/closes preview and opens canonical editable PowerPoint; it is no longer a canonical mutation broker.
+- v1 freezeSessionId, pair-wide freeze, mutation broker, UNKNOWN fencing, TransactionSuspended coordination are superseded production requirements.
+- Before production implementation, run T-402A versioned-preview feasibility and T-402B editor-mediated-QMD feasibility.
