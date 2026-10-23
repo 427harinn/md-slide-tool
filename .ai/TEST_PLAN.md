@@ -155,137 +155,133 @@ Any unavailable verification must be reported as UNVERIFIED or HUMAN_REQUIRED, n
 
 ## M4 Test Plan
 
-### T-401 feasibility tests
+### T-401 destination-freeze feasibility
 
-Run before production sync-engine implementation:
+Run before production sync-engine implementation.
 
-1. PowerPoint closed -> host adapter reports closed.
-2. Target presentation open and saved -> open-saved.
-3. Modify target without save -> open-dirty.
-4. Querying dirty state must not modify presentation or clear dirty state.
-5. SaveCopyAs/equivalent creates a readable copy containing current unsaved edits.
-6. Original remains dirty after comparison copy.
-7. Original saved path/content is unchanged by comparison copy.
-8. Two or more presentations open -> target resolved by canonical paired path/identity, not title alone.
-9. Target closed between query and snapshot -> safe failure/re-evaluation.
-10. PowerPoint/COM unavailable -> explicit safe error.
-11. No timestamp/file-lock heuristic is accepted as the sole dirty-state source.
-12. Workspace/Core -> Local UI dirty-state request succeeds with a typed correlated response.
-13. Comparison-snapshot request succeeds and returns the correct target result.
-14. Two concurrent document requests cannot cross responses.
-15. Timeout, Remote disconnect, Local UI restart, PowerPoint exit mid-request, malformed response, and stale response all fail closed.
-16. Admission query followed by a PowerPoint edit produces a different pre-commit token/revalidation result.
-17. PowerPoint publish-lease acquisition is tied to the validated token and fails if the target changes before acquisition.
-18. While the PowerPoint barrier is held, an edit/save cannot be silently overwritten; timeout/disconnect/host exit fails closed.
-19. QMD publish guard is tied to the exact TextDocument version/in-memory fingerprint through publication.
-20. Core -> Workspace QMD lease acquire/renew/release works end-to-end with correlated request IDs.
-21. QMD lease survives the full transaction interval; lease expiry/renew failure/Remote disconnect/Workspace restart/Core disconnect fails closed.
-22. Two documents cannot cross lease IDs or responses.
-23. Edit/save attempt during QMD lease is prevented/serialized or forces conditional publication failure before overwrite.
-24. Existing closed PPTX/QMD/assets targets can be protected by an exclusive filesystem lease that competing Windows processes cannot bypass during expected-old-hash verification + replace.
-25. Create target expected absence is checked under the same guard.
-26. Linux-only bind-mount advisory locking is not accepted unless real Windows writer exclusion is demonstrated.
-27. If no supported PowerPoint/QMD/filesystem barrier can prove these guarantees, feasibility FAILS and production implementation stops.
+#### PowerPoint
 
-### Watch/debounce
+1. Closed target -> report closed.
+2. Exact paired target open and saved -> report open-saved.
+3. Modify without save -> report open-dirty.
+4. Open-saved target can be closed without save prompt or data loss.
+5. Open-dirty target is never automatically closed.
+6. After canonical PPTX update, reopen the exact same path and show the updated presentation.
+7. Multiple presentations open -> only the paired target is closed/reopened.
+8. SaveCopyAs/equivalent contains current unsaved edits while original stays dirty.
+9. PowerPoint close/reopen/exit failure returns a typed failure and does not become "safe".
+10. For PPTX -> QMD, verify the M3 PPTX metadata writeback path: either close/reopen the clean presentation around commit, or prove a separately reviewed no-writeback implementation.
 
-- one QMD logical save producing multiple change events -> one render;
-- one PowerPoint logical save/atomic rename sequence -> one import;
-- unrelated files do not trigger;
-- assets/imported-image writes from managed operations do not independently trigger;
-- deletion/recreation/transient unreadable package is debounced/retried only within bounded handling.
+#### VS Code QMD
 
-### State machine / pending
+11. Exact paired QMD dirty/clean state is reported.
+12. Dirty QMD is never automatically closed.
+13. Open-clean QMD can be closed/hidden for the publication window.
+14. After commit, QMD can be restored/reopened without content loss or false dirty state.
+15. If the user reopens/edits during Syncing, current buffer is preserved and later pair-level evaluation can surface conflict rather than silently discard it.
 
-- IDLE -> QMD debounce -> RENDERING -> IDLE;
-- IDLE -> PPTX debounce -> IMPORTING -> IDLE;
-- repeated QMD saves during render -> one pending re-evaluation;
-- PPTX save during render -> latest state re-evaluated, not blindly queued;
-- repeated events do not grow an unbounded queue;
-- per-document serialization and M3 document lock agree;
-- manual render/import holds the M3 lock -> automatic sync gets DOCUMENT_BUSY, records one pending re-evaluation, no spin retry;
-- admission check passes, then QMD editor changes before commit -> candidate not published;
-- admission check passes, then PowerPoint changes before commit -> candidate not published;
-- final token check passes, then QMD changes before first replace -> commit barrier/conditional publication blocks or aborts publication;
-- final token check passes, then PowerPoint changes before first replace -> PowerPoint barrier acquisition/validation blocks publication;
-- change/save event during COMMITTING -> one PENDING intent survives until barrier release, then pair-level re-evaluation;
-- change injected between first and later multi-file replacements -> no silent loss; transaction/barrier recovery preserves user state and checkpoint consistency;
-- manual operation holds lock but writes no watched file -> bounded timer re-check detects release and re-evaluates without requiring filesystem event;
-- closed PPTX changes from another Windows process after final validation but before replace -> expected-old/hash-under-lease mismatch aborts publication;
-- external writer tries to modify a filesystem-leased target during COMMITTING -> no silent overwrite;
-- create target appears between staging and commit -> expected-absence precondition fails;
-- one later target fails CAS after earlier replacements -> transaction rollback/checkpoint recovery remains hash-guarded and never overwrites a later user edit.
+#### Cross-host
 
-### Self-write suppression
+16. Workspace -> Local UI state request works with typed correlated response.
+17. Workspace -> Local UI close/reopen request targets the exact presentation.
+18. SaveCopyAs request returns the correct temporary result.
+19. Timeout, Remote disconnect, Local UI restart, PowerPoint exit, malformed response and stale response fail safely.
+20. No Windows-wide filesystem lease is required for M4 completion.
 
-- render's PPTX write is ignored as self-generated by exact expected result;
-- import's QMD/PPTX metadata writeback is ignored as self-generated;
-- an external edit immediately after generated write is not swallowed;
-- restart with stale in-memory generation token still re-evaluates hashes safely;
-- front-matter-only QMD change is detected after restart via full-file fingerprint;
-- sync checkpoint is committed with canonical outputs in the same recoverable transaction;
-- crash after output replacement but before cleanup recovers matching checkpoint/output state;
-- corrupt/stale checkpoint never authorizes overwrite;
-- no render -> import -> render loop.
+If the destination-freeze operations cannot be made reliable with supported APIs, feasibility FAILS and production implementation stops.
 
-### Conflict detection
+### Watch / debounce / pending
 
-- QMD saved while PowerPoint open-dirty -> CONFLICT, no render;
-- PPTX saved while VS Code QMD dirty -> CONFLICT, no import;
+- one QMD logical save -> one effective render;
+- one PPTX logical save -> one effective import;
+- duplicate events coalesce;
+- same-window QMD + PPTX events -> one pair-level evaluation;
+- repeated events during active sync -> one PENDING intent;
+- no unbounded FIFO queue;
+- assets/imported-image generated events do not become independent user triggers.
+
+### QMD -> PPTX
+
+- PowerPoint closed -> render/commit succeeds;
+- PowerPoint open-saved -> close, render/commit, reopen;
+- PowerPoint open-dirty -> CONFLICT, no automatic close;
+- final saved PPTX hash differs from expected before commit -> abort/re-evaluate;
+- close failure -> no unsafe publication;
+- commit succeeds but reopen fails -> file result remains authoritative and host/UI error is reported;
+- M4-generated PPTX event does not trigger import loop.
+
+### PPTX -> QMD
+
+- QMD closed -> import/commit succeeds;
+- QMD open-clean -> freeze, import/commit, restore;
+- QMD dirty -> CONFLICT, no automatic close;
+- final saved QMD hash differs from expected before commit -> abort/re-evaluate;
+- restore failure -> committed file remains authoritative and UI error is reported;
+- M3 PPTX metadata writeback path is safe when PowerPoint was open;
+- M4-generated QMD/PPTX metadata events do not trigger render/import loop.
+
+### Checkpoint / recovery
+
+- full-QMD hash detects front-matter-only changes;
+- checkpoint commits in the same transaction as synchronized outputs;
+- crash after partial commit follows M3 recovery;
+- committed transaction recovery completes matching checkpoint;
+- rolled-back transaction retains old checkpoint;
+- unknown hash state stops instead of guessing;
+- restart re-evaluates both sides against durable checkpoint.
+
+### DOCUMENT_BUSY
+
+- manual render/import holds document lock -> automatic sync records PENDING;
+- bounded timer/backoff detects lock release even if no watched file changed;
+- no spin retry;
+- after release, both sides are re-evaluated from checkpoint.
+
+### Conflict / Compare
+
 - saved independent changes on both sides -> CONFLICT;
-- only one side changed -> normal automatic sync;
-- Cancel changes no canonical file;
-- conflict remains visible/understandable after Cancel until state changes or user acts.
+- Cancel is non-destructive;
+- unsaved PowerPoint Compare uses latest SaveCopyAs snapshot;
+- unsaved QMD Compare uses current editor buffer;
+- comparison reconstruction never commits canonical files;
+- internal IDs/hashes are not required in normal comparison presentation.
 
-### Compare snapshots
+### Status / controls / diagnostics
 
-- unsaved QMD snapshot contains current editor buffer, not disk text;
-- unsaved PowerPoint comparison copy contains current in-memory edits;
-- comparison copy leaves original dirty state unchanged;
-- non-committing M3 reconstruction never stages/commits canonical files;
-- temp cleanup after success;
-- crash/failure leaves only identifiable safe temp state;
-- internal IDs/hashes are not required in normal comparison UI data.
+- auto-start;
+- pause/resume;
+- Syncing state visible while destination is frozen;
+- Building/Importing/Pending/Conflict/Error transitions;
+- render/import failure distinct from Remote/host/PowerPoint close-reopen failure;
+- no infinite retry.
 
-### Status / controls
+### Unsupported external-writer scope
 
-- auto-start on eligible workspace activation;
-- pause prevents automatic operations;
-- resume re-evaluates rather than blindly replaying old events;
-- status transitions reflect running/pending/conflict/error;
-- per-document state does not leak between two managed presentations.
-
-### Error / diagnostics
-
-- render fail -> ERROR, no infinite retry;
-- import fail -> ERROR, no infinite retry;
-- Remote Extension Host disconnect classified separately;
-- host bridge failure classified separately;
-- PowerPoint unavailable/dirty-state query failure classified separately;
-- next explicit save/retry can recover after transient failure.
+- documentation states arbitrary external concurrent writers during freeze/commit are outside M4 guarantee;
+- unexpected saved-file hash detected before commit causes safe stop;
+- tests do not claim Windows-wide writer exclusion.
 
 ### Regression
 
 - root Python/npm tests;
 - M2 render regression;
 - M3 PPTX -> QMD -> PPTX roundtrip;
-- M3 crash recovery tests;
-- VS Code extension host bridge tests;
-- smoke test;
+- M3 transaction/crash recovery;
+- VS Code extension bridge tests;
+- smoke;
 - DOCX regression;
 - latest PR head CI.
 
 ### HUMAN_REQUIRED
 
-Run only after all feasible automated/Test/Review/Architecture gates pass:
-
-- real Windows + Docker Desktop + VS Code Dev Container;
-- PowerPoint closed: QMD save auto-renders;
-- PowerPoint open-saved: QMD save auto-renders safely;
-- PowerPoint open-dirty: QMD save shows Cancel/Compare and does not overwrite;
-- QMD dirty: PowerPoint save shows Cancel/Compare and does not overwrite;
-- Compare from unsaved PowerPoint uses latest edits while original stays dirty;
-- Compare from unsaved QMD uses editor buffer;
-- repeated saves/builds do not disconnect/OOM;
+After all agent-executable gates pass:
+- Windows + Docker Desktop + VS Code Dev Container;
+- PowerPoint closed QMD save auto-render;
+- PowerPoint open-clean QMD save -> brief close/reopen with updated content;
+- PowerPoint open-dirty QMD save -> Cancel/Compare, no close;
+- QMD open-clean PowerPoint save -> brief freeze/reload with imported content;
+- QMD dirty PowerPoint save -> Cancel/Compare, no close;
+- Compare both unsaved sides correctly;
+- repeated saves/pending;
 - pause/resume;
-- normal PowerPoint save -> automatic QMD update.
+- no reconnect/OOM regression.
