@@ -217,6 +217,15 @@ PPTX save -> automatic import -> QMD/assets
 実装前必須gate:
 Windows PowerPointでclosed/open-saved/open-dirty判定、複数presentationの正確なtargeting、SaveCopyAsによる最新unsaved snapshot、original dirty-state保持を検証する。成立しなければPowerPoint Add-in等を勝手に追加せず、設計を再検討する。
 
+
+M4 safety additions:
+- admission-time dirty checks are repeated immediately before canonical commit;
+- same-window QMD/PPTX events are evaluated together;
+- full-QMD fingerprint (front matter included) participates in durable sync checkpointing;
+- sync checkpoint and synchronized outputs share one recoverable commit boundary;
+- Workspace/Core -> Windows Local UI dirty-state/snapshot RPC is a mandatory feasibility item;
+- automatic sync treats manual-operation DOCUMENT_BUSY as bounded pending re-evaluation.
+
 ## M5: Conflict Handling / Semantic Diff
 
 目的:
