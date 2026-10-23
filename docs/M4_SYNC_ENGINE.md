@@ -86,22 +86,20 @@ Per managed document:
 
 ```text
 IDLE
-  -> DEBOUNCING_QMD
-  -> RENDERING
+  -> DEBOUNCING
+  -> REVALIDATING
+  -> RENDERING or IMPORTING
+  -> PRECOMMIT_REVALIDATING
+  -> COMMITTING
   -> IDLE
 
-IDLE
-  -> DEBOUNCING_PPTX
-  -> IMPORTING
-  -> IDLE
-
-RENDERING / IMPORTING
+RENDERING / IMPORTING / REVALIDATING
   + new relevant save
   -> PENDING
 
 current operation completes
   + PENDING
-  -> re-evaluate latest state once
+  -> re-evaluate both sides once
   -> next operation or CONFLICT
 
 possible destructive overlap
@@ -116,9 +114,33 @@ CONFLICT / ERROR
 
 Queue policy:
 - at most one coalesced pending intent per managed document;
-- do not enqueue every filesystem event;
-- after the active operation finishes, inspect the newest hashes/state and decide what is actually needed;
-- do not cancel an already-running render/import merely because a newer save arrives.
+- pending records that "something changed", not a fixed winner/direction;
+- after the active operation finishes, inspect both newest QMD and PPTX states and decide what is actually needed;
+- do not cancel an already-running render/import merely because a newer save arrives;
+- if QMD and PPTX events both arrive during the same debounce window, do not choose the first event. Enter one combined re-evaluation of both sides and either select the only independently changed side or enter CONFLICT.
+
+### Two-phase safety check
+
+Dirty-state/fingerprint checks are not one-time admission checks.
+
+Every destructive sync operation has two validation points:
+
+1. **admission validation** before render/import starts;
+2. **pre-commit validation** immediately before publishing canonical QMD/PPTX/assets.
+
+The pre-commit validation must prove that the side which would be overwritten has not changed since the admission snapshot.
+
+Use version/fingerprint tokens captured at admission:
+- VS Code document version + current in-memory text fingerprint for QMD;
+- PowerPoint host snapshot token sufficient to detect a new edit/save after the dirty-state query;
+- saved-file hashes/fingerprints for both sides.
+
+If any protected token changed while render/import was running:
+- do not publish over that newer work;
+- discard the candidate output;
+- transition to PENDING or CONFLICT after re-evaluating both latest sides.
+
+M3 document locks protect md-slide-tool processes only and are not treated as locks on PowerPoint or VS Code user editing.
 
 ## 6. Debounce
 
@@ -129,7 +151,8 @@ Requirements:
 - debounce is time-based only for event aggregation, never for correctness;
 - correctness comes from hashes/generation fingerprints and M3 managed metadata;
 - initial implementation should use a conservative configurable value in roughly the 500-1000 ms range and validate it with Windows/PowerPoint fixtures;
-- atomic rename/temp-file save patterns must not be interpreted as multiple logical user edits.
+- atomic rename/temp-file save patterns must not be interpreted as multiple logical user edits;
+- QMD and PPTX events arriving in one debounce window are merged into one pair-level re-evaluation, never resolved by event arrival order.
 
 ## 7. Self-generated write suppression
 
@@ -149,48 +172,85 @@ If the resulting file does not match the expected generated state, treat it as a
 
 ## 8. Last synchronized state
 
-Maintain only the minimal persistent/runtime information needed to determine whether each side changed since the last successful synchronization.
+M4 keeps a minimal per-document sync checkpoint, for example under:
 
-Do not introduce a second canonical text store.
+```text
+.md-slide-tool/sync/<document-id>.json
+```
 
-Permitted examples:
-- QMD canonical-body SHA-256;
-- managed PPTX package/semantic fingerprint;
+The checkpoint is synchronization metadata, not a second canonical content store.
+
+Required fingerprints:
+- full QMD file SHA-256 including BOM/front matter/body bytes;
+- canonical QMD body SHA-256 where useful for M3 compatibility;
+- managed PPTX package fingerprint or a reviewed deterministic semantic/package fingerprint;
 - documentId;
-- last successful direction/generation metadata.
+- generation/checkpoint version.
 
-Do not persist a duplicate title/body JSON representation merely for M4 conflict detection.
+Do not rely on the M3 QMD-body hash alone because it intentionally excludes front matter. A front-matter-only edit must still be visible to M4 conflict detection after restart.
 
-The exact persisted representation must be reviewed before implementation. Prefer reconstructible fingerprints over snapshots.
+Do not persist duplicated title/body text merely for M4 conflict detection.
+
+### Checkpoint commit / crash rule
+
+Advancing the sync checkpoint must be part of the same recoverable commit boundary as the render/import outputs whose synchronized state it describes.
+
+Preferred implementation:
+- extend the existing M3 recoverable transaction to stage the M4 checkpoint alongside QMD/PPTX/assets writes;
+- mark the synchronization successful only after that transaction reaches committed state.
+
+There must not be a normal window where canonical output commit succeeds and the process later writes the new checkpoint as an unrelated best-effort file.
+
+Recovery rules:
+- if a transaction is recovered to its old state, the old checkpoint remains authoritative;
+- if a committed transaction is recovered/completed, its new checkpoint is completed with the same committed state;
+- unknown/corrupt checkpoint or a checkpoint whose recorded fingerprints match neither safely reconstructible state causes re-evaluation/CONFLICT or manual recovery, never silent overwrite;
+- on workspace/process restart, always hash the current full QMD and paired PPTX and compare them to the durable checkpoint before automatic sync.
 
 ## 9. QMD save -> PowerPoint flow
 
 On QMD save:
 
-1. debounce;
-2. obtain the paired managed document state;
-3. ask the VS Code side whether the paired QMD editor has additional unsaved changes beyond the save event;
-4. ask the host adapter whether the paired presentation is open in PowerPoint and, if open, whether PowerPoint currently has unsaved edits;
-5. if PowerPoint has no unsaved edits and there is no independent PPTX-side saved change, run normal M3-capable render;
-6. classify resulting PPTX/assets writes as self-generated;
-7. update the synchronized fingerprint;
-8. return to IDLE.
+1. debounce and combine any QMD/PPTX events for the managed pair;
+2. read the durable sync checkpoint and current saved fingerprints of both sides;
+3. obtain the VS Code QMD document version/dirty state and capture an admission QMD token;
+4. through the host bridge, query the paired PowerPoint presentation state and capture an admission PowerPoint token;
+5. if PowerPoint is open-dirty, or both saved sides independently changed since the checkpoint, enter CONFLICT;
+6. otherwise render to candidate outputs without publishing over the live PPTX yet;
+7. immediately before M3 transaction commit, re-query/revalidate the protected QMD/PowerPoint tokens and saved fingerprints;
+8. if PowerPoint or protected state changed after admission, discard candidate publication and re-evaluate -> PENDING/CONFLICT;
+9. if still safe, commit candidate PPTX/assets plus the new sync checkpoint in one recoverable transaction;
+10. classify generated writes by committed expected fingerprints and return to IDLE.
 
-If PowerPoint has unsaved edits or an independent PPTX change makes overwrite unsafe, enter CONFLICT and do not render over it automatically.
+A dirty-state query followed by a later unconditional overwrite is forbidden.
 
 ## 10. PowerPoint save -> QMD flow
 
 On PPTX save:
 
-1. debounce until the saved package is stable/readable;
-2. inspect VS Code's paired QMD document dirty state;
-3. compare saved-state fingerprints against the last synchronized state;
-4. if QMD has no unsaved/independent changes, run normal M3 import;
-5. classify QMD/assets/PPTX metadata writeback as self-generated;
-6. update synchronized fingerprint;
-7. return to IDLE.
+1. debounce until the saved package is stable/readable and combine any QMD/PPTX events for the pair;
+2. read the durable sync checkpoint and current saved fingerprints of both sides;
+3. obtain the VS Code QMD document version/dirty state and capture an admission QMD token;
+4. capture the current PowerPoint/file state token through the host bridge;
+5. if QMD is dirty, or both saved sides independently changed since the checkpoint, enter CONFLICT;
+6. otherwise reconstruct/import to candidate outputs without publishing over the live QMD yet;
+7. immediately before commit, re-check the VS Code document version/dirty state and relevant PowerPoint/file token;
+8. if QMD or protected state changed after admission, do not publish; re-evaluate -> PENDING/CONFLICT;
+9. if still safe, commit QMD/assets/PPTX metadata writeback plus the new sync checkpoint in one recoverable transaction;
+10. classify generated writes by committed expected fingerprints and return to IDLE.
 
-If QMD contains unsaved editor changes or an independent saved QMD change makes import unsafe, enter CONFLICT and do not overwrite QMD automatically.
+### Manual command interaction / DOCUMENT_BUSY
+
+Manual `slidegen render` / `slidegen import` and automatic sync share the existing M3 document lock.
+
+If the automatic engine receives `DOCUMENT_BUSY`:
+- do not treat it as a destructive failure and do not spin-retry;
+- record one pending re-evaluation;
+- wait for a bounded lock-release/retry signal or the next relevant filesystem event;
+- after the manual operation finishes, recompute both sides from the durable checkpoint;
+- then choose normal sync, CONFLICT, or IDLE from the latest state.
+
+If a manual command encounters the automatic engine holding the lock, existing explicit `DOCUMENT_BUSY` behavior may remain; M4 must not bypass the lock.
 
 ## 11. Conflict UX contract
 
@@ -289,17 +349,29 @@ A remote/Dev Container disconnect must not be misreported as a PowerPoint open f
 - remote connection loss;
 - PowerPoint launch/status failure.
 
-## 17. PowerPoint dirty-state feasibility gate
+## 17. PowerPoint dirty-state and cross-host feasibility gate
 
-Before production implementation proceeds, verify on the real Windows + PowerPoint environment that the host adapter can safely:
-- identify the target open presentation;
+Before production implementation proceeds, verify the real Windows + PowerPoint host behavior **and** the complete Local UI <-> Workspace/Core request/response path.
+
+PowerPoint host adapter must safely:
+- identify the target open presentation by canonical paired path/identity;
 - read whether it has unsaved changes;
 - distinguish closed/open-saved/open-dirty;
+- produce a state/version token that changes when an edit/save relevant to overwrite safety occurs, or provide an equivalent revalidation mechanism;
 - create a comparison copy without changing the original presentation's dirty/saved state;
 - handle multiple PowerPoint presentations without selecting the wrong document;
 - fail safely if COM/PowerPoint is unavailable.
 
-If these cannot be made reliable without a PowerPoint Add-in, stop and revise the M4 scope instead of guessing based on file locks/timestamps.
+Cross-host bridge must prove:
+- Workspace/Core can request PowerPoint state from the Windows Local UI and receive a typed response;
+- Workspace/Core can request a comparison snapshot and receive its result/path safely;
+- request IDs correlate responses so concurrent documents cannot cross wires;
+- timeout, Remote Extension Host disconnect, Local UI restart, PowerPoint exit during request, and malformed/stale responses all fail closed;
+- cancellation/disconnect never gets converted into "safe/clean" state;
+- pre-commit revalidation can issue a second host request and detect a changed token;
+- no implementation depends solely on file locks/timestamps.
+
+If the reverse bridge cannot be made reliable with the existing two-extension topology, stop and revise the design before implementation. Do not silently substitute heuristics or add a PowerPoint Add-in without explicit design review.
 
 ## 18. Incremental build
 
