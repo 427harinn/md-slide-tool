@@ -378,7 +378,7 @@ AC-M4-26 through AC-M4-34 were introduced while exploring a layered publication-
   - Verification: AUTOMATED restart/recovery tests
   - Status: UNVERIFIED
 
-- **AC-M4-58:** Automatic M4 does not use a pre-mutation re-freeze ACK followed by a later Core QMD/PPTX replace. The component that owns the supported-app freeze performs the actual QMD/PPTX create/replace/delete in the same broker critical section and returns only a post-mutation result.
+- **AC-M4-58:** For automatic M4 QMD/PPTX writes, the component that owns the supported-app freeze performs the actual create/replace/delete in the same broker critical section and returns only a post-mutation result; Core never performs a later QMD/PPTX replace based on an earlier permission response.
   - Verification: T-401 + AUTOMATED broker/race tests + Architecture/Review
   - Status: UNVERIFIED
 - **AC-M4-59:** A reopen injected after broker freeze validation but before the actual QMD/PPTX file operation cannot be silently overwritten: the broker must keep/re-establish the supported-app freeze through mutation or return NOT_MUTATED/UNKNOWN so Core suspends and recovery resolves the journal.
