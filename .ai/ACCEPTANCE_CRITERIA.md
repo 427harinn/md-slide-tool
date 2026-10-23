@@ -288,3 +288,19 @@ M4 turns the M3 manual roundtrip into safe save-driven synchronization. All crit
 - **AC-M4-25:** Manual render/import and automatic sync never bypass the M3 document lock. Automatic DOCUMENT_BUSY becomes a bounded pending re-evaluation rather than spin retry or destructive failure.
   - Verification: AUTOMATED concurrency tests
   - Status: UNVERIFIED
+
+- **AC-M4-26:** After final validation and before the first canonical replacement, M4 acquires a commit barrier or equivalent version-conditional publication guard and holds it through the recoverable commit. No user edit/save can be silently overwritten during that interval.
+  - Verification: AUTOMATED race injection + Architecture review + HUMAN_REQUIRED where host behavior is involved
+  - Status: UNVERIFIED
+- **AC-M4-27:** QMD publication is tied to the exact VS Code TextDocument version/in-memory fingerprint through the replacement interval; a plain version check followed by unconditional filesystem replacement is insufficient.
+  - Verification: AUTOMATED extension feasibility/race tests
+  - Status: UNVERIFIED
+- **AC-M4-28:** PowerPoint publication while the presentation is open is allowed only if the Windows host adapter can acquire an exclusive publish lease (or equivalent atomic host-side publication primitive) tied to the exact validated presentation token. If this cannot be proven, automatic open-PowerPoint publication is disabled/re-scoped.
+  - Verification: T-401 feasibility + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-29:** Save/change events observed during COMMITTING are retained as one PENDING intent and trigger pair-level re-evaluation after the barrier is released; they are never discarded as self-generated solely because commit is active.
+  - Verification: AUTOMATED
+  - Status: UNVERIFIED
+- **AC-M4-30:** Automatic DOCUMENT_BUSY re-evaluation does not depend on a watched file changing. A bounded timer/backoff re-checks lock availability and transitions to re-evaluation or attention-required state without spin retry.
+  - Verification: AUTOMATED concurrency tests
+  - Status: UNVERIFIED
