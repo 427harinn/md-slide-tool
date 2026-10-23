@@ -365,3 +365,16 @@ AC-M4-26 through AC-M4-34 were introduced while exploring a layered publication-
   - Verification: AUTOMATED checkpoint/recovery tests
   - Status: UNVERIFIED
 
+- **AC-M4-54:** After commit ownership, any supported-app reopen blocks the next destructive mutation until Workspace/Local UI returns a re-freeze ACK for the exact freezeSessionId and reopen generation. Missing, stale, timed-out, or failed ACK causes TransactionSuspended before the mutation.
+  - Verification: AUTOMATED IPC/race tests + T-401 + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-55:** TransactionSuspended bypasses FileTransaction.commit()'s generic immediate-rollback path. Suspension during commit preserves a `committing` journal; suspension during rollback recovery may preserve `rolling_back`; both require later recovery under a new valid pair freeze.
+  - Verification: AUTOMATED transaction failure injection + Architecture/Review
+  - Status: UNVERIFIED
+- **AC-M4-56:** A suspension after the final target replacement but before the journal is durably marked `committed` remains an incomplete transaction and is resolved by journal recovery, not inferred as successful from target hashes alone.
+  - Verification: AUTOMATED crash/suspend fixture
+  - Status: UNVERIFIED
+- **AC-M4-57:** On startup, pending transaction journal detection/recovery precedes any use of the sync checkpoint to decide render/import/conflict. After recovery stabilizes, checkpoint and current fingerprints are re-read before pair evaluation.
+  - Verification: AUTOMATED restart/recovery tests
+  - Status: UNVERIFIED
+
