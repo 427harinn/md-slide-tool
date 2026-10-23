@@ -140,22 +140,27 @@ Steps:
 2. With PowerPoint closed, edit/save managed QMD and confirm automatic render.
 3. Open the PPTX and leave it saved. Edit/save QMD.
 4. Confirm the target presentation briefly closes and reopens with the updated content.
+4a. During a repeat sync, manually reopen the same PPTX while Syncing and confirm the sync is invalidated/stopped safely rather than overwriting the reopened work.
 5. Make an unsaved PowerPoint edit, then save QMD.
 6. Confirm PowerPoint is not automatically closed and VS Code offers Cancel / Compare.
 7. Choose Cancel and confirm neither side loses work.
 8. Repeat and choose Compare; confirm the snapshot includes current unsaved PowerPoint edits and the original remains dirty.
 9. Restore a clean PowerPoint state, save it, and keep QMD open-clean.
 10. Confirm the QMD briefly freezes/reloads and reflects the PowerPoint save.
+10a. During a repeat sync, reopen/edit the same QMD while Syncing and confirm the sync is invalidated/stopped safely and the editor buffer is preserved.
 11. Make an unsaved QMD edit, then save PowerPoint.
 12. Confirm QMD is not automatically closed and Cancel / Compare is shown.
 13. Compare and confirm current unsaved editor text is included without forcing a QMD save.
 14. Exercise pause/resume and several rapid saves.
-15. Confirm status UI is understandable and no reconnect/OOM regression occurs.
+15. Using a prepared pending M3 transaction/recovery fixture, confirm automatic sync freezes the paired QMD/PowerPoint views before recovery writes occur.
+16. Confirm status UI is understandable and no reconnect/OOM regression occurs.
 
 Expected:
 - normal saves synchronize automatically;
 - clean destination is temporarily frozen/closed only during sync;
 - dirty destination is never automatically closed;
+- reopen/edit during Syncing invalidates the freeze and preserves new work;
+- automatic recovery never writes before pair freeze;
 - conflicts use Cancel / Compare;
 - comparison snapshots preserve latest unsaved work;
 - no self-trigger loop, infinite retry, reconnect failure, or OOM occurs.
