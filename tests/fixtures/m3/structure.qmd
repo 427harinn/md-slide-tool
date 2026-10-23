@@ -1,0 +1,22 @@
+---
+title: M3 feasibility structure fixture
+format:
+  pptx:
+    reference-doc: template.pptx
+---
+
+## Placeholder and list structures {slide-id="slide-2a34230c-a900-41f2-bf02-1a3955a6447e"}
+
+An ordinary paragraph for the T-301 import feasibility fixture.
+
+- Bullet one
+- Bullet two
+
+1. Numbered one
+2. Numbered two
+
+![Caption fixture](caption.png) {element-id="element-48b427a9-7a51-4c66-8d8a-df59a294823a"}
+
+## Second normal slide {slide-id="slide-2761eaa7-58be-4acf-96d1-edee015935c7"}
+
+A second slide verifies normal layout placeholder structure.

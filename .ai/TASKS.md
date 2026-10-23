@@ -16,7 +16,23 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 - current supported templateが未知のslide-local decorative shapeを生成する場合は、位置heuristicではなくdeterministic marker/structural ruleを設計してから先へ進む
 - presentation custom propertiesとreserved title-slide markerがPowerPoint-compatible save/reopenで保持できる方式を検証
 
-**状態:** 未着手
+**状態:** 完了 (2026-10-22)
+
+実証fixture: 両方のrepository PPTX template source
+(`templates/pptx/template/template.pptx` と
+`projects/selfintroduction/template.pptx`) を使い、Dev Container内の実際の
+`slidegen render` で生成。出力PPTX、source/render provenance、shape/paragraph
+XML、template構造、画像、save/reopen検証は `tests/fixtures/m3/` と
+`tests/test_m3_feasibility_fixture.py` に記録した。
+
+- 標準templateのslide/master/layout/placeholder構造を列挙。
+- title placeholder (type 3)、normal title (type 1)、body/content (type 7) を確認。
+- ordinary paragraph (`a:buNone`)、template継承bullet、numbered list (`a:buAutoNum`) を確認。
+- captionがslide-local non-placeholder textboxであり、M3 marker付与前の現状名は一般名であることを確認。
+- image bytes/formatとraw `a:srcRect` cropの読取・負値再適用を確認。
+- master/layout shapeとslide-local shape collectionの分離を確認。
+- `docProps/custom.xml` managed property、title role、slide/element/caption names、cropがpython-pptx save/reopen/save後に保持されることを確認。
+- 制約: Microsoft PowerPoint desktopでの新規M3 metadata/cropのsave確認はこの自動gateに含めていない。M3実装後、Open XML fixtureで再現できない差が見つかった場合のみhuman gateに追加する。
 
 ### T-302: Managed presentation metadata / QMD baseline guard
 
@@ -29,7 +45,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 - current QMD body hash mismatchは `QMD_CHANGED_SINCE_RENDER` としてpre-commit FAIL
 - force import/mergeは追加しない
 
-**状態:** 未着手
+**状態:** 完了 (2026-10-23)
 
 ### T-303: Title-slide role / normal slide IDs
 
@@ -43,7 +59,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 - malformed/duplicate slide-idをFAIL
 - slide order/deleteをPPTX順で反映
 
-**状態:** 未着手
+**状態:** 完了 (2026-10-23)
 
 ### T-304: Text reconstruction / caption companion
 
@@ -52,6 +68,8 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 - caption textをMarkdown image alt/captionへ復元
 - orphan/duplicate caption markerをFAIL
 - arbitrary unmarked textboxはunsupportedのまま
+
+**状態:** 完了 (2026-10-23)
 
 ### T-304b: Text reconstruction
 
@@ -65,7 +83,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 - front-matter title slideはreverse import対象外
 - unsupported text structuresは明示的にFAIL
 
-**状態:** 未着手
+**状態:** 完了 (2026-10-23)
 
 ### T-305: Existing/new/replaced image handling
 
@@ -77,7 +95,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 - shared original sourceを破壊的に上書きしない
 - deleted imageをQMD/assetsから除外
 
-**状態:** 未着手
+**状態:** 完了 (2026-10-23)
 
 ### T-306: Assets schema v2 / geometry / crop
 
@@ -91,7 +109,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 - source image自体はcrop目的で加工しない
 - rotation / z-orderはunsupported
 
-**状態:** 未着手
+**状態:** 完了 (2026-10-23)
 
 ### T-307: Unsupported content guard / template classification
 
@@ -101,14 +119,15 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 - unknown contentをdecorativeと推測しない
 - T-301 fixturesでclassification ruleを固定してから実装
 
-**状態:** 未着手
+**状態:** 完了 (2026-10-23)
 
 ### T-308: Recoverable transaction / crash recovery
 
 - documentId未生成のschema v1ではcanonical same-stem QMD path由来のbootstrap lockを先に取得
 - bootstrap lock保持中にassets/PPTX metadataを再読込し、既にmigration済みなら既存documentIdを再利用
-- unmigratedならbootstrap lock下でdocumentIdを1つだけ生成しschema v2/PPTX metadata migrationを完了
-- migrationを実行したprocess自身もbootstrap lockを保持したまま新document lockを取得し、その取得後にのみbootstrapを解放
+- unmigratedならdocumentIdを1つだけ選び、bootstrap lockを保持したまま対応するdocument lockを取得
+- 両lockを保持して初回render candidateを生成し、schema v2 assetsとmanaged PPTX metadataを同一transactionでpublish
+- paired migration transactionのcommit後にのみbootstrap lockを解放し、document lockはrender/import完了まで保持
 - re-readでmigration済みを発見したprocessもbootstrap保持中にexisting document lockを取得してからbootstrapを解放
 - bootstrap -> document lockのhandoffにunlock gapを作らず、逆順取得は禁止
 - 通常はper-document lockをatomicに取得し、concurrent render/importは `DOCUMENT_BUSY`
@@ -122,7 +141,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 - current hashがold/newどちらでもない場合は自動上書きせずmanual-recovery error
 - failure injectionとsimulated abrupt terminationをテスト
 
-**状態:** 未着手
+**状態:** 完了 (2026-10-23)
 
 ### T-309: Tests / regression
 
@@ -153,7 +172,7 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 - M1/M2/render/docx regression
 - smoke / CI / diff-check
 
-**状態:** 未着手
+**状態:** 完了 (2026-10-23)
 
 ### T-310: Final documentation / independent review
 
@@ -164,4 +183,4 @@ Codexは `.ai/AGENT_WORKFLOW.md` に従い、実装前に `docs/M3_PPTX_IMPORT.m
 - M4/M5を先取りしていないことを確認
 - FAILがあれば最小修正して再検証
 
-**状態:** 未着手
+**状態:** 完了 (2026-10-23)

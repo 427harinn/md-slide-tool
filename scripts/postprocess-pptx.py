@@ -10,6 +10,7 @@ from typing import List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from m2_identity import atomic_write_json, load_assets, valid_layout
+from m3_core import new_document_id, qmd_body_sha256, read_custom_properties, write_custom_properties, valid_document_id
 
 from PIL import Image
 from pptx import Presentation
@@ -335,11 +336,12 @@ def estimate_caption_box_height(caption: str) -> int:
     return emu(0.46)
 
 
-def add_caption_textbox(slide, caption: str, x: int, y: int, w: int, h: int) -> None:
+def add_caption_textbox(slide, caption: str, element_id: str, x: int, y: int, w: int, h: int) -> None:
     if not caption.strip():
         return
 
     textbox = slide.shapes.add_textbox(x, y, w, h)
+    textbox.name = f"mdst-caption-{element_id}"
     text_frame = textbox.text_frame
     text_frame.clear()
     text_frame.word_wrap = True
@@ -355,6 +357,45 @@ def add_caption_textbox(slide, caption: str, x: int, y: int, w: int, h: int) -> 
     run = p.add_run()
     run.text = caption
     run.font.size = Pt(10)
+
+
+def apply_crop(picture, crop):
+    if not crop:
+        return
+    from m3_core import validate_crop
+    crop = validate_crop(crop)
+    ns = {"p": "http://schemas.openxmlformats.org/presentationml/2006/main", "a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
+    blip_fill = picture._element.find("p:blipFill", ns)
+    if blip_fill is None:
+        raise ValueError("picture crop target is missing blipFill")
+    src_rect = blip_fill.find("a:srcRect", ns)
+    if src_rect is None:
+        src_rect = blip_fill.makeelement("{http://schemas.openxmlformats.org/drawingml/2006/main}srcRect", {})
+        blip_fill.append(src_rect)
+    # CT_BlipFill children are ordered blip, srcRect, stretch/tile. Normalize
+    # existing as well as newly-created crop nodes to that order.
+    children = list(blip_fill)
+    src_index = children.index(src_rect)
+    insertion = next((i for i, child in enumerate(children)
+                      if child.tag in (f"{{{ns['a']}}}stretch", f"{{{ns['a']}}}tile")), len(children))
+    if src_index > insertion:
+        blip_fill.remove(src_rect)
+        blip_fill.insert(insertion, src_rect)
+    for key, xml_key in (("left", "l"), ("top", "t"), ("right", "r"), ("bottom", "b")):
+        value = crop[key]
+        if value:
+            src_rect.set(xml_key, str(value))
+        else:
+            src_rect.attrib.pop(xml_key, None)
+
+
+def valid_m3_layout(entry):
+    if not isinstance(entry, dict):
+        return False
+    values = [entry.get(key) for key in ("x", "y", "width", "height")]
+    if any(type(value) is not int or abs(value) > 10**12 for value in values):
+        return False
+    return values[2] > 0 and values[3] > 0
 
 
 # ----------------------------
@@ -718,6 +759,7 @@ def add_offslide_images_near_target_slide(slide, images: List[dict], slide_w: in
             add_caption_textbox(
                 slide,
                 image["caption"],
+                image["element_id"],
                 x,
                 y + pic_h + emu(0.04),
                 max_w,
@@ -729,7 +771,7 @@ def add_offslide_images_near_target_slide(slide, images: List[dict], slide_w: in
     return placements
 
 
-def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Path, assets_by_key: dict) -> List[dict]:
+def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Path, assets_by_key: dict, is_m3_assets: bool = False) -> List[dict]:
     slide_w = int(prs.slide_width)
     slide_h = int(prs.slide_height)
     target_images = collect_target_images(slide_info, base_dir, assets_by_key, slide_w, slide_h)
@@ -744,17 +786,34 @@ def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Pa
         if saved is not None:
             if (isinstance(saved, dict) and saved.get("slideId") == image["slide_id"] and
                     saved.get("elementId") == image["element_id"] and
-                    saved.get("type") == "image" and valid_layout(
-                        saved, slide_w, slide_h, len(slide_info.get("images", []))
+                    saved.get("type") == "image" and (
+                        valid_m3_layout(saved) if is_m3_assets else
+                        valid_layout(saved, slide_w, slide_h, len(slide_info.get("images", [])))
                     )):
                 picture = slide.shapes.add_picture(
                     str(image["resolved_path"]), int(saved["x"]), int(saved["y"]),
                     width=int(saved["width"]), height=int(saved["height"]),
                 )
                 picture.name = image["element_id"]
+                apply_crop(picture, saved.get("crop"))
                 rect = (int(picture.left), int(picture.top), int(picture.width), int(picture.height))
                 occupied_rects.append(rect)
-                layouts.append({"slideId": image["slide_id"], "elementId": image["element_id"], "type": "image", "path": image["raw_path"], "x": rect[0], "y": rect[1], "width": rect[2], "height": rect[3]})
+                entry = {"slideId": image["slide_id"], "elementId": image["element_id"], "type": "image", "path": image["raw_path"], "x": rect[0], "y": rect[1], "width": rect[2], "height": rect[3]}
+                if saved.get("crop") is not None:
+                    entry["crop"] = saved["crop"]
+                layouts.append(entry)
+                caption = image.get("caption", "").strip()
+                caption_h = estimate_caption_box_height(caption)
+                if caption_h > 0:
+                    add_caption_textbox(
+                        slide,
+                        caption,
+                        image["element_id"],
+                        int(saved["x"]),
+                        int(saved["y"]) + int(saved["height"]) + emu(0.04),
+                        int(saved["width"]),
+                        caption_h,
+                    )
                 continue
             print(f"[WARN] invalid saved layout for element {image['element_id']}; using automatic placement")
         auto_images.append(image)
@@ -814,6 +873,7 @@ def add_images_to_slide(prs: Presentation, slide, slide_info: dict, base_dir: Pa
             add_caption_textbox(
                 slide,
                 image["caption"],
+                image["element_id"],
                 placement["caption_x"],
                 placement["caption_y"],
                 placement["caption_w"],
@@ -831,6 +891,7 @@ def main() -> int:
     parser.add_argument("--pptx", required=True, help="後処理対象のPPTXファイル")
     parser.add_argument("--images-json", required=True, help="画像情報JSON")
     parser.add_argument("--assets", help="永続化するassets.json")
+    parser.add_argument("--qmd", help="M3 managed-render baseline source QMD")
     args = parser.parse_args()
 
     pptx_path = Path(args.pptx).resolve()
@@ -845,7 +906,15 @@ def main() -> int:
     slide_infos = load_images_json(images_json_path)
     prs = Presentation(str(pptx_path))
     assets_path = Path(args.assets).resolve() if args.assets else images_json_path.with_name(images_json_path.name.replace(".images.json", ".assets.json"))
-    assets = load_assets(assets_path)
+    if args.qmd:
+        import json
+        from m3_core import validate_assets
+        if assets_path.exists():
+            assets = validate_assets(json.loads(assets_path.read_text(encoding="utf-8")))
+        else:
+            assets = {"schemaVersion": 1, "slideSize": None, "elements": []}
+    else:
+        assets = load_assets(assets_path)
     assets_by_key = {}
     for entry in assets.get("elements", []):
         if isinstance(entry, dict):
@@ -893,9 +962,42 @@ def main() -> int:
 
         matched_slide.name = target_slide_id
         matched_slide_ids.add(target_slide_id)
-        rendered_layouts.extend(add_images_to_slide(prs, matched_slide, slide_info, base_dir, assets_by_key))
+        rendered_layouts.extend(add_images_to_slide(prs, matched_slide, slide_info, base_dir, assets_by_key, bool(args.qmd)))
 
+    document_id = None
+    if args.qmd:
+        existing_props = read_custom_properties(pptx_path)
+        asset_document_id = assets.get("documentId") if isinstance(assets, dict) else None
+        property_document_id = existing_props.get("md-slide-tool.document-id")
+        if asset_document_id and property_document_id and asset_document_id != property_document_id:
+            raise ValueError("managed PPTX/assets document-id mismatch")
+        document_id = asset_document_id or property_document_id or new_document_id()
+        if not valid_document_id(document_id):
+            raise ValueError("invalid managed document-id")
+        title_candidates = []
+        for slide in prs.slides:
+            has_layout_title = any(
+                getattr(shape, "is_placeholder", False) and int(shape.placeholder_format.type) == 3
+                for shape in slide.slide_layout.shapes
+            )
+            has_slide_title = any(
+                getattr(shape, "is_placeholder", False) and int(shape.placeholder_format.type) == 3
+                for shape in slide.shapes
+            )
+            if has_layout_title and has_slide_title:
+                title_candidates.append(slide)
+        if len(title_candidates) > 1:
+            raise ValueError("ambiguous title-slide layout classification")
+        for slide in title_candidates:
+            slide.name = f"mdst-title-{document_id.removeprefix('document-')}"
     prs.save(str(pptx_path))
+    if args.qmd:
+        write_custom_properties(pptx_path, {
+            "md-slide-tool.managed": "1",
+            "md-slide-tool.format-version": "1",
+            "md-slide-tool.document-id": document_id,
+            "md-slide-tool.qmd-body-sha256": qmd_body_sha256(Path(args.qmd).read_bytes()),
+        })
     current_keys = {
         (slide_info.get("slide_id"), image.get("element_id"))
         for slide_info in slide_infos for image in slide_info.get("images", [])
@@ -904,11 +1006,14 @@ def main() -> int:
     for key, old_entry in assets_by_key.items():
         if key in current_keys and key not in updated_by_key:
             updated_by_key[key] = old_entry
-    atomic_write_json(assets_path, {
-        "schemaVersion": 1,
+    final_assets = {
+        "schemaVersion": 2 if args.qmd else 1,
         "slideSize": {"width": int(prs.slide_width), "height": int(prs.slide_height), "unit": "emu"},
         "elements": list(updated_by_key.values()),
-    })
+    }
+    if args.qmd:
+        final_assets["documentId"] = document_id
+    atomic_write_json(assets_path, final_assets)
     print(f"saved: {pptx_path}")
     return 0
 

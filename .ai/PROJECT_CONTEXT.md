@@ -10,6 +10,7 @@ md-slide-tool は、Quarto ベースの QMD から PowerPoint / Word などの�
 
 - template から project を作成
 - PPTX 向け QMD を `slidegen render` で build
+- M3-managed PPTXを `slidegen import` で対応する same-stem QMDへ手動import
 - PPTX に画像を後処理で配置
 - docx project/template を利用
 - Docker / Dev Container で実行環境を揃える
@@ -22,21 +23,23 @@ md-slide-tool は、Quarto ベースの QMD から PowerPoint / Word などの�
 - `slidegen new`
 - `slidegen list-templates`
 - `slidegen render`
+- `slidegen import`
 
 ### PPTX
 
 ```text
 slidegen render
-  -> scripts/render-current.sh
+  -> scripts/m3_entry.py
+  -> scripts/render-current-pipeline.sh
   -> prepare-qmd-for-pptx.py
   -> Quarto / Pandoc
   -> postprocess-pptx.py
-  -> final PPTX
+  -> paired PPTX + assets transaction
 ```
 
-`postprocess-pptx.py` は python-pptx / Pillow を使い、QMD から抽出した画像を生成済み PPTX に追加する。
+`slidegen import` は managed marker、document identity、QMD baseline hashを検証してから、対応するPPTXのsupported normal slidesをQMDへ再構築する。multi-file updateはjournal recovery付きtransactionで行う。
 
-現在の画像紐付けは主に slide title を使っている。
+`postprocess-pptx.py` は python-pptx / Pillow を使い、QMD から抽出した画像を生成済み PPTX に追加し、stable slide/element IDとreserved caption/title markerを保存する。画像layoutとcropはassets schema v2に保存する。
 
 ### DOCX
 
@@ -70,7 +73,7 @@ PowerPoint 系が安定した後、完成した PPTX/QMD の内容から Word �
 3. QMD と PPTX は差分同期せず、保存された側からもう一方を再生成する
 4. 文字情報を中間 JSON に永続化しない
 5. 永続 JSON は主にvisual elementのlayout情報を持ち、文字情報の正本にはしない
-6. slide / element に stable id を導入する。M2ではelement type=imageのみ実装する
+6. slide / element に stable id を導入する。現在のM3でもimport対象はsupported placeholder textとimageに限定する
 7. 競合時は自動マージせず conflict QMD を生成して diff を表示する
 
 ## 今後のマイルストーン
@@ -99,11 +102,14 @@ Human -> merge
 
 ## 現在のテスト / CI
 
-- `python3 -m unittest tests/test_postprocess_place.py`
+- `npm test` runs M2/M3 unit tests
+- `python3 -m unittest discover -s tests` runs the full Python suite
+- `bash tests/m3-pptx-qmd-roundtrip.sh` verifies representative PPTX -> QMD -> PPTX roundtrip
+- `bash tests/m2-render-regression.sh` verifies render/assets and DOCX behavior
 - `bash scripts/smoke-test.sh`
 - GitHub Actions: npm ci -> smoke test
 
-CI smoke test は CLI help、template listing、npm package contents を確認する。Python unittest は PPTX image placement 後処理を確認する。Preview 専用テストは削除した。
+CI smoke test は CLI help、template listing、npm package contents を確認する。M3 fixtures cover managed import, structural guards, crop/assets migration, and transaction recovery. Preview 専用テストは削除した。
 
 ## Cleanup 時の注意
 
@@ -121,7 +127,7 @@ CI smoke test は CLI help、template listing、npm package contents を確認�
 - VS Code に残る build task は手動実行。保存時自動実行の拡張・設定はない。
 - `compose.yml` と追跡済み `.DS_Store` を削除し、`.DS_Store` は Git ignore に追加済み。既存 project コンテンツは変更しない。
 - HTML template は残した。現行 template QMD は `style.css` を参照するが、同梱されていない。既存 HTML project の利用状況・修正方針は未確認のため、今回その template は変更していない。
-- M1のPowerPoint openは実装済み。M2 stable ID / image assets layoutは本ブランチで実装し、Draft PR検証中。
+- M1 PowerPoint open, M2 stable ID / image assets layout, and M3 managed PPTX import are implemented on their milestone branches.
 
 ## M1実装状況
 
@@ -219,3 +225,11 @@ Dev Containersでは `${localWorkspaceFolder}` を `remoteEnv` 等でcontainer�
 - recovery時にcurrent fileがold/newどちらのhashにも一致しない場合はunknown user editを上書きせずmanual-recovery errorで停止する。
 - watcher/syncはM4、full dirty conflict handlingはM5。M3では手動importとstale-QMD guardまで。
 - 将来課題としてinternal ID表示の隠蔽、incremental build、build state UI、build中の編集/多重build制御を追跡する。
+
+## M3 feasibility gate (2026-10-22)
+
+- T-301 passed before M3 production implementation. Real Dev Container `slidegen render` fixtures for both current repository template sources live under `tests/fixtures/m3/`.
+- `templates/pptx/template/template.pptx` has one master and 11 layouts; `projects/selfintroduction/template.pptx` has one master and 17 layouts. Rendered normal slides use title placeholder type 1 / index 0 and body/content placeholder type 7 / index 1; the generated title slide uses center-title type 3 / index 0.
+- Supported classification can use placeholder type/index, picture shape type, and a reserved `mdst-caption-<element-id>` textbox name. All other slide-local objects are unsupported. Master/layout shapes are distinct from `slide.shapes`; position/color/appearance heuristics are not needed.
+- In the rendered body, ordinary paragraph uses explicit `a:buNone`, bullets inherit the body-placeholder list style, and numbered paragraphs carry `a:buAutoNum`.
+- `tests/test_m3_feasibility_fixture.py` verifies custom properties in `docProps/custom.xml`, title/caption markers, stable IDs, picture bytes/format, and raw positive/negative crop values across python-pptx save/reopen. Microsoft PowerPoint desktop preservation of these newly introduced M3 fields is not claimed by this fixture.

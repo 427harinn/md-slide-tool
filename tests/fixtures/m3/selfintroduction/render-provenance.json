@@ -1,0 +1,16 @@
+{
+  "command": "docker run --rm --mount type=bind,source=<repository-root>,target=/work -w /work vsc-md-slide-tool-a07b9d7cfa550a58ef2d5846637a2bbbdfcd4e4c02582b730f01d842507d78f7:latest node /work/cli/slidegen.js render /work/tests/fixtures/m3/selfintroduction/structure.qmd",
+  "devContainerImage": "vsc-md-slide-tool-a07b9d7cfa550a58ef2d5846637a2bbbdfcd4e4c02582b730f01d842507d78f7:latest",
+  "devContainerImageId": "sha256:70da969238ff921f30dbc050dbbff38e5dafda2bfdaa7759446966d640f2767b",
+  "quartoVersion": "1.9.36",
+  "pythonPptxVersion": "1.0.2",
+  "rendererEntryPoint": "cli/slidegen.js render -> scripts/render-current.sh -> Quarto -> scripts/postprocess-pptx.py",
+  "output": "tests/fixtures/m3/selfintroduction/structure.pptx",
+  "renderExitCode": 0,
+  "quartoWarnings": [
+    "Powerpoint template warning: Couldn't find layout named \"Content with Caption\" in provided reference doc. Falling back to the default included with pandoc.",
+    "Powerpoint template warning: Couldn't find layout named \"Blank\" in provided reference doc. Falling back to the default included with pandoc."
+  ],
+  "outputSha256": "5ecb0377607f68514a7f9d055d320176389788d5657767b2dd544384768f2eb4",
+  "inputQmdSha256": "5cb3e5167a6c828b8c2b2fc6776059859cb2b79ab713afd21e420daf8f919579"
+}

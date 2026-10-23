@@ -37,6 +37,25 @@ Before production implementation proceeds beyond T-301:
 5. Confirm raw crop representation can be extracted and re-applied without visible drift.
 6. If any of these cannot be resolved deterministically, stop implementation and report UNVERIFIED rather than inventing heuristics.
 
+## T-301 fixture evidence (2026-10-22)
+
+**Gate: PASS** for all current repository PPTX template sources and python-pptx/Open XML save/reopen scope. The retained fixtures include real Dev Container `slidegen render` outputs for `templates/pptx/template/template.pptx` and `projects/selfintroduction/template.pptx`, with immutable source copies and render provenance under `tests/fixtures/m3/`. Run `python tests/test_m3_feasibility_fixture.py` to verify both outputs and regenerate `tests/fixtures/m3/structure-report.json`.
+
+| Required probe | Result / evidence |
+| --- | --- |
+| Template slide/master/layout/placeholder/shape inventory | PASS — report enumerates both source templates, their masters/layouts/placeholders/shapes, source hashes, and both rendered decks' slide-local shapes/XML. |
+| Title, paragraph, bullet, numbered-list OOXML | PASS — title type 3; normal title type 1; body type 7; ordinary paragraph has `a:buNone`; bullets inherit the body placeholder style; numbered items have `a:buAutoNum`. |
+| Renderer image-caption textbox | PASS — slide-local `p:sp` text box, not a placeholder; current M2 name is generic, and the verifier stamps/roundtrips the reserved caption name in a probe copy. |
+| Picture bytes and format | PASS — fixture records PNG content type, extension, length and SHA-256, and verifies bytes survive save/reopen. |
+| Raw crop read/reapply | PASS — verifier sets and reads OOXML integer `a:srcRect` values including a valid negative value across two save/reopen cycles. |
+| Inherited vs slide-local content | PASS — both templates' master/layout prototypes are enumerated separately from `slide.shapes`; observed inherited decorations are not slide-local import candidates. |
+| Presentation custom properties | PASS — standard `docProps/custom.xml` managed property survives python-pptx open/save/reopen/save. |
+| Reserved title-slide marker | PASS — `slide.name` role marker survives save/reopen alongside normal stable slide IDs. |
+| Stable slide/element metadata coexistence | PASS — slide IDs, picture element ID, caption marker, title role, custom property, and crop coexist in one reopened package. |
+| Save/reopen supported scope | PASS — custom property, title/caption markers, stable IDs, picture bytes/format and crop verified with python-pptx 0.6.23 on the host and 1.0.2 in the Dev Container; the retained report was generated with 1.0.2. This does not claim a new desktop PowerPoint roundtrip. |
+
+The current caption remains unnamed in production M2 output. M3 rendering must add its reserved marker before import is implemented. Classification rule for T-307: recognize supported placeholder roles structurally, picture shapes by shape type, and only caption text boxes with the reserved marker; reject every other slide-local shape. Do not use position, color, or appearance to classify content.
+
 ## M3 required checks
 
 1. M3-managed marker/version/document-id accepted only when assets schema v2 carries the same documentId.
@@ -118,9 +137,18 @@ For implementation PRs run relevant:
 - M2 Python tests
 - new M3 unit/integration tests
 - representative QMD -> PPTX render
-- representative PPTX -> QMD -> PPTX roundtrip
+- `bash tests/m3-pptx-qmd-roundtrip.sh` for a real repository-template render, PowerPoint text/caption edit, CLI import, and re-render; asserts punctuation escapes, stable slide identity, and caption-marker retention
 - docx regression
 - `git diff --check`
 - latest PR head CI
 
 Any unavailable verification must be reported as UNVERIFIED or HUMAN_REQUIRED, never PASS.
+
+## M3 execution record (2026-10-23)
+
+- Test Gate: PASS. Dev Container `python3 -m unittest discover -s tests`: 60/60; `npm test`: 60/60.
+- Representative roundtrip: PASS. `bash tests/m3-pptx-qmd-roundtrip.sh` rendered from the repository template, edited PPTX title/body/caption text, imported through `slidegen import`, and re-rendered; escaped punctuation, stable slide ID, and caption marker/text were preserved.
+- Existing regression: PASS. `bash tests/m2-render-regression.sh` confirmed M2 image layout/stable metadata and DOCX rendering.
+- T-301: PASS. `tests/test_m3_feasibility_fixture.py` verifies both retained repository-template render fixtures and package-level Open XML/python-pptx save/reopen probes. No new Microsoft PowerPoint desktop save cycle is claimed.
+- Review Gate: PASS. Architecture Gate: PASS. Independent agents inspected the final change set; the Architecture review records a non-blocking visual risk that a caption regenerated below an image moved to the slide edge may clip or overlap nearby content.
+- `git diff --check`: PASS. An earlier smoke-test run passed; a later repeat was interrupted during extension `npm ci` and is not counted as a final rerun.

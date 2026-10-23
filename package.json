@@ -14,7 +14,7 @@
     ],
     "scripts": {
         "start": "node ./cli/slidegen.js",
-        "test": "python3 -m unittest tests/test_postprocess_place.py tests/test_m2_stable_ids_assets.py"
+        "test": "python3 -m unittest tests/test_postprocess_place.py tests/test_m2_stable_ids_assets.py tests/test_prepare_qmd_escape.py tests/test_m3_core.py tests/test_m3_import.py tests/test_m3_transaction.py"
     },
     "dependencies": {
         "adm-zip": "^0.5.16",

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "slideSize": {
+    "width": 12192000,
+    "height": 6858000,
+    "unit": "emu"
+  },
+  "elements": [
+    {
+      "slideId": "slide-2a34230c-a900-41f2-bf02-1a3955a6447e",
+      "elementId": "element-48b427a9-7a51-4c66-8d8a-df59a294823a",
+      "type": "image",
+      "path": "caption.png",
+      "x": 12265152,
+      "y": 2015732,
+      "width": 9525,
+      "height": 9525
+    }
+  ]
+}
