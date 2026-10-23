@@ -175,6 +175,10 @@ Run before production sync-engine implementation:
 14. Two concurrent document requests cannot cross responses.
 15. Timeout, Remote disconnect, Local UI restart, PowerPoint exit mid-request, malformed response, and stale response all fail closed.
 16. Admission query followed by a PowerPoint edit produces a different pre-commit token/revalidation result.
+17. PowerPoint publish-lease acquisition is tied to the validated token and fails if the target changes before acquisition.
+18. While the PowerPoint barrier is held, an edit/save cannot be silently overwritten; timeout/disconnect/host exit fails closed.
+19. QMD publish guard is tied to the exact TextDocument version/in-memory fingerprint through publication.
+20. If no supported PowerPoint or QMD barrier/conditional-publication primitive can prove this guarantee, T-401/T-402 feasibility FAILS and production implementation stops.
 
 ### Watch/debounce
 
@@ -194,7 +198,12 @@ Run before production sync-engine implementation:
 - per-document serialization and M3 document lock agree;
 - manual render/import holds the M3 lock -> automatic sync gets DOCUMENT_BUSY, records one pending re-evaluation, no spin retry;
 - admission check passes, then QMD editor changes before commit -> candidate not published;
-- admission check passes, then PowerPoint changes before commit -> candidate not published.
+- admission check passes, then PowerPoint changes before commit -> candidate not published;
+- final token check passes, then QMD changes before first replace -> commit barrier/conditional publication blocks or aborts publication;
+- final token check passes, then PowerPoint changes before first replace -> PowerPoint barrier acquisition/validation blocks publication;
+- change/save event during COMMITTING -> one PENDING intent survives until barrier release, then pair-level re-evaluation;
+- change injected between first and later multi-file replacements -> no silent loss; transaction/barrier recovery preserves user state and checkpoint consistency;
+- manual operation holds lock but writes no watched file -> bounded timer re-check detects release and re-evaluates without requiring filesystem event.
 
 ### Self-write suppression
 
