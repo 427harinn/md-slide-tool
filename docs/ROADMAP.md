@@ -200,6 +200,8 @@ PPTX save -> automatic import -> QMD/assets
 
 M4は**destination freeze方式**を採用する。
 
+自動同期のオーケストレーションはDev Container側のVS Code Workspace extensionが担当する。Workspace extensionがQMD/PowerPointのpair freezeを完了してからCoreを起動するため、M3 transaction recoveryもfreeze後に実行される。
+
 正式サポートする編集環境:
 - QMD: VS Code
 - PPTX: Microsoft PowerPoint desktop
@@ -209,12 +211,14 @@ QMD -> PPTX:
 - open-cleanなら対象presentationを短時間close
 - render/transaction後に同じpresentationをreopen
 - PowerPoint application自体は終了しない
+- Syncing中に同じPPTXを再open/editしたらfreeze sessionをinvalidateし、以後のdestructive writeを止めて再評価
 
 PPTX -> QMD:
 - QMD dirtyならCONFLICT
 - open-cleanならQMD editorを短時間freeze/close
 - import/transaction後にrestore/reopen
-- M3 importがPPTX metadataを書き戻す場合は、clean PowerPointを同様にclose/reopenするか、no-writeback設計を別途検証する
+- M3 importがPPTX metadataを書き戻す場合も同一pair freeze内で処理
+- Syncing中にQMDを再open/editしたらfreeze sessionをinvalidateし、bufferを保持して再評価
 
 共通:
 - Docker/Coreがwatch / debounce / pending / self-write suppression / checkpoint / M3 transactionを担当
@@ -238,7 +242,9 @@ M4は、同期中に任意の外部プログラムがmanaged QMD/PPTXを同時�
 - SaveCopyAs
 - multiple presentation targeting
 - M3 PPTX metadata writeback path
-- cross-host state/close/reopen requests
+- cross-host state/freeze/restore requests + PowerPoint reopen invalidation
+- freeze-before-recovery ordering
+- QMD/PPTX reopen during Syncing
 をWindows実機で確認する。
 
 ## M5: Conflict Handling / Semantic Diff
