@@ -365,8 +365,8 @@ AC-M4-26 through AC-M4-34 were introduced while exploring a layered publication-
   - Verification: AUTOMATED checkpoint/recovery tests
   - Status: UNVERIFIED
 
-- **AC-M4-54:** After commit ownership, any supported-app reopen blocks the next destructive mutation until Workspace/Local UI returns a re-freeze ACK for the exact freezeSessionId and reopen generation. Missing, stale, timed-out, or failed ACK causes TransactionSuspended before the mutation.
-  - Verification: AUTOMATED IPC/race tests + T-401 + HUMAN_REQUIRED
+- **AC-M4-54:** After commit ownership, a supported-app reopen is handled by the owning per-target mutation broker. For QMD/PPTX, freeze validation/re-establishment and the actual file mutation occur in one broker critical section; timeout/failure/unknown outcome causes TransactionSuspended instead of a later Core replace.
+  - Verification: AUTOMATED IPC/broker race tests + T-401 + HUMAN_REQUIRED
   - Status: UNVERIFIED
 - **AC-M4-55:** TransactionSuspended bypasses FileTransaction.commit()'s generic immediate-rollback path. Suspension during commit preserves a `committing` journal; suspension during rollback recovery may preserve `rolling_back`; both require later recovery under a new valid pair freeze.
   - Verification: AUTOMATED transaction failure injection + Architecture/Review
