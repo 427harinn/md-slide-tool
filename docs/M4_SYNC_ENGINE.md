@@ -60,6 +60,35 @@ Owns:
 - supplying unsaved QMD text as a comparison snapshot when required
 - status UI and conflict prompt routing
 
+### Workspace lease RPC / IPC contract
+
+Core must not assume it can protect a VS Code document by reading `TextDocument.version` alone.
+
+The Workspace extension exposes an explicit request/response contract to Core for the paired QMD:
+
+```text
+acquireQmdLease(documentId, qmdPath, expectedDocumentVersion, expectedTextHash)
+  -> { leaseId, documentVersion, textHash, expiresAt }
+
+renewQmdLease(leaseId)
+  -> { expiresAt }
+
+releaseQmdLease(leaseId)
+  -> released
+```
+
+Required semantics:
+- acquisition succeeds only if the document/path/version/text hash still match the expected clean state;
+- an already-dirty document rejects acquisition;
+- one QMD has at most one active publish lease;
+- Core must hold the lease from final validation until the recoverable commit is complete;
+- the Workspace extension must prevent or serialize edits/saves that would invalidate the leased version while the lease is active, or reject publication through an equivalent supported version-conditional mechanism;
+- lease expiry is short and renewable; expiry or renewal failure causes fail-closed abort before publication;
+- Remote Extension Host disconnect, Workspace extension restart, malformed request, stale request ID, or Core disappearance invalidates the lease and publication must not be reported successful;
+- every acquire/renew/release message carries `documentId`, `leaseId`, and request ID so two documents cannot cross wires.
+
+Implementation transport may be a long-lived child-process IPC channel, extension command RPC, local socket/stdio protocol, or another mechanism proven by T-401. The transport is not part of the user-facing contract, but request correlation, timeout, cancellation, and fail-closed behavior are mandatory.
+
 ### Windows Local UI extension
 
 Owns only host-specific PowerPoint integration:
@@ -175,6 +204,31 @@ The barrier contract is:
 
 The exact platform mechanisms are mandatory feasibility gates, not implementation guesses.
 
+#### Filesystem publish lease / compare-and-swap
+
+Dirty/editor leases do not protect a closed PPTX or a file changed by another process. Every canonical file that M4 may replace must therefore also participate in a filesystem publication guard.
+
+Before the first replacement, the publisher must:
+1. acquire an exclusive file lease/lock for every existing target that will be replaced or deleted, in deterministic path order;
+2. while the lease is held, re-read and compare the current SHA-256 to the transaction manifest's expected old hash;
+3. for a create operation, verify the target still does not exist under the same publication guard;
+4. only if **all** target preconditions match may the transaction enter file replacement;
+5. hold all file leases until all replacements plus the sync checkpoint reach a committed/recoverable state;
+6. release all leases in reverse order.
+
+This is a multi-file compare-and-swap barrier. A plain "hash now, replace later" check is insufficient.
+
+The file-lease implementation must be proven to exclude other Windows processes for the actual workspace files. Because the canonical workspace lives on the Windows host and is bind-mounted into the Dev Container, Linux-only advisory locks are not assumed to protect Windows writers. T-401 must determine whether the reliable implementation belongs in the Windows Local UI/host helper or another platform adapter.
+
+If exclusive file leases cannot be made reliable for a target, automatic destructive publication to that target is not allowed.
+
+`FileTransaction.commit()` must be extended or wrapped so that it never performs an unconditional replace:
+- transaction manifest records expected old hash / expected absence;
+- commit requires the already-acquired publication lease set;
+- immediately before each replace, the target precondition is still checked while its lease remains held;
+- a mismatch aborts before overwriting that target;
+- rollback remains hash-guarded and never overwrites a later user edit.
+
 #### PowerPoint-protected publication
 
 For QMD -> PPTX, when the paired presentation is open, the Windows host adapter must provide an **exclusive presentation publish lease** or equivalent atomic host-side publication primitive.
@@ -191,7 +245,7 @@ If no supported/reliable PowerPoint barrier can be demonstrated, QMD -> PPTX aut
 
 #### QMD-protected publication
 
-For PPTX -> QMD, the VS Code Workspace extension must provide an **editor publish lease** or version-conditional publication primitive for the paired QMD.
+For PPTX -> QMD, the VS Code Workspace extension must provide an **editor publish lease** or version-conditional publication primitive for the paired QMD through the explicit Core <-> Workspace lease RPC defined above.
 
 Required guarantee:
 - the guard is tied to the exact TextDocument version/in-memory fingerprint validated before commit;
@@ -281,10 +335,11 @@ On QMD save:
 6. otherwise render to candidate outputs without publishing over the live PPTX yet;
 7. immediately before publication, re-query/revalidate the protected QMD/PowerPoint tokens and saved fingerprints;
 8. if PowerPoint or protected state changed after admission, discard candidate publication and re-evaluate -> PENDING/CONFLICT;
-9. if still safe, acquire the PowerPoint commit barrier / exclusive presentation publish lease for the exact validated token;
-10. only while that barrier is held, commit candidate PPTX/assets plus the new sync checkpoint in one recoverable transaction;
-11. release the barrier in a finally-style path;
-12. if any event/change was observed during COMMITTING, keep PENDING and re-evaluate immediately; otherwise return to IDLE.
+9. if still safe and PowerPoint is open, acquire the PowerPoint exclusive presentation publish lease for the exact validated token;
+10. acquire filesystem publish leases for every canonical transaction target and verify every expected old hash/absence under lease; this filesystem barrier is required even when PowerPoint is closed;
+11. only while all required barriers are held, commit candidate PPTX/assets plus the new sync checkpoint in one recoverable transaction;
+12. release filesystem leases and then any PowerPoint lease in finally-style paths;
+13. if any event/change was observed during COMMITTING, keep PENDING and re-evaluate immediately; otherwise return to IDLE.
 
 A dirty-state query followed by a later unconditional overwrite is forbidden.
 
@@ -300,10 +355,11 @@ On PPTX save:
 6. otherwise reconstruct/import to candidate outputs without publishing over the live QMD yet;
 7. immediately before publication, re-check the VS Code document version/dirty state and relevant PowerPoint/file token;
 8. if QMD or protected state changed after admission, do not publish; re-evaluate -> PENDING/CONFLICT;
-9. if still safe, acquire the VS Code QMD editor publish lease / version-conditional publication guard for the exact validated document version;
-10. only while that guard is held, commit QMD/assets/PPTX metadata writeback plus the new sync checkpoint in one recoverable transaction;
-11. release the guard in a finally-style path;
-12. if any event/change was observed during COMMITTING, keep PENDING and re-evaluate immediately; otherwise return to IDLE.
+9. if still safe, acquire the VS Code QMD editor lease through the Core <-> Workspace RPC for the exact validated document version/text hash;
+10. acquire the filesystem publish leases for every canonical transaction target and verify every expected old hash/absence under lease;
+11. only while both editor and filesystem barriers are held, commit QMD/assets/PPTX metadata writeback plus the new sync checkpoint in one recoverable transaction;
+12. release filesystem leases and then the QMD editor lease in finally-style paths;
+13. if any event/change was observed during COMMITTING, keep PENDING and re-evaluate immediately; otherwise return to IDLE.
 
 ### Manual command interaction / DOCUMENT_BUSY
 
@@ -432,6 +488,14 @@ PowerPoint host adapter must safely:
 - handle multiple PowerPoint presentations without selecting the wrong document;
 - fail safely if COM/PowerPoint is unavailable.
 
+Core <-> Workspace lease IPC must prove:
+- Core can acquire, renew, and release a QMD lease for the exact documentId/path/version/text hash;
+- the lease remains valid across the entire FileTransaction commit interval;
+- Workspace disconnect/restart, Core disconnect, lease expiry, renewal failure, stale request, and duplicate release all fail safely;
+- two managed documents cannot share/cross lease IDs;
+- attempted QMD edit/save while leased is prevented/serialized or causes conditional publication to fail before overwrite;
+- no success is reported after lease loss.
+
 Cross-host bridge must prove:
 - Workspace/Core can request PowerPoint state from the Windows Local UI and receive a typed response;
 - Workspace/Core can request a comparison snapshot and receive its result/path safely;
@@ -443,7 +507,11 @@ Cross-host bridge must prove:
 - host disconnect during a held barrier cannot be treated as a successful publication;
 - no implementation depends solely on file locks/timestamps.
 
-The VS Code side must separately prove that the paired QMD can be protected by a supported short-lived editor publish lease or version-conditional publication primitive from final validation through replacement. A plain version check followed by unconditional file replacement does not pass this gate.
+The VS Code side must separately prove the explicit Core <-> Workspace QMD lease RPC end-to-end, including acquire/renew/release across the full transaction.
+
+Filesystem publication must also prove, on the real Windows-backed workspace, that an exclusive host-visible file lease can be acquired for closed PPTX/QMD/assets targets and that another Windows process cannot modify a leased file between expected-old-hash verification and replace. A Linux-only advisory lock on the bind mount does not pass this gate.
+
+A plain version/hash check followed by unconditional file replacement does not pass this gate.
 
 If either the reverse bridge, the PowerPoint publish lease, or the QMD editor publish guard cannot be made reliable with the existing topology, stop and revise the design before implementation. Do not silently substitute heuristics or add a PowerPoint Add-in without explicit design review.
 
