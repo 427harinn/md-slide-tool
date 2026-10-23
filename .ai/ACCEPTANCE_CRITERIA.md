@@ -326,10 +326,10 @@ AC-M4-26 through AC-M4-34 were introduced while exploring a layered publication-
 - **AC-M4-41:** The VS Code Workspace extension is the automatic M4 orchestrator. It establishes a correlated pair freeze before starting any Core command that may run M3 recovery or publish files.
   - Verification: AUTOMATED extension/integration tests + Architecture review
   - Status: UNVERIFIED
-- **AC-M4-42:** Reopening or editing the paired QMD or PPTX in the supported application while a freeze session is active invalidates that session. Core performs no further destructive automatic write after observing invalidation, and the newest user buffer/presentation is preserved for re-evaluation/CONFLICT.
-  - Verification: T-401 + AUTOMATED freeze-invalidation tests + HUMAN_REQUIRED
+- **AC-M4-42:** Reopening/editing before Core owns `committing` invalidates the freeze and yields zero destructive writes. After commit ownership, reopen is handled by the owning per-target mutation broker; it does not reuse the pre-ownership invalidation rule, and user work is preserved for post-transaction re-evaluation.
+  - Verification: T-401 + AUTOMATED freeze-invalidation/broker tests + HUMAN_REQUIRED
   - Status: UNVERIFIED
-- **AC-M4-43:** Automatic M3 transaction recovery runs only after the paired VS Code/PowerPoint views are frozen. Recovery destructive mutation points honor the same freeze-session guard and stop safely if it is invalidated.
+- **AC-M4-43:** Automatic M3 transaction recovery runs only after the paired VS Code/PowerPoint views are frozen. Before recovery commit ownership, invalidation yields zero destructive writes; after ownership, QMD/PPTX recovery mutations use the same broker/suspend rules as normal commit operations.
   - Verification: AUTOMATED crash/recovery integration + HUMAN_REQUIRED
   - Status: UNVERIFIED
 - **AC-M4-44:** Workspace -> Local UI freeze/restore/state requests and Local UI -> Workspace reopen-invalidation events are correlated by freezeSessionId; timeout/disconnect/restart cannot be interpreted as a valid freeze.
@@ -376,5 +376,15 @@ AC-M4-26 through AC-M4-34 were introduced while exploring a layered publication-
   - Status: UNVERIFIED
 - **AC-M4-57:** On startup, pending transaction journal detection/recovery precedes any use of the sync checkpoint to decide render/import/conflict. After recovery stabilizes, checkpoint and current fingerprints are re-read before pair evaluation.
   - Verification: AUTOMATED restart/recovery tests
+  - Status: UNVERIFIED
+
+- **AC-M4-58:** Automatic M4 does not use a pre-mutation re-freeze ACK followed by a later Core QMD/PPTX replace. The component that owns the supported-app freeze performs the actual QMD/PPTX create/replace/delete in the same broker critical section and returns only a post-mutation result.
+  - Verification: T-401 + AUTOMATED broker/race tests + Architecture/Review
+  - Status: UNVERIFIED
+- **AC-M4-59:** A reopen injected after broker freeze validation but before the actual QMD/PPTX file operation cannot be silently overwritten: the broker must keep/re-establish the supported-app freeze through mutation or return NOT_MUTATED/UNKNOWN so Core suspends and recovery resolves the journal.
+  - Verification: T-401 race probe + AUTOMATED broker failure injection
+  - Status: UNVERIFIED
+- **AC-M4-60:** QMD mutation is brokered by Workspace, PPTX mutation by Windows Local UI, while Core remains journal/transaction authority. Broker requests are correlated by documentId/freezeSessionId/transaction/op index and verify expected old hash/absence and final outcome.
+  - Verification: AUTOMATED integration + T-401
   - Status: UNVERIFIED
 
