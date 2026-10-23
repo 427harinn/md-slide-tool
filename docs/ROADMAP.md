@@ -186,48 +186,65 @@ slidegen import presentation.pptx
 
 ## M4: Docker Sync Engine
 
-目的:
-QMD と PPTX の保存を自動監視して build/import を呼び分ける。
+状態: 設計中。
 
-想定:
-
-```text
-QMD save  -> render
-PPTX save -> import
-```
-
-責務:
-
-- file watch
-- debounce
-- running / pending
-- self-generated write suppression
-- error handling
-
-過去の Auto Preview 実験にある debounce / running / pending の考え方は参考にできるが、ブランチをそのまま統合することは前提にしない。
-
-## M5: Conflict Handling
+詳細: `docs/M4_SYNC_ENGINE.md`
 
 目的:
-両側で編集された場合にもデータを失わない。
-
-想定:
+QMD/PPTX保存をトリガーに、通常時は手動Build/importなしでほぼリアルタイムに往復できるようにする。
 
 ```text
-presentation.qmd
-presentation.conflict-pptx.qmd
-presentation.assets.json
-presentation.conflict-pptx.assets.json
+QMD save  -> automatic render -> PPTX
+PPTX save -> automatic import -> QMD/assets
 ```
 
-QMD が dirty の状態で PPTX 保存が発生した場合:
+主要方針:
 
-- 本体 QMD は上書きしない
-- PPTX から conflict QMD を生成
-- VS Code で diff を表示
-- 人間が採用 / 手動マージする
+- Docker / Dev Containerがwatch / debounce / running / pending / self-write suppression / conflict detectionを担当
+- VS Codeはeditor dirty-state、status UI、Cancel/Compare promptを担当
+- Windows Local UIはPowerPoint open/saved/dirty状態とnon-destructive comparison snapshotだけを担当
+- active operation中の複数saveは1つのpending intentへcoalesce
+- render/import自身の書き込みはhash/fingerprintでdeterministicに抑制し、time-only ignoreに依存しない
+- QMD/PPTXの両側に未保存または独立変更があれば自動同期を止める
+- conflict時は **Cancel / Compare**。自動で勝者を決めない
+- unsaved PowerPointの比較はSaveCopyAs相当で一時PPTXを作り、originalを強制保存しない
+- unsaved QMDの比較はVS Code editorのin-memory textを使い、real QMDを強制保存しない
+- M4はcomparison snapshot/entrypointまで。final diff/resolutionはM5
+- status barでSynced/Building/Importing/Pending/Conflict/Error/Paused等を表示
+- workspace activationでauto start、pause/resume可能
+- incremental/selective buildは初期M4の必須要件にしない
 
-自動テキストマージは初期仕様にしない。
+実装前必須gate:
+Windows PowerPointでclosed/open-saved/open-dirty判定、複数presentationの正確なtargeting、SaveCopyAsによる最新unsaved snapshot、original dirty-state保持を検証する。成立しなければPowerPoint Add-in等を勝手に追加せず、設計を再検討する。
+
+## M5: Conflict Handling / Semantic Diff
+
+目的:
+M4が検出した競合を、ユーザーが内容を理解して安全に解決できるようにする。
+
+M4から渡されるもの:
+- QMD側の最新状態（必要ならunsaved editor snapshot）
+- PowerPoint側の最新状態（必要ならSaveCopyAs comparison snapshot）
+- stable identity / normalized semantic data
+
+初期UX:
+
+```text
+Conflict
+  -> Compare
+  -> VS Code Semantic Diff
+  -> choose QMD or PowerPoint
+```
+
+Diff方針:
+
+- ドキュメント全体の変更を見せる
+- 読みやすさのためslide単位にgroup
+- slide内ではtitle / body / list / caption / image geometry / crop等の意味単位で表示
+- `slide-id` / `element-id` / hash等の内部情報は通常ユーザーには表示しない
+- raw QMD全文diffを主要UXにしない
+- 初期仕様ではautomatic text mergeを行わない
+- 将来必要ならper-slide/per-change resolutionを追加検討する
 
 ## M6: PPTX -> Word
 
