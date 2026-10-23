@@ -170,6 +170,11 @@ Run before production sync-engine implementation:
 9. Target closed between query and snapshot -> safe failure/re-evaluation.
 10. PowerPoint/COM unavailable -> explicit safe error.
 11. No timestamp/file-lock heuristic is accepted as the sole dirty-state source.
+12. Workspace/Core -> Local UI dirty-state request succeeds with a typed correlated response.
+13. Comparison-snapshot request succeeds and returns the correct target result.
+14. Two concurrent document requests cannot cross responses.
+15. Timeout, Remote disconnect, Local UI restart, PowerPoint exit mid-request, malformed response, and stale response all fail closed.
+16. Admission query followed by a PowerPoint edit produces a different pre-commit token/revalidation result.
 
 ### Watch/debounce
 
@@ -186,7 +191,10 @@ Run before production sync-engine implementation:
 - repeated QMD saves during render -> one pending re-evaluation;
 - PPTX save during render -> latest state re-evaluated, not blindly queued;
 - repeated events do not grow an unbounded queue;
-- per-document serialization and M3 document lock agree.
+- per-document serialization and M3 document lock agree;
+- manual render/import holds the M3 lock -> automatic sync gets DOCUMENT_BUSY, records one pending re-evaluation, no spin retry;
+- admission check passes, then QMD editor changes before commit -> candidate not published;
+- admission check passes, then PowerPoint changes before commit -> candidate not published.
 
 ### Self-write suppression
 
@@ -194,6 +202,10 @@ Run before production sync-engine implementation:
 - import's QMD/PPTX metadata writeback is ignored as self-generated;
 - an external edit immediately after generated write is not swallowed;
 - restart with stale in-memory generation token still re-evaluates hashes safely;
+- front-matter-only QMD change is detected after restart via full-file fingerprint;
+- sync checkpoint is committed with canonical outputs in the same recoverable transaction;
+- crash after output replacement but before cleanup recovers matching checkpoint/output state;
+- corrupt/stale checkpoint never authorizes overwrite;
 - no render -> import -> render loop.
 
 ### Conflict detection
