@@ -244,6 +244,11 @@ Detailed design: `docs/M4_SYNC_ENGINE.md`.
 - M4 uses a **destination freeze** model instead of layered PowerPoint/QMD/filesystem publication leases.
 - The VS Code Workspace extension (running in the Dev Container extension host) is the automatic M4 orchestrator. It freezes the pair before invoking Core; Core does not initiate editor freeze.
 - Every automatic operation gets a freezeSessionId shared with the Windows Local UI for PowerPoint freeze/restore/invalidation.
+- Workspace/Core share one atomic guard at `.md-slide-tool/freeze/<document-id>.json`.
+- Before the first destructive mutation, reopen/edit changes the guard to invalidated and Core performs zero writes.
+- Immediately before the first destructive mutation, Core atomically claims `frozen -> committing`.
+- After that claim, reopen attempts are blocked/re-closed and recorded as pendingReopen; the M3 transaction/recovery reaches a stable state before re-evaluation. Freeze invalidation does not trigger an ad-hoc mid-transaction rollback.
+- A stale committing guard after crash never authorizes recovery; next recovery requires a new pair freeze/session.
 - Pair freeze is established before Core startup because Core may run M3 transaction recovery before render/import.
 - Reopening/editing the paired QMD or PPTX during Syncing invalidates the freeze session; Core must stop further destructive automatic writes and the Workspace orchestrator re-evaluates/enters CONFLICT as needed.
 - Supported interactive editors are VS Code for QMD and Microsoft PowerPoint desktop for PPTX.
