@@ -309,84 +309,84 @@ AC-M4-26 through AC-M4-34 were introduced while exploring a layered publication-
   - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-36:** A clean paired QMD editor can be temporarily frozen/closed for PPTX -> QMD publication and restored/reopened afterward without content loss or false dirty state; a dirty QMD is never automatically closed.
   - Verification: T-401 + AUTOMATED extension tests + HUMAN_REQUIRED
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-37:** If M3 import still writes PPTX metadata, PPTX -> QMD synchronization does not keep the same PPTX actively editable in PowerPoint during that writeback. It either closes/reopens the clean presentation or uses a separately verified no-writeback design.
   - Verification: T-401 + AUTOMATED regression + HUMAN_REQUIRED
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-38:** M4's formal concurrency guarantee covers VS Code for QMD and Microsoft PowerPoint desktop for PPTX. Arbitrary external writers during the short destination-freeze/commit interval are explicitly outside the M4 guarantee; M4 still performs final saved-state validation and M3 recoverable transaction handling.
   - Verification: Architecture review + documentation scan
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-39:** If destination close/freeze succeeds but publication or restore/reopen later fails, canonical file consistency follows M3 transaction/recovery and the UI/host failure is reported separately without pretending the opposite side is synchronized.
   - Verification: AUTOMATED failure injection + HUMAN_REQUIRED
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-40:** T-401 proves the simplified destination-freeze operations and cross-host close/reopen/state requests using supported APIs before production implementation begins.
   - Verification: T-401 feasibility
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 
 - **AC-M4-41:** The VS Code Workspace extension is the automatic M4 orchestrator. It establishes a correlated pair freeze before starting any Core command that may run M3 recovery or publish files.
   - Verification: AUTOMATED extension/integration tests + Architecture review
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-42:** Reopening/editing before Core owns `committing` invalidates the freeze and yields zero destructive writes. After commit ownership, reopen is handled by the owning per-target mutation broker; it does not reuse the pre-ownership invalidation rule, and user work is preserved for post-transaction re-evaluation.
   - Verification: T-401 + AUTOMATED freeze-invalidation/broker tests + HUMAN_REQUIRED
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-43:** Automatic M3 transaction recovery runs only after the paired VS Code/PowerPoint views are frozen. Before recovery commit ownership, invalidation yields zero destructive writes; after ownership, QMD/PPTX recovery mutations use the same broker/suspend rules as normal commit operations.
   - Verification: AUTOMATED crash/recovery integration + HUMAN_REQUIRED
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-44:** Workspace -> Local UI freeze/restore/state requests and Local UI -> Workspace reopen-invalidation events are correlated by freezeSessionId; timeout/disconnect/restart cannot be interpreted as a valid freeze.
   - Verification: T-401 + AUTOMATED cross-host tests
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 
 - **AC-M4-45:** Workspace and Core coordinate freeze validity through one atomic shared guard keyed by documentId/freezeSessionId. Core must atomically claim `frozen -> committing` immediately before the first destructive transaction/recovery mutation.
   - Verification: AUTOMATED guard/race tests + Architecture review
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-46:** Reopen/edit before Core claims `committing` invalidates the guard and results in zero destructive writes. Reopen/edit after `committing` does not trigger ad-hoc rollback; supported-app reopen is rejected/re-closed, `pendingReopen` is recorded, and the transaction reaches a stable committed/rolled-back/manual-recovery state before re-evaluation.
   - Verification: T-401 + AUTOMATED first-write race tests + HUMAN_REQUIRED
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-47:** A crash during `committing` leaves the M3 journal authoritative. A stale guard never authorizes recovery; a brand-new pair freeze/session is required before recovery can perform destructive writes.
   - Verification: AUTOMATED crash/recovery tests + Architecture review
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-48:** Checkpoint state after partial commit plus reopen/invalidation follows the M3 transaction outcome: committed output has the new checkpoint, rolled-back output has the old checkpoint, and ManualRecoveryRequired never fabricates a synchronized checkpoint.
   - Verification: AUTOMATED failure injection
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 
 - **AC-M4-49:** The `frozen -> invalidated` and `frozen -> committing` race is serialized by competing atomic rename of the same runtime state token. There is no stale read followed by unconditional state overwrite; exactly one transition wins.
   - Verification: AUTOMATED high-iteration race test + Architecture review
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-50:** Post-ownership reopen notification uses an append-only/create-if-absent `pending-reopen` marker and cannot overwrite the primary committing state.
   - Verification: AUTOMATED concurrency tests
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-51:** Every automatic Core process has a freezeSessionId-bound Workspace control channel. Core checks it before each destructive transaction/recovery mutation. Workspace/Local UI loss after commit ownership prevents the next mutation.
   - Verification: AUTOMATED IPC/failure-injection + T-401
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-52:** Control loss after one or more transaction operations causes a typed TransactionSuspended path that leaves the journal in `committing` and does not run the normal immediate rollback path. A new pair freeze/session is required before recovery resumes.
   - Verification: AUTOMATED partial-commit/crash tests + Architecture review
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-53:** A suspended transaction does not advance the durable sync checkpoint unless the transaction had already reached `committed`; recovery under a later valid freeze determines the final checkpoint/file state.
   - Verification: AUTOMATED checkpoint/recovery tests
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 
 - **AC-M4-54:** After commit ownership, a supported-app reopen is handled by the owning per-target mutation broker. For QMD/PPTX, freeze validation/re-establishment and the actual file mutation occur in one broker critical section; timeout/failure/unknown outcome causes TransactionSuspended instead of a later Core replace.
   - Verification: AUTOMATED IPC/broker race tests + T-401 + HUMAN_REQUIRED
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-55:** TransactionSuspended bypasses FileTransaction.commit()'s generic immediate-rollback path. Suspension during commit preserves a `committing` journal; suspension during rollback recovery may preserve `rolling_back`; both require later recovery under a new valid pair freeze.
   - Verification: AUTOMATED transaction failure injection + Architecture/Review
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-56:** A suspension after the final target replacement but before the journal is durably marked `committed` remains an incomplete transaction and is resolved by journal recovery, not inferred as successful from target hashes alone.
   - Verification: AUTOMATED crash/suspend fixture
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-57:** On startup, pending transaction journal detection/recovery precedes any use of the sync checkpoint to decide render/import/conflict. After recovery stabilizes, checkpoint and current fingerprints are re-read before pair evaluation.
   - Verification: AUTOMATED restart/recovery tests
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 
 - **AC-M4-58:** For automatic M4 QMD/PPTX writes, the component that owns the supported-app freeze performs the actual create/replace/delete in the same broker critical section and returns only a post-mutation result; Core never performs a later QMD/PPTX replace based on an earlier permission response.
   - Verification: T-401 + AUTOMATED broker/race tests + Architecture/Review
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-59:** A reopen injected after broker freeze validation but before the actual QMD/PPTX file operation cannot be silently overwritten: the broker must keep/re-establish the supported-app freeze through mutation or return NOT_MUTATED/UNKNOWN so Core suspends and recovery resolves the journal.
   - Verification: T-401 race probe + AUTOMATED broker failure injection
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 - **AC-M4-60:** QMD mutation is brokered by Workspace, PPTX mutation by Windows Local UI, while Core remains journal/transaction authority. Broker requests are correlated by documentId/freezeSessionId/transaction/op index and verify expected old hash/absence and final outcome.
   - Verification: AUTOMATED integration + T-401
-  - Status: UNVERIFIED
+  - Status: DEFERRED (superseded by M4 v2)
 
 
 
