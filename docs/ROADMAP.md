@@ -233,6 +233,14 @@ Additional M4 publication safety:
 - COMMITTING中のsave/changeはPENDINGで保持し、barrier release後に再評価
 - DOCUMENT_BUSYはfilesystem event待ちだけにせずbounded timer/backoffでもlock解放を確認
 
+Additional M4 publication guarantees:
+- Core -> WorkspaceのQMD lease RPC（acquire/renew/release）を明示し、recoverable commit完了まで保持
+- 全canonical replace/delete targetでWindows host-visible exclusive filesystem leaseを取得
+- lease下でmanifestのexpected old hash / expected absenceを再確認してからpublish
+- FileTransactionのunconditional replaceは禁止
+- closed PPTXや別Windows processからの変更もfilesystem publication barrierで保護
+- reliableなhost-visible leaseが成立しないtargetはautomatic destructive publicationをre-scope
+
 ## M5: Conflict Handling / Semantic Diff
 
 目的:
