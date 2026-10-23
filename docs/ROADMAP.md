@@ -226,6 +226,13 @@ M4 safety additions:
 - Workspace/Core -> Windows Local UI dirty-state/snapshot RPC is a mandatory feasibility item;
 - automatic sync treats manual-operation DOCUMENT_BUSY as bounded pending re-evaluation.
 
+Additional M4 publication safety:
+- final dirty/token validationだけでなく、publication commit barrierを取得してcanonical file + sync checkpointのcommit完了まで保持する
+- PowerPoint open中のQMD -> PPTXはexclusive host publish leaseが実証できた場合のみ自動publicationする
+- PPTX -> QMDはVS Code editor versionに結びつくconditional publication/leaseを必須とする
+- COMMITTING中のsave/changeはPENDINGで保持し、barrier release後に再評価
+- DOCUMENT_BUSYはfilesystem event待ちだけにせずbounded timer/backoffでもlock解放を確認
+
 ## M5: Conflict Handling / Semantic Diff
 
 目的:
