@@ -160,8 +160,8 @@ Any unavailable verification must be reported as UNVERIFIED or HUMAN_REQUIRED, n
 Run before production sync-engine implementation.
 
 #### PowerPoint
-- freezeSessionId開始後、paired PPTXをPowerPointで再open -> session invalidated;
-- freeze中reopen後に編集 -> user presentation preserved, no further destructive automatic write;
+- commit ownership前にpaired PPTXを再open -> invalidated、destructive write 0件;
+- commit ownership後のPPTX reopenはLocal UI mutation brokerのcritical section/suspend ruleで扱い、pre-ownership invalidationとして扱わない;
 
 1. Closed target -> report closed.
 2. Exact paired target open and saved -> report open-saved.
@@ -177,8 +177,8 @@ Run before production sync-engine implementation.
 #### VS Code QMD
 - Workspace extension owns automatic sync orchestration;
 - paired QMD/PPTX freeze completes before Core process starts;
-- freeze中QMD reopen/edit -> session invalidated;
-- dirty reopened buffer preserved for later conflict handling;
+- commit ownership前のQMD reopen/edit -> invalidated、destructive write 0件;
+- commit ownership後のQMD reopen/editはWorkspace mutation brokerのcritical section/suspend ruleで扱い、dirty bufferは保持;
 
 11. Exact paired QMD dirty/clean state is reported.
 12. Dirty QMD is never automatically closed.
@@ -198,18 +198,23 @@ Run before production sync-engine implementation.
 - Core receives expected session ID and rejects missing/mismatched/invalidated guard;
 - reopen immediately before frozen -> committing CAS -> invalidated, zero destructive writes;
 - Core atomically changes frozen -> committing before first FileTransaction/recovery mutation;
-- reopen immediately after committing transition but before first replace -> pendingReopen, supported view re-closed, transaction continues to stable state;
+- reopen immediately after committing transition but before first QMD/PPTX replace -> pending-reopen; owner mutation broker must perform freeze+mutation atomically as one critical section or return NOT_MUTATED;
 - reopen immediately after first replace -> no ad-hoc rollback caused by freeze invalidation; existing transaction semantics finish commit/rollback;
 - token rename race is injected repeatedly to prove invalidated and committing can never both win;
 - stale runtime session after process death cannot be reused.
 
-#### Re-freeze acknowledgement
+#### Per-target mutation broker
 - reopen after committing -> pending-reopen recorded;
-- Core pauses before the next destructive mutation;
-- Workspace/Local UI completes close/freeze and sends ACK for exact freezeSessionId + reopen generation;
-- correct ACK -> mutation may proceed;
-- stale ACK from previous reopen -> rejected;
-- no ACK / timeout / close failure -> TransactionSuspended before mutation;
+- Core does not later mutate QMD/PPTX after receiving a pre-write ACK;
+- QMD operation is sent to Workspace mutation broker;
+- PPTX operation is sent to Windows Local UI mutation broker;
+- broker validates exact freezeSessionId/transaction/op index;
+- broker re-establishes/holds supported-app freeze and performs expected-old check + actual create/replace/delete before returning;
+- inject reopen after broker freeze validation but before actual file operation;
+- expected result: broker keeps/re-establishes freeze through mutation OR returns NOT_MUTATED without overwriting user work;
+- broker timeout/disconnect/UNKNOWN -> TransactionSuspended and journal retained;
+- stale response from earlier operation/session is rejected;
+- broker crash after atomic replace but before reply -> next recovery determines old/new state from hashes;
 - repeat for QMD and PowerPoint.
 
 #### Control-loss / suspend
@@ -229,8 +234,9 @@ Run before production sync-engine implementation.
 #### Recovery / ordering
 - pending M3 transaction fixture + automatic sync -> pair freeze happens before recover_transactions();
 - recovery destructive step checks valid freezeSessionId;
-- QMD reopen during recovery -> invalidate, stop later destructive writes, safe re-evaluate;
-- PowerPoint reopen during recovery -> invalidate, stop later destructive writes, safe re-evaluate;
+- QMD/PPTX reopen before recovery owns committing -> invalidation and zero destructive writes;
+- after recovery owns committing, QMD/PPTX target mutations use Workspace/Local UI mutation broker respectively;
+- reopen injected inside recovery broker critical section -> safe mutation or NOT_MUTATED/TransactionSuspended, never silent overwrite;
 
 #### Cross-host
 - freeze/restore request and reopen invalidation event share freezeSessionId;
@@ -256,6 +262,8 @@ If the destination-freeze operations cannot be made reliable with supported APIs
 - assets/imported-image generated events do not become independent user triggers.
 
 ### QMD -> PPTX
+- before direction selection, run JOURNAL_CHECK; if journal exists, freeze + recover first, then re-read checkpoint/fingerprints;
+- pair-level evaluation happens only after that recovery gate;
 
 - PowerPoint closed -> render/commit succeeds;
 - PowerPoint open-saved -> close, render/commit, reopen;
@@ -266,6 +274,8 @@ If the destination-freeze operations cannot be made reliable with supported APIs
 - M4-generated PPTX event does not trigger import loop.
 
 ### PPTX -> QMD
+- before direction selection, run JOURNAL_CHECK; if journal exists, freeze + recover first, then re-read checkpoint/fingerprints;
+- pair-level evaluation happens only after that recovery gate;
 
 - QMD closed -> import/commit succeeds;
 - QMD open-clean -> freeze, import/commit, restore;
