@@ -202,6 +202,8 @@ M4は**destination freeze方式**を採用する。
 
 自動同期のオーケストレーションはDev Container側のVS Code Workspace extensionが担当する。Workspace extensionがQMD/PowerPointのpair freezeを完了してからCoreを起動するため、M3 transaction recoveryもfreeze後に実行される。
 
+freeze状態は `.md-slide-tool/freeze/<document-id>.json` の共有guardでCoreへ伝える。Coreが最初のdestructive write直前に `frozen -> committing` をatomicにclaimする。claim前のreopen/editはinvalidateして書き込み0件、claim後のreopenはpendingとして記録し、supported appをre-closeしてtransaction/recoveryをstable stateまで完了してから再評価する。crash後のrecoveryは新しいpair freeze/sessionを必須とする。
+
 正式サポートする編集環境:
 - QMD: VS Code
 - PPTX: Microsoft PowerPoint desktop
