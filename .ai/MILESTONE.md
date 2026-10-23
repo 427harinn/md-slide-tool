@@ -51,6 +51,12 @@ possible conflict
 - Workspace/Core -> Windows Local UIのdirty-state / snapshot request-responseはT-401でtimeout/disconnectを含めてfeasibility確認する。
 - manual render/importとのDOCUMENT_BUSYはspin retryせずpending re-evaluationへ戻す。
 
+- final validation後からcanonical publication完了まではcommit barrier / conditional publicationで保護し、check-then-write raceを許可しない。
+- PowerPointがopenのまま自動publishする場合はvalidated tokenに結びついたexclusive presentation publish leaseを必須とし、成立しなければその経路をre-scopeする。
+- PPTX -> QMDはVS Code TextDocument versionに結びついたeditor publish leaseまたはversion-conditional publicationを必須とする。
+- COMMITTING中のsave/change eventはPENDINGとして保持し、barrier release後にpair全体を再評価する。
+- DOCUMENT_BUSY後はfile eventがなくてもbounded timer/backoffでlock releaseを再確認する。
+
 ## 対象外
 
 - keystroke-level live sync
