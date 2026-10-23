@@ -213,17 +213,17 @@ QMD -> PPTX:
 - open-cleanなら対象presentationを短時間close
 - render/transaction後に同じpresentationをreopen
 - PowerPoint application自体は終了しない
-- Syncing中に同じPPTXを再open/editしたらfreeze sessionをinvalidateし、以後のdestructive writeを止めて再評価
+- commit ownership前のPPTX reopen/editはfreeze sessionをinvalidateして0 write。ownership後はLocal UI mutation brokerがfreeze確認/再確立とactual PPTX mutationを同一critical sectionで実行
 
 PPTX -> QMD:
 - QMD dirtyならCONFLICT
 - open-cleanならQMD editorを短時間freeze/close
 - import/transaction後にrestore/reopen
 - M3 importがPPTX metadataを書き戻す場合も同一pair freeze内で処理
-- Syncing中にQMDを再open/editしたらfreeze sessionをinvalidateし、bufferを保持して再評価
+- commit ownership前のQMD reopen/editはfreeze sessionをinvalidateして0 write。ownership後はWorkspace mutation brokerがbufferを保護しつつfreeze確認/再確立とactual QMD mutationを同一critical sectionで実行
 
 共通:
-- Docker/Coreがwatch / debounce / pending / self-write suppression / checkpoint / M3 transactionを担当
+- Dev Container側のWorkspace extensionがwatch / debounce / pending / orchestrationを担当し、Coreがrecovery/render/import/journal/transaction/checkpoint primitiveを担当
 - duplicate saveはcoalesce
 - same-window QMD/PPTX eventはpair-level再評価
 - dirty destinationは自動で閉じない
