@@ -15,6 +15,10 @@ production implementation前の必須gate。
 - comparison copy作成後もoriginalのdirty/saved stateが変わらないこと
 - multiple presentations open時にwrong documentを選ばないこと
 - PowerPoint/COM unavailable時にsafe FAILすること
+- Workspace/Core -> Windows Local UI のdirty-state request/responseが成立すること
+- comparison snapshot request/responseがrequest IDで正しくcorrelateされること
+- timeout / Remote切断 / Local UI再起動 / PowerPoint終了中のrequestがfail closedすること
+- admission時とpre-commit時の2回問い合わせで変更token差分を検出できること
 - file lock/timestamp heuristicだけでdirty判定しないこと
 
 成立しない場合はPowerPoint Add-in等を勝手に実装せず、設計をReviewへ戻す。
@@ -26,12 +30,17 @@ production implementation前の必須gate。
 - no second canonical title/body JSON
 - managed documentIdとのpairing
 - restart/resume時のre-evaluation
+- full QMD file hash（front matter込み）を持ち、M3 body hashだけに依存しない
+- sync checkpointをrender/import outputsと同じrecoverable transaction commit境界に含める
+- transaction commit後/checkpoint更新前というcrash gapを作らない
+- corrupt/stale checkpointはsilent overwriteせずre-evaluate/conflict/manual recovery
 
 ### T-403: Watcher / debounce
 
 - managed QMD/PPTX pairのみprimary trigger
 - rapid duplicate event coalescing
 - atomic rename/temp-save patterns
+- 同一debounce windowにQMD/PPTX両eventが来たらpair全体を1回再評価し、arrival orderで方向を決めない
 - configurable initial debounce around 500-1000ms
 - assets/self-generated image writesをuser trigger化しない
 
@@ -41,7 +50,10 @@ production implementation前の必須gate。
 - active operation中のsaveはcoalesced pending
 - queueをevent数だけ積まない
 - operation完了後にlatest stateを再評価
+- admission validationとpre-commit validationの二段階確認
+- protected sideのdocument version / dirty token / saved fingerprintが途中で変わったらpublishしない
 - M3 document lock/transactionとの整合
+- manual render/importと競合してDOCUMENT_BUSYなら1件pendingとしてbounded re-evaluationし、spin retryしない
 
 ### T-405: Self-generated write suppression
 
@@ -58,6 +70,7 @@ production implementation前の必須gate。
 - safeならM3-capable render
 - self writes抑制
 - synchronized fingerprint更新
+- candidate生成後、commit直前にPowerPoint/QMD stateを再検証し、途中編集ならpublishせずCONFLICT/PENDING
 
 ### T-407: Automatic PPTX -> QMD sync
 
@@ -67,6 +80,7 @@ production implementation前の必須gate。
 - safeならM3 import
 - self writes抑制
 - synchronized fingerprint更新
+- candidate生成後、commit直前にPowerPoint/QMD stateを再検証し、途中編集ならpublishせずCONFLICT/PENDING
 
 ### T-408: Conflict detection / snapshots
 
@@ -98,6 +112,12 @@ production implementation前の必須gate。
 - import self-write does not trigger render
 - running + repeated saves -> one pending re-evaluation
 - simultaneous/independent change -> CONFLICT
+- QMD/PPTX eventsが同じdebounce windowに到着 -> pair-level re-evaluation
+- dirty-state admission後〜commit直前にQMD編集 -> no publish + CONFLICT/PENDING
+- dirty-state admission後〜commit直前にPowerPoint編集 -> no publish + CONFLICT/PENDING
+- M3 transaction commitとsync checkpointのcrash recovery
+- front-matter-only changeをrestart後も検出
+- manual operationによるDOCUMENT_BUSY -> bounded pending/re-evaluation
 - QMD dirty / PowerPoint dirty paths
 - Cancel is non-destructive
 - Compare snapshots latest in-memory state
