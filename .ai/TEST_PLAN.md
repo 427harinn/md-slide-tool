@@ -178,7 +178,14 @@ Run before production sync-engine implementation:
 17. PowerPoint publish-lease acquisition is tied to the validated token and fails if the target changes before acquisition.
 18. While the PowerPoint barrier is held, an edit/save cannot be silently overwritten; timeout/disconnect/host exit fails closed.
 19. QMD publish guard is tied to the exact TextDocument version/in-memory fingerprint through publication.
-20. If no supported PowerPoint or QMD barrier/conditional-publication primitive can prove this guarantee, T-401/T-402 feasibility FAILS and production implementation stops.
+20. Core -> Workspace QMD lease acquire/renew/release works end-to-end with correlated request IDs.
+21. QMD lease survives the full transaction interval; lease expiry/renew failure/Remote disconnect/Workspace restart/Core disconnect fails closed.
+22. Two documents cannot cross lease IDs or responses.
+23. Edit/save attempt during QMD lease is prevented/serialized or forces conditional publication failure before overwrite.
+24. Existing closed PPTX/QMD/assets targets can be protected by an exclusive filesystem lease that competing Windows processes cannot bypass during expected-old-hash verification + replace.
+25. Create target expected absence is checked under the same guard.
+26. Linux-only bind-mount advisory locking is not accepted unless real Windows writer exclusion is demonstrated.
+27. If no supported PowerPoint/QMD/filesystem barrier can prove these guarantees, feasibility FAILS and production implementation stops.
 
 ### Watch/debounce
 
@@ -203,7 +210,11 @@ Run before production sync-engine implementation:
 - final token check passes, then PowerPoint changes before first replace -> PowerPoint barrier acquisition/validation blocks publication;
 - change/save event during COMMITTING -> one PENDING intent survives until barrier release, then pair-level re-evaluation;
 - change injected between first and later multi-file replacements -> no silent loss; transaction/barrier recovery preserves user state and checkpoint consistency;
-- manual operation holds lock but writes no watched file -> bounded timer re-check detects release and re-evaluates without requiring filesystem event.
+- manual operation holds lock but writes no watched file -> bounded timer re-check detects release and re-evaluates without requiring filesystem event;
+- closed PPTX changes from another Windows process after final validation but before replace -> expected-old/hash-under-lease mismatch aborts publication;
+- external writer tries to modify a filesystem-leased target during COMMITTING -> no silent overwrite;
+- create target appears between staging and commit -> expected-absence precondition fails;
+- one later target fails CAS after earlier replacements -> transaction rollback/checkpoint recovery remains hash-guarded and never overwrites a later user edit.
 
 ### Self-write suppression
 
