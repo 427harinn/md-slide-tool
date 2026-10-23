@@ -349,3 +349,19 @@ AC-M4-26 through AC-M4-34 were introduced while exploring a layered publication-
   - Verification: AUTOMATED failure injection
   - Status: UNVERIFIED
 
+- **AC-M4-49:** The `frozen -> invalidated` and `frozen -> committing` race is serialized by competing atomic rename of the same runtime state token. There is no stale read followed by unconditional state overwrite; exactly one transition wins.
+  - Verification: AUTOMATED high-iteration race test + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-50:** Post-ownership reopen notification uses an append-only/create-if-absent `pending-reopen` marker and cannot overwrite the primary committing state.
+  - Verification: AUTOMATED concurrency tests
+  - Status: UNVERIFIED
+- **AC-M4-51:** Every automatic Core process has a freezeSessionId-bound Workspace control channel. Core checks it before each destructive transaction/recovery mutation. Workspace/Local UI loss after commit ownership prevents the next mutation.
+  - Verification: AUTOMATED IPC/failure-injection + T-401
+  - Status: UNVERIFIED
+- **AC-M4-52:** Control loss after one or more transaction operations causes a typed TransactionSuspended path that leaves the journal in `committing` and does not run the normal immediate rollback path. A new pair freeze/session is required before recovery resumes.
+  - Verification: AUTOMATED partial-commit/crash tests + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-53:** A suspended transaction does not advance the durable sync checkpoint unless the transaction had already reached `committed`; recovery under a later valid freeze determines the final checkpoint/file state.
+  - Verification: AUTOMATED checkpoint/recovery tests
+  - Status: UNVERIFIED
+
