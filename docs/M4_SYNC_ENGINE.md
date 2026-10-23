@@ -152,7 +152,10 @@ Core treats any of the following as control loss:
 - Local UI disconnect/restart/PowerPoint-control loss reported by Workspace;
 - session ID mismatch.
 
-Core checks control health immediately before every destructive transaction/recovery file mutation.
+Core checks both:
+- control-channel health; and
+- whether any pending reopen has a matching completed re-freeze ACK
+immediately before every destructive transaction/recovery file mutation.
 
 ### Commit boundary rule
 
@@ -170,9 +173,11 @@ Immediately before the first destructive mutation:
 4. only after `committing` exists may transaction/recovery mutate canonical files.
 
 After `committing`:
-- supported-app reopen attempts create `pending-reopen` and are rejected/re-closed when the control plane is healthy;
-- a normal reopen does not force ad-hoc rollback;
-- the transaction may continue toward a stable committed/rolled-back state while control remains healthy.
+- supported-app reopen attempts create `pending-reopen`;
+- Workspace/Local UI must re-close/freeze the reopened view and send an explicit **re-freeze ACK** for the same freezeSessionId;
+- Core must wait for a current re-freeze ACK before the **next destructive file mutation**;
+- if the ACK is not received, times out, or the host/control plane is lost, Core raises `TransactionSuspended` before that next mutation;
+- a normal reopen therefore does not force ad-hoc rollback, but it also cannot be ignored while subsequent writes continue.
 
 If the Workspace/Local UI control plane is lost after `committing`:
 - Core must not begin the next destructive file mutation;
@@ -186,6 +191,24 @@ If the Workspace/Local UI control plane is lost after `committing`:
 This separates two cases cleanly:
 - ordinary reopen while control is healthy -> transaction ownership continues;
 - loss of the mechanism that enforces freeze -> suspend at the next mutation boundary and defer recovery.
+
+### TransactionSuspended integration with M3 FileTransaction
+
+Current M3 `FileTransaction.commit()` catches `BaseException` and immediately enters rollback. M4 must explicitly change that behavior for `TransactionSuspended`.
+
+Required behavior:
+- `TransactionSuspended` is caught before the generic rollback handler or explicitly excluded from it;
+- do **not** change the journal phase to `rolling_back` merely because control/freeze was lost;
+- preserve the journal in its current durable phase, normally `committing`;
+- preserve already-applied target states exactly as they are;
+- return a typed SUSPENDED result to the Workspace orchestrator.
+
+Recovery must also handle journals already left in `rolling_back` by an earlier crash/failure:
+- under a new valid pair freeze/session, recovery may resume the normal M3 hash-guarded rollback;
+- control/re-freeze checks apply before each rollback mutation too;
+- if control is lost again, recovery suspends again and leaves the journal in `rolling_back`.
+
+A suspend after the final target replacement but before `phase=committed` is still treated as an incomplete journal. The next frozen recovery validates hashes and completes rollback/recovery according to M3 rules; it must not infer success only because all target files happen to match new hashes.
 
 ### Crash / recovery rule
 
@@ -209,6 +232,19 @@ Workspace does not mutate Core's `committing` token. Reopen/edit events are repr
 
 This remains cooperative coordination for VS Code and PowerPoint only, not an OS-wide canonical-file lock.
 
+### Startup ordering: recovery before checkpoint interpretation
+
+When automatic M4 starts for a managed document, a pending M3 journal takes precedence over the durable sync checkpoint.
+
+Order:
+1. identify the managed pair/documentId without choosing a sync direction;
+2. detect whether a transaction journal exists;
+3. if a journal exists, freeze the supported pair and run recovery first;
+4. only after recovery reaches a stable state, read/re-read the sync checkpoint and current QMD/PPTX fingerprints;
+5. then perform pair-level evaluation and choose IDLE / render / import / CONFLICT.
+
+The checkpoint must not be used to decide sync direction or conflict status before journal recovery, because a suspended/partial transaction may already have replaced the checkpoint file while the journal is still incomplete.
+
 ## 5. State machine
 
 Per managed document:
@@ -216,9 +252,11 @@ Per managed document:
 ```text
 IDLE
   -> DEBOUNCING
+  -> JOURNAL_CHECK
+  -> FREEZING_PAIR_IF_RECOVERY_NEEDED
+  -> RECOVERING_IF_NEEDED
   -> CHECKING
   -> FREEZING_PAIR
-  -> RECOVERING_IF_NEEDED
   -> PREPARING
   -> COMMITTING
   -> RESTORING_PAIR
@@ -321,10 +359,11 @@ If the rename fails because Core already owns `committing`, the event is handled
 A mid-transaction invalidation is not allowed to force ad-hoc rollback.
 
 Instead:
-- Workspace immediately closes/hides a reopened clean QMD editor and atomically creates the `pending-reopen` marker;
-- Local UI immediately closes a reopened clean PowerPoint presentation and Workspace creates the same `pending-reopen` marker;
+- Workspace immediately closes/hides a reopened clean QMD editor, creates the `pending-reopen` marker, and emits a re-freeze ACK only after the editor is actually frozen again;
+- Local UI immediately closes a reopened clean PowerPoint presentation; Workspace creates the same `pending-reopen` marker and records a re-freeze ACK only after Local UI confirms the presentation is closed again;
 - if the user manages to create unsaved work before the close completes, that buffer/presentation must not be force-saved or discarded; it is preserved for post-transaction conflict handling;
-- Core continues while the Workspace/Local UI control channel remains healthy. If that control is lost, Core suspends before the next destructive mutation and leaves the journal for recovery under a new freeze session;
+- Core does not perform the next destructive mutation until the latest pending reopen has a confirmed re-freeze ACK;
+- if re-freeze confirmation fails or control is lost, Core suspends before the next destructive mutation and leaves the journal for recovery under a new freeze session;
 - after the stable state, Workspace re-evaluates the preserved user work against the resulting files.
 
 T-401 must prove that supported-app reopen can be blocked/re-closed reliably once `state=committing`. If this cannot be made safe enough, the destination-freeze design fails feasibility.
@@ -552,6 +591,20 @@ Required control-loss checks:
 - checkpoint is not advanced unless transaction already reached committed;
 - next automatic recovery requires a new freeze/session.
 
+Required re-freeze checks:
+- after Core owns committing, reopen QMD/PPTX;
+- pending-reopen is recorded;
+- Core blocks before the next destructive mutation until Workspace/Local UI confirms the view is frozen again;
+- successful re-freeze ACK allows the next mutation;
+- missing/late/failed ACK causes TransactionSuspended;
+- ACK belongs to the exact freezeSessionId and reopen generation; stale ACK cannot release a newer pending reopen.
+
+Required FileTransaction suspension checks:
+- TransactionSuspended bypasses the generic BaseException immediate-rollback path;
+- journal remains committing after suspend during commit;
+- journal may remain rolling_back if suspension occurs during recovery rollback;
+- suspend after final replacement but before committed marker is recovered from the journal, not treated as implicitly committed.
+
 Required recovery/order checks:
 - create a pending M3 transaction, then start automatic M4 sync;
 - Workspace freezes both supported views before Core is invoked;
@@ -560,7 +613,9 @@ Required recovery/order checks:
 - reopen before that transition invalidates and recovery performs no destructive mutation;
 - reopen after that transition is blocked/re-closed, sets pendingReopen, and recovery is allowed to reach a stable state;
 - crash while committing leaves the journal; next recovery requires a brand-new pair freeze/session first;
-- checkpoint state after partial commit/rollback matches the M3 journal outcome.
+- checkpoint state after partial commit/rollback matches the M3 journal outcome;
+- startup does not use checkpoint to choose render/import/conflict until journal recovery completes;
+- fixture where checkpoint file was already replaced but journal remains committing -> recovery first, checkpoint re-read second.
 
 Required cross-host checks:
 - Workspace -> Local UI state/freeze/restore/SaveCopyAs requests return correlated typed results;
