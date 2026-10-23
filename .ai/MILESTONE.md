@@ -57,6 +57,11 @@ possible conflict
 - COMMITTING中のsave/change eventはPENDINGとして保持し、barrier release後にpair全体を再評価する。
 - DOCUMENT_BUSY後はfile eventがなくてもbounded timer/backoffでlock releaseを再確認する。
 
+- Core -> Workspace extensionにQMD lease RPC（acquire/renew/release）を持たせ、transaction全体でleaseを保持する。
+- canonical file publicationは全replace/delete targetのexclusive filesystem leaseとexpected-old-hash/expected-absence確認を必須とする。
+- FileTransaction.commitはunconditional replaceを行わず、lease下のCAS preconditionを満たした場合のみpublishする。
+- Windows host-visible file leaseが実証できないtargetはautomatic destructive publication対象外にre-scopeする。
+
 ## 対象外
 
 - keystroke-level live sync
