@@ -53,7 +53,11 @@ PPTX -> Microsoft PowerPoint desktop
 - VS Codeはdirty-state、QMD freeze、status、Conflict/Compare UI。
 - Windows Local UIはPowerPoint state、close/reopen、SaveCopyAs。
 - running中の複数saveは1件のPENDINGにcoalesce。
-- freezeSessionId中にQMD/PPTXをsupported appで再open/editしたらsessionをinvalidateし、以後のdestructive writeを停止して再評価。
+- freezeSessionIdは共有guardでCoreにも見せる。
+- Coreが最初のdestructive write前に `frozen -> committing` をatomic claimする。
+- claim前のQMD/PPTX reopen/editはinvalidateしてdestructive write 0件。
+- claim後のreopen/editはmid-transaction abortを行わず、supported appをre-close/preserveしpendingReopenとして記録。transaction/recoveryをstable stateまで完了後に再評価。
+- crash後のstale guardは再利用せず、新しいpair freeze/session後にrecovery。
 - self-generated writesはhash/fingerprintで抑制。
 - sync checkpointはfront matter込みQMD hashとPPTX fingerprintを持つが、本文を複製しない。
 - checkpointは同期outputsと同じrecoverable transactionでcommit。
