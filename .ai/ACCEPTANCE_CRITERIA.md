@@ -304,3 +304,16 @@ M4 turns the M3 manual roundtrip into safe save-driven synchronization. All crit
 - **AC-M4-30:** Automatic DOCUMENT_BUSY re-evaluation does not depend on a watched file changing. A bounded timer/backoff re-checks lock availability and transitions to re-evaluation or attention-required state without spin retry.
   - Verification: AUTOMATED concurrency tests
   - Status: UNVERIFIED
+
+- **AC-M4-31:** Core and the VS Code Workspace extension have an explicit correlated QMD lease RPC with acquire/renew/release semantics tied to documentId, canonical path, TextDocument version, and in-memory text fingerprint. The lease is held for the full recoverable commit interval and lease loss fails closed.
+  - Verification: AUTOMATED IPC/integration tests + Architecture review
+  - Status: UNVERIFIED
+- **AC-M4-32:** Every existing canonical file target replaced/deleted by an automatic sync is protected by an exclusive filesystem publication lease visible to competing Windows writers, and its expected old hash is revalidated while that lease is held before replacement.
+  - Verification: T-401 Windows feasibility + AUTOMATED transaction tests + HUMAN_REQUIRED
+  - Status: UNVERIFIED
+- **AC-M4-33:** Create operations verify expected absence under the same filesystem publication guard. If any target's expected old hash/absence precondition fails, the multi-file transaction does not silently overwrite that target and does not advance the sync checkpoint as if synchronization succeeded.
+  - Verification: AUTOMATED race/failure injection
+  - Status: UNVERIFIED
+- **AC-M4-34:** M4 does not rely on Linux-only advisory locking over the Windows bind mount unless T-401 proves it excludes relevant Windows writers. If no reliable host-visible filesystem lease exists, automatic destructive publication for that target is disabled/re-scoped.
+  - Verification: T-401 + Architecture review
+  - Status: UNVERIFIED
