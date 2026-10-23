@@ -273,7 +273,6 @@ Detailed design: `docs/M4_SYNC_ENGINE.md`.
 - Incremental/selective rendering is deferred until save-driven synchronization is stable.
 - T-401 must prove PowerPoint close/reopen, QMD freeze/restore, M3 PPTX writeback behavior, and cross-host requests before production implementation.
 
-- After Core owns committing, a supported-app reopen does not merely set pending state: Core must wait before the next destructive mutation until Workspace/Local UI confirms a matching re-freeze ACK. Failed/stale/timed-out ACK causes TransactionSuspended.
 - TransactionSuspended is a dedicated M3 transaction outcome that bypasses FileTransaction.commit()'s generic immediate rollback path; committing/rolling_back journals remain for later recovery under a new pair freeze.
 - Startup ordering is journal-first: detect pending journal -> pair freeze -> recover to stable state -> re-read checkpoint/fingerprints -> only then choose IDLE/render/import/CONFLICT. A checkpoint from an incomplete transaction is never used to choose direction before recovery.
 
