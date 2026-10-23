@@ -44,6 +44,13 @@ possible conflict
 - M4は競合検出・snapshot・比較entrypointまで。Semantic Diffと採用側決定はM5。
 - incremental/selective buildはM4初期実装の必須要件にしない。
 
+
+- destructive syncはadmission時とcommit直前の二段階でdirty/fingerprintを再検証し、途中編集を上書きしない。
+- QMD/PPTX eventが同じdebounce windowに来た場合はarrival orderで方向を決めずpair全体を再評価する。
+- M4 sync checkpointはfront matter込みQMD hashを持ち、canonical outputsと同じrecoverable transaction境界でcommit/recoverする。
+- Workspace/Core -> Windows Local UIのdirty-state / snapshot request-responseはT-401でtimeout/disconnectを含めてfeasibility確認する。
+- manual render/importとのDOCUMENT_BUSYはspin retryせずpending re-evaluationへ戻す。
+
 ## 対象外
 
 - keystroke-level live sync
