@@ -202,7 +202,7 @@ M4は**destination freeze方式**を採用する。
 
 自動同期のオーケストレーションはDev Container側のVS Code Workspace extensionが担当する。Workspace extensionがQMD/PowerPointのpair freezeを完了してからCoreを起動するため、M3 transaction recoveryもfreeze後に実行される。
 
-freeze状態はDev Container内の一時session directoryで管理し、`frozen` tokenをWorkspaceとCoreがatomic renameで奪い合う。Workspaceは `frozen -> invalidated`、Coreは `frozen -> committing` を行い、exactly oneだけ成功する。claim後の通常reopenは `pending-reopen` markerへ記録する。Workspace/Local UI controlがcommit中に失われた場合は、Coreが次のfile mutation前でTransactionSuspendedとなりjournalを残す。即時rollbackせず、新しいpair freeze/session後にrecoveryする。
+freeze状態はDev Container内の一時session directoryで管理し、`frozen` tokenをWorkspaceとCoreがatomic renameで奪い合う。Workspaceは `frozen -> invalidated`、Coreは `frozen -> committing` を行い、exactly oneだけ成功する。claim後にQMD/PPTXが再openされた場合は、Coreは次のfile mutation前にmatching re-freeze ACKを待つ。ACK不能/timeout/control lossならTransactionSuspendedとしてjournalを残し、即時rollbackしない。startupではcheckpointよりjournal recoveryを優先し、新しいpair freeze/sessionでrecovery完了後にcheckpoint/fingerprintを再読込してsync方向を決める。
 
 正式サポートする編集環境:
 - QMD: VS Code
