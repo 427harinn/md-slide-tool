@@ -10,7 +10,7 @@ production implementation前の必須gate。
 
 #### PowerPoint
 - freezeSessionIdを受け取り、paired presentationのfreeze/restoreを実行
-- freeze中のPresentationOpen/reopenを検出してsession invalidationを返す
+- commit ownership前のPresentationOpen/reopenはsession invalidation、ownership後はLocal UI mutation broker ruleで処理
 - reopen後にdirty化したpresentationを保存せず保護し、CONFLICTへ再評価
 
 - exact paired presentationを特定
@@ -27,7 +27,7 @@ production implementation前の必須gate。
 #### VS Code QMD
 - Workspace extensionをM4のsync orchestratorとする
 - Core automatic command起動前にpaired QMD/PPTX両方のfreezeを完了する
-- paired QMDのreopen/editをfreeze中に検出してsession invalidation
+- commit ownership前のpaired QMD reopen/editはsession invalidation、ownership後はWorkspace mutation broker ruleで処理
 - reopen後dirty bufferを失わずCONFLICTへ再評価
 
 - paired QMD dirty/clean判定
@@ -44,8 +44,8 @@ production implementation前の必須gate。
 - frozen token rename競合でinvalidationとcommit claimを直列化
 - claim前のreopen -> invalidated、destructive write 0件
 - claim後のreopen + control healthy -> pending-reopen marker
-- Coreは次のdestructive mutation前にsame freezeSessionId/reopen generationのre-freeze ACKを必須確認
-- ACK timeout/failure/stale -> TransactionSuspended before next mutation
+- CoreはQMD/PPTX operationをowner mutation brokerへ依頼し、brokerはfreeze確認/再確立とactual mutationを同一critical sectionで実行
+- broker timeout/failure/UNKNOWN -> TransactionSuspended; pre-write ACK + later Core replaceは禁止
 - claim後にWorkspace/Local UI control loss -> 次mutation前にTransactionSuspended、journal保持、no immediate rollback
 - crash/suspend後は新しいpair freeze/session後にrecovery
 
