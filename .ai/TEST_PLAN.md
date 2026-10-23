@@ -203,6 +203,15 @@ Run before production sync-engine implementation.
 - token rename race is injected repeatedly to prove invalidated and committing can never both win;
 - stale runtime session after process death cannot be reused.
 
+#### Re-freeze acknowledgement
+- reopen after committing -> pending-reopen recorded;
+- Core pauses before the next destructive mutation;
+- Workspace/Local UI completes close/freeze and sends ACK for exact freezeSessionId + reopen generation;
+- correct ACK -> mutation may proceed;
+- stale ACK from previous reopen -> rejected;
+- no ACK / timeout / close failure -> TransactionSuspended before mutation;
+- repeat for QMD and PowerPoint.
+
 #### Control-loss / suspend
 - Workspace spawns Core with a dedicated control pipe/channel bound to freezeSessionId;
 - Core checks control health immediately before every destructive file mutation;
@@ -211,7 +220,10 @@ Run before production sync-engine implementation.
 - inject control loss before first mutation -> zero destructive writes;
 - inject control loss after operation 1 of N -> Core raises TransactionSuspended before operation 2;
 - TransactionSuspended leaves journal phase=committing and does not enter normal immediate rollback;
+- instrument FileTransaction.commit() so TransactionSuspended is excluded from generic BaseException rollback;
+- suspend while recover_transactions() is executing rolling_back -> journal remains rolling_back and resumes under next valid freeze;
 - checkpoint remains old unless phase already reached committed;
+- suspend after final target replacement but before phase=committed -> journal remains incomplete; next frozen recovery resolves it;
 - next automatic attempt creates a new freeze session before recovery.
 
 #### Recovery / ordering
@@ -264,6 +276,10 @@ If the destination-freeze operations cannot be made reliable with supported APIs
 - M4-generated QMD/PPTX metadata events do not trigger render/import loop.
 
 ### Checkpoint / recovery
+- startup detects pending journal before reading checkpoint for sync-direction/conflict decisions;
+- if journal exists, freeze + recover first;
+- only after stable recovery re-read checkpoint + QMD/PPTX fingerprints;
+- fixture: checkpoint target already contains new bytes but journal phase=committing -> checkpoint must not be trusted before recovery;
 
 - full-QMD hash detects front-matter-only changes;
 - checkpoint commits in the same transaction as synchronized outputs;
