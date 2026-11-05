@@ -10,19 +10,20 @@ async function manifest(kind) {
   return JSON.parse(await fs.readFile(new URL(`extensions/${kind}/package.json`, root), 'utf8'));
 }
 
-test('workspace package owns only remote build/path mapping', async () => {
+test('workspace package owns remote build and canonical path resolution', async () => {
   const pkg = await manifest('workspace');
   assert.deepEqual(pkg.extensionKind, ['workspace']);
   assert.deepEqual(pkg.extensionDependencies, ['md-slide-tool.md-slide-tool-powerpoint-ui']);
   assert.deepEqual(pkg.contributes ?? {}, {});
-  assert.deepEqual(pkg.activationEvents, ['onCommand:mdSlideTool.buildRemotePptx']);
+  assert.deepEqual(pkg.activationEvents, ['onCommand:mdSlideTool.buildRemotePptx', 'onCommand:mdSlideTool.resolveEditablePptx']);
 });
 
-test('UI package owns the single user-facing command and local host opener', async () => {
+test('UI package owns user-facing PowerPoint commands and local host opener', async () => {
   const pkg = await manifest('ui');
   assert.deepEqual(pkg.extensionKind, ['ui']);
   assert.equal(pkg.api, 'none');
-  assert.deepEqual(pkg.contributes.commands.map(({ command }) => command), ['mdSlideTool.buildAndOpenPowerPoint']);
+  assert.deepEqual(pkg.contributes.commands.map(({ command }) => command), ['mdSlideTool.buildAndOpenPowerPoint', 'mdSlideTool.openEditablePowerPoint']);
+  assert.ok(pkg.activationEvents.includes('onCommand:mdSlideTool.openEditablePowerPoint'));
 });
 
 test('Dev Container avoids unavailable lifecycle installs, local VSIX paths, and unpublished extension IDs', async () => {
@@ -66,7 +67,9 @@ test('VSIX packaging contents stay limited to each extension manifest and runtim
       packageManager: PackageManager.None,
     });
     const paths = files.sort();
-    assert.deepEqual(paths, ['package.json', 'src/extension.js', 'src/hostBridge.js']);
+    assert.deepEqual(paths, kind === 'workspace'
+      ? ['package.json', 'src/extension.js', 'src/hostBridge.js', 'src/m4EditorProbe.js']
+      : ['package.json', 'src/extension.js', 'src/hostBridge.js']);
   }
 });
 

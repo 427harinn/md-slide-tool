@@ -72,22 +72,82 @@ def bootstrap_document_id(qmd: Path) -> str:
     return doc_id
 
 
+def managed_canonical_pptx(qmd: Path) -> Path:
+    """Resolve only the exact same-stem canonical PPTX for an M3-managed pair."""
+    qmd = qmd.resolve(strict=True)
+    if not qmd.is_file() or qmd.suffix.lower() != ".qmd":
+        raise ValueError("paired input must be a QMD file")
+    document_id = current_document_id(qmd)
+    if document_id is None:
+        raise ValueError("canonical PowerPoint requires an M3-managed schema-v2 QMD/assets pair")
+    pptx = qmd.with_suffix(".pptx")
+    if not pptx.is_file():
+        raise ValueError("canonical managed PPTX does not exist")
+    props = read_custom_properties(pptx)
+    if (props.get("md-slide-tool.managed") != "1" or
+            props.get("md-slide-tool.format-version") != "1" or
+            props.get("md-slide-tool.document-id") != document_id):
+        raise ValueError("canonical PPTX documentId does not match the QMD/assets pair")
+    return pptx.resolve(strict=True)
+
+
+def resolve_canonical_pptx_locked(qmd: Path) -> Path:
+    """Resolve the editable canonical file only while no M3 write can race it."""
+    qmd = qmd.resolve(strict=True)
+    document_id = current_document_id(qmd)
+    if document_id is None:
+        raise ValueError("canonical PowerPoint requires an M3-managed schema-v2 QMD/assets pair")
+    project_dir = qmd.parent
+    lock_base = project_dir / ".md-slide-tool" / "locks"
+    with _atomic_lock(lock_base / "document" / document_id / "owner.lock"):
+        pending = project_dir / ".md-slide-tool" / "transactions" / document_id
+        if pending.exists() and any(pending.iterdir()):
+            raise ValueError("pending M3 transaction; resolve it before opening canonical PowerPoint")
+        return managed_canonical_pptx(qmd)
+
+
 def run_locked(qmd: Path, operation: list[str]) -> int:
     qmd = qmd.resolve(strict=True)
     if not qmd.is_file() or qmd.suffix.lower() != ".qmd":
         raise ValueError("paired input must be a QMD file")
     project_dir = qmd.parent
     doc_id = current_document_id(qmd)
+    if operation[0] == "preview" and doc_id is None:
+        raise ValueError("preview requires an existing M3-managed schema-v2 QMD/assets pair")
+    if operation[0] == "preview":
+        managed_canonical_pptx(qmd)
     lock_base = project_dir / ".md-slide-tool" / "locks"
     if operation[0] == "import" and doc_id is None:
         raise ValueError("unmanaged legacy presentation; render with an M3-capable version first")
 
     def invoke(active_id: str) -> int:
-        recover_transactions(project_dir, active_id, qmd)
+        if operation[0] == "preview":
+            pending = project_dir / ".md-slide-tool" / "transactions" / active_id
+            if pending.exists() and any(pending.iterdir()):
+                raise ValueError("pending M3 transaction; resolve it before rendering a preview")
+        else:
+            recover_transactions(project_dir, active_id, qmd)
         if operation[0] == "render":
             shell = Path(__file__).resolve().parent / "render-current-pipeline.sh"
             command = ["bash", str(shell), str(qmd), active_id]
             return subprocess.call(command)
+        if operation[0] == "preview":
+            helper = Path(__file__).resolve().parent / "m4_preview.py"
+            reserved = subprocess.check_output([
+                sys.executable, str(helper), "allocate", "--project-dir", str(project_dir),
+                "--document-id", active_id,
+            ], text=True).strip()
+            preview = Path(reserved)
+            shell = Path(__file__).resolve().parent / "render-current-pipeline.sh"
+            result = subprocess.call(["bash", str(shell), str(qmd), active_id, str(preview)])
+            if result != 0:
+                # Only this invocation's still-empty reservation can be removed.
+                try:
+                    if preview.stat().st_size == 0:
+                        preview.unlink()
+                except OSError:
+                    pass
+            return result
         importer = Path(__file__).resolve().parent / "import-pptx.py"
         return subprocess.call([sys.executable, str(importer), "--pptx", operation[1], "--locked"])
 
@@ -112,7 +172,8 @@ def run_locked(qmd: Path, operation: list[str]) -> int:
             bootstrap_context.__exit__(*sys.exc_info())
             document_context.__exit__(*sys.exc_info())
     with _atomic_lock(lock_base / "document" / doc_id / "owner.lock"):
-        recover_transactions(project_dir, doc_id, qmd)
+        if operation[0] != "preview":
+            recover_transactions(project_dir, doc_id, qmd)
         return invoke(doc_id)
 
 
@@ -121,12 +182,22 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     render = sub.add_parser("render")
     render.add_argument("qmd")
+    preview = sub.add_parser("preview")
+    preview.add_argument("qmd")
     imp = sub.add_parser("import")
     imp.add_argument("pptx")
+    canonical = sub.add_parser("canonical-pptx")
+    canonical.add_argument("qmd")
     args = parser.parse_args()
     if args.command == "render":
         qmd = Path(args.qmd)
         return run_locked(qmd, ["render"])
+    if args.command == "preview":
+        qmd = Path(args.qmd)
+        return run_locked(qmd, ["preview"])
+    if args.command == "canonical-pptx":
+        print(resolve_canonical_pptx_locked(Path(args.qmd)))
+        return 0
     pptx = Path(args.pptx).resolve(strict=True)
     qmd = pptx.with_suffix(".qmd")
     return run_locked(qmd, ["import", str(pptx)])

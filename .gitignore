@@ -145,6 +145,7 @@ vscode-extension/*.vsix
 
 /# md files
 *.md
+!.ai/T402_FEASIBILITY.md
 # Python cache
 __pycache__/
 *.py[cod]

@@ -29,6 +29,22 @@ PICTURE_SHAPE_TYPE = 13
 TEXT_BOX_SHAPE_TYPE = 17
 
 
+class CandidateSink:
+    """Capture M3's fully validated staged outputs without publishing any file."""
+    def __init__(self):
+        self.outputs = {}
+
+    def stage(self, target: Path, new_bytes: bytes | None):
+        self.outputs[target.resolve(strict=False)] = new_bytes
+
+
+def create_import_candidate(pptx_path: Path, qmd_path: Path, assets_path: Path):
+    """Return staged output bytes for feasibility probes; never mutates disk."""
+    sink = CandidateSink()
+    counts = reconstruct(pptx_path, qmd_path, assets_path, sink)
+    return {"outputs": sink.outputs, "slideCount": counts[0], "imageCount": counts[1]}
+
+
 def shape_placeholder_type(shape):
     if not shape.is_placeholder:
         return None
@@ -146,6 +162,8 @@ def slide_is_title_role(slide, document_id):
 
 def reconstruct(pptx_path: Path, qmd_path: Path, assets_path: Path, tx: FileTransaction):
     props = read_custom_properties(pptx_path)
+    if props.get("md-slide-tool.preview") == "1":
+        raise ValueError("preview PPTX cannot be used as a canonical import source")
     if props.get("md-slide-tool.managed") != "1" or props.get("md-slide-tool.format-version") != "1":
         raise ValueError("unmanaged/unsupported PPTX; render with an M3-capable version first")
     document_id = props.get("md-slide-tool.document-id")

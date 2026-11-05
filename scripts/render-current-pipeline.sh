@@ -6,6 +6,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 FILE="$1"
 DOCUMENT_ID="$2"
+PREVIEW_OUTPUT="${3:-}"
 
 if [ -z "$FILE" ]; then
   echo "使い方: bash scripts/render-current-pipeline.sh <file.qmd>"
@@ -57,17 +58,29 @@ else
   exit 1
 fi
 
-echo "画像後処理: $FINAL_PPTX"
+POSTPROCESS_ASSETS="$CANDIDATE_ASSETS"
+
+echo "画像後処理: ${PREVIEW_OUTPUT:-$FINAL_PPTX}"
 python3 "$REPO_ROOT/scripts/m3_render_seed.py" \
   --qmd "$FILE" --output "$CANDIDATE_ASSETS" --document-id "$DOCUMENT_ID"
 python3 "$REPO_ROOT/scripts/postprocess-pptx.py" \
   --pptx "$CANDIDATE_PPTX" \
   --images-json "$IMAGES_JSON" \
-  --assets "$CANDIDATE_ASSETS" \
+  --assets "$POSTPROCESS_ASSETS" \
   --qmd "$FILE"
 
-python3 "$REPO_ROOT/scripts/m3_render_commit.py" \
-  --qmd "$FILE" --pptx "$CANDIDATE_PPTX" --assets "$CANDIDATE_ASSETS"
+if [ -n "$PREVIEW_OUTPUT" ]; then
+  python3 "$REPO_ROOT/scripts/m4_preview.py" mark \
+    --pptx "$CANDIDATE_PPTX" --qmd "$FILE" --document-id "$DOCUMENT_ID" \
+    --generation "$(basename "$PREVIEW_OUTPUT" .pptx | sed 's/^preview-//')"
+  python3 - "$CANDIDATE_PPTX" "$PREVIEW_OUTPUT" <<'PY'
+import os, sys
+os.replace(sys.argv[1], sys.argv[2])
+PY
+else
+  python3 "$REPO_ROOT/scripts/m3_render_commit.py" \
+    --qmd "$FILE" --pptx "$CANDIDATE_PPTX" --assets "$CANDIDATE_ASSETS"
+fi
 
 echo "cleanup..."
-echo "完了: $FINAL_PPTX"
+echo "完了: ${PREVIEW_OUTPUT:-$FINAL_PPTX}"

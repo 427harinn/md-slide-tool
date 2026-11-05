@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPptxForHost, mapContainerPathToHostPath } from '../extensions/workspace/src/hostBridge.js';
-import { buildAndOpenLocally } from '../extensions/ui/src/hostBridge.js';
+import { buildPptxForHost, mapContainerPathToHostPath, resolveCanonicalPptxForHost } from '../extensions/workspace/src/hostBridge.js';
+import { buildAndOpenLocally, openExactPptxLocally, openEditablePowerPoint } from '../extensions/ui/src/hostBridge.js';
 
 test('maps container paths to Windows host paths with Japanese and spaces', () => {
   assert.equal(mapContainerPathToHostPath(
@@ -9,6 +9,48 @@ test('maps container paths to Windows host paths with Japanese and spaces', () =
     '/work',
     'C:\\Users\\rinnr\\Documents\\GitHub\\md-slide-tool',
   ), 'C:\\Users\\rinnr\\Documents\\GitHub\\md-slide-tool\\projects\\資料 folder\\発表.pptx');
+});
+
+test('open exact PPTX path passes the selected preview URI unchanged', async () => {
+  const selected = 'C:\\Users\\rinnr\\資料 Folder\\preview-000007.pptx';
+  let opened;
+  const result = await openExactPptxLocally(selected, {
+    fileUri: (path) => ({ scheme: 'file', fsPath: path }),
+    openExternal: async (uri) => { opened = uri; return true; },
+  });
+  assert.equal(result.status, 'opened-exact-path');
+  assert.equal(opened.fsPath, selected);
+});
+
+test('editable PowerPoint resolves and opens the exact canonical path, never a preview', async () => {
+  const qmd = '/work/projects/資料 folder/deck.qmd';
+  const canonical = '/work/projects/資料 folder/deck.pptx';
+  const result = await resolveCanonicalPptxForHost({
+    qmdPath: qmd,
+    workspacePath: '/work',
+    hostWorkspace: 'C:\\Users\\rinnr\\Documents\\Project With Spaces',
+    inspectCanonical: async () => canonical,
+    outputExists: async (candidate) => candidate === canonical,
+  });
+  assert.equal(result.pptxPath, canonical);
+  assert.equal(result.hostPath, 'C:\\Users\\rinnr\\Documents\\Project With Spaces\\projects\\資料 folder\\deck.pptx');
+  assert.equal(result.hostPath.includes('previews'), false);
+  let command;
+  let opened;
+  const openedResult = await openEditablePowerPoint({
+    qmdUri: 'file:///work/projects/%E8%B3%87%E6%96%99%20folder/deck.qmd',
+    executeCommand: async (name) => { command = name; return { status: 'canonical-ready', hostPath: result.hostPath }; },
+    fileUri: (fsPath) => ({ scheme: 'file', fsPath }),
+    openExternal: async (uri) => { opened = uri; return true; },
+  });
+  assert.equal(command, 'mdSlideTool.resolveEditablePptx');
+  assert.equal(openedResult.status, 'opened-exact-path');
+  assert.equal(opened.fsPath, result.hostPath);
+  await assert.rejects(resolveCanonicalPptxForHost({
+    qmdPath: qmd, workspacePath: '/work', hostWorkspace: 'C:\\Project',
+    inspectCanonical: async () => '/work/.md-slide-tool/previews/document-x/preview-000001.pptx',
+    outputExists: async () => true,
+  }), /non-canonical/);
 });
 
 test('maps a POSIX host workspace', () => {

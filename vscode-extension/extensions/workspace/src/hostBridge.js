@@ -50,3 +50,23 @@ export async function buildPptxForHost({ qmdPath, workspacePath, hostWorkspace, 
     return { status: 'built-host-bridge-unavailable', pptxPath, error: error.message };
   }
 }
+
+export async function resolveCanonicalPptxForHost({ qmdPath, workspacePath, hostWorkspace, inspectCanonical, outputExists }) {
+  const inputPath = path.posix.resolve(qmdPath);
+  const rootPath = path.posix.resolve(workspacePath);
+  const relativeInput = path.posix.relative(rootPath, inputPath);
+  if (relativeInput === '..' || relativeInput.startsWith('../') || path.posix.isAbsolute(relativeInput)) {
+    throw new Error('Select a QMD file inside the workspace.');
+  }
+  if (path.posix.extname(inputPath).toLowerCase() !== '.qmd') throw new Error('Select a .qmd file.');
+
+  const expectedPath = `${inputPath.slice(0, -path.posix.extname(inputPath).length)}.pptx`;
+  const canonicalPath = path.posix.resolve(await inspectCanonical(inputPath));
+  if (canonicalPath !== expectedPath) throw new Error('Workspace returned a non-canonical PowerPoint path.');
+  if (!await outputExists(canonicalPath)) throw new Error(`Canonical managed PPTX does not exist: ${canonicalPath}`);
+  return {
+    status: 'canonical-ready',
+    pptxPath: canonicalPath,
+    hostPath: mapContainerPathToHostPath(canonicalPath, rootPath, hostWorkspace),
+  };
+}

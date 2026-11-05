@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { buildAndOpenLocally } from './hostBridge.js';
+import { buildAndOpenLocally, openEditablePowerPoint } from './hostBridge.js';
 
 export function activate(context) {
   const output = vscode.window.createOutputChannel('md-slide-tool PowerPoint');
@@ -26,6 +26,26 @@ export function activate(context) {
       } else {
         vscode.window.showInformationMessage(`PPTX built and opened in PowerPoint: ${result.hostPath}`);
       }
+    } catch (error) {
+      output.appendLine(error?.stack ?? String(error));
+      vscode.window.showErrorMessage(error.message);
+    }
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand('mdSlideTool.openEditablePowerPoint', async (resource) => {
+    const selectedUri = resource instanceof vscode.Uri ? resource : vscode.window.activeTextEditor?.document.uri;
+    const workspace = selectedUri && vscode.workspace.getWorkspaceFolder(selectedUri);
+    if (!selectedUri || !selectedUri.path.toLowerCase().endsWith('.qmd') || !workspace) {
+      vscode.window.showErrorMessage('Open or select a QMD file in the Dev Container workspace.');
+      return;
+    }
+    try {
+      const result = await openEditablePowerPoint({
+        qmdUri: selectedUri.toString(),
+        executeCommand: (command, ...args) => vscode.commands.executeCommand(command, ...args),
+        fileUri: (hostPath) => vscode.Uri.file(hostPath),
+        openExternal: (uri) => vscode.env.openExternal(uri),
+      });
+      vscode.window.showInformationMessage(`Canonical PowerPoint opened: ${result.pptxPath}`);
     } catch (error) {
       output.appendLine(error?.stack ?? String(error));
       vscode.window.showErrorMessage(error.message);

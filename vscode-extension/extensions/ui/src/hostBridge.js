@@ -1,4 +1,22 @@
 const BUILD_COMMAND = 'mdSlideTool.buildRemotePptx';
+const CANONICAL_COMMAND = 'mdSlideTool.resolveEditablePptx';
+
+// T-402A probe seam: preserve the exact preview path supplied by Workspace.
+export async function openExactPptxLocally(pptxPath, { fileUri, openExternal }) {
+  if (typeof pptxPath !== 'string' || !pptxPath) throw new Error('A PPTX path is required.');
+  const uri = fileUri(pptxPath);
+  if (uri.scheme !== 'file') throw new Error('The host extension did not create a local file URI.');
+  if (!(await openExternal(uri))) throw new Error('VS Code could not open the exact PPTX path.');
+  return { status: 'opened-exact-path', pptxPath, uri };
+}
+
+export async function openEditablePowerPoint({ qmdUri, executeCommand, fileUri, openExternal }) {
+  const result = await executeCommand(CANONICAL_COMMAND, qmdUri);
+  if (!result || result.status !== 'canonical-ready') {
+    throw new Error('The workspace did not resolve the canonical managed PPTX.');
+  }
+  return openExactPptxLocally(result.hostPath, { fileUri, openExternal });
+}
 
 export async function buildAndOpenLocally({ qmdUri, executeCommand, fileUri, openExternal }) {
   let result;
