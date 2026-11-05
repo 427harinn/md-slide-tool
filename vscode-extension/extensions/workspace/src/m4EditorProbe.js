@@ -37,6 +37,12 @@ export function pendingFallbackDecision(state) {
   return 'PENDING';
 }
 
+export function requireSavedQmdForPreview(vscode, qmdUri) {
+  const state = exactQmdState(vscode, qmdUri);
+  if (state.state === 'open-dirty') throw new Error('Save or discard QMD edits before generating a preview.');
+  return state;
+}
+
 function sameDocumentUri(actual, expected) {
   if (!actual || !expected || actual.scheme !== expected.scheme ||
       (actual.authority ?? '') !== (expected.authority ?? '')) return false;

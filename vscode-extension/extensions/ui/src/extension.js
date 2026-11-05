@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { buildAndOpenLocally, openEditablePowerPoint } from './hostBridge.js';
+import { buildAndOpenLocally, openEditablePowerPoint, openVersionedPreview } from './hostBridge.js';
 
 export function activate(context) {
   const output = vscode.window.createOutputChannel('md-slide-tool PowerPoint');
@@ -46,6 +46,26 @@ export function activate(context) {
         openExternal: (uri) => vscode.env.openExternal(uri),
       });
       vscode.window.showInformationMessage(`Canonical PowerPoint opened: ${result.pptxPath}`);
+    } catch (error) {
+      output.appendLine(error?.stack ?? String(error));
+      vscode.window.showErrorMessage(error.message);
+    }
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand('mdSlideTool.probeOpenVersionedPreview', async (resource) => {
+    const selectedUri = resource instanceof vscode.Uri ? resource : vscode.window.activeTextEditor?.document.uri;
+    const workspace = selectedUri && vscode.workspace.getWorkspaceFolder(selectedUri);
+    if (!selectedUri || !selectedUri.path.toLowerCase().endsWith('.qmd') || !workspace) {
+      vscode.window.showErrorMessage('Open or select a QMD file in the Dev Container workspace.');
+      return;
+    }
+    try {
+      const result = await openVersionedPreview({
+        qmdUri: selectedUri.toString(),
+        executeCommand: (command, ...args) => vscode.commands.executeCommand(command, ...args),
+        fileUri: (hostPath) => vscode.Uri.file(hostPath),
+        openExternal: (uri) => vscode.env.openExternal(uri),
+      });
+      vscode.window.showInformationMessage(`Opened preview ${result.generation}. PowerPoint open/dirty state was not inspected; all prior previews remain open.`);
     } catch (error) {
       output.appendLine(error?.stack ?? String(error));
       vscode.window.showErrorMessage(error.message);

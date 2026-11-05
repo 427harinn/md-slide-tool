@@ -1,4 +1,6 @@
 import hashlib
+import contextlib
+import io
 import importlib.util
 import json
 import shutil
@@ -95,6 +97,66 @@ class M4ProbeTests(unittest.TestCase):
                     self.assertEqual(m3_entry.run_locked(qmd, operation), 0)
                     self.assertGreaterEqual(recover.call_count, 1)
                     self.assertTrue(all(call.args == (root, DOC, qmd) for call in recover.call_args_list))
+
+    def test_preview_cli_emits_exact_path_only_after_successful_render(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            _pptx, qmd, _assets = make_deck(root)
+            canonical = qmd.with_suffix(".pptx")
+            canonical_before = canonical.read_bytes()
+            preview = root / ".md-slide-tool" / "previews" / DOC / "preview-000001.pptx"
+            stdout = io.StringIO()
+
+            def reserve(*_args, **_kwargs):
+                preview.parent.mkdir(parents=True, exist_ok=True)
+                preview.touch()
+                return str(preview)
+
+            def render(command, **_kwargs):
+                Path(command[4]).write_bytes(b"versioned-preview-pptx")
+                return 0
+
+            with patch.object(m3_entry.subprocess, "check_output", side_effect=reserve), \
+                    patch.object(m3_entry.subprocess, "call", side_effect=render), \
+                    patch.object(m3_entry, "recover_transactions") as recover, \
+                    contextlib.redirect_stdout(stdout):
+                self.assertEqual(m3_entry.run_locked(qmd, ["preview"]), 0)
+            recover.assert_not_called()
+            self.assertEqual(stdout.getvalue().splitlines(), [
+                f"PREVIEW_PATH={preview}", f"PREVIEW_DOCUMENT_ID={DOC}", f"PREVIEW_SOURCE_QMD={qmd}",
+            ])
+            self.assertEqual(canonical.read_bytes(), canonical_before)
+
+            failed_preview = root / ".md-slide-tool" / "previews" / DOC / "preview-000002.pptx"
+            failed_stdout = io.StringIO()
+
+            def reserve_failed(*_args, **_kwargs):
+                failed_preview.parent.mkdir(parents=True, exist_ok=True)
+                failed_preview.touch()
+                return str(failed_preview)
+
+            with patch.object(m3_entry.subprocess, "check_output", side_effect=reserve_failed), \
+                    patch.object(m3_entry.subprocess, "call", return_value=1), \
+                    contextlib.redirect_stdout(failed_stdout):
+                self.assertEqual(m3_entry.run_locked(qmd, ["preview"]), 1)
+            self.assertNotIn("PREVIEW_PATH=", failed_stdout.getvalue())
+            self.assertFalse(failed_preview.exists())
+
+            launch_error_preview = root / ".md-slide-tool" / "previews" / DOC / "preview-000003.pptx"
+            launch_error_stdout = io.StringIO()
+
+            def reserve_launch_error(*_args, **_kwargs):
+                launch_error_preview.parent.mkdir(parents=True, exist_ok=True)
+                launch_error_preview.touch()
+                return str(launch_error_preview)
+
+            with patch.object(m3_entry.subprocess, "check_output", side_effect=reserve_launch_error), \
+                    patch.object(m3_entry.subprocess, "call", side_effect=OSError("Bash unavailable")), \
+                    contextlib.redirect_stdout(launch_error_stdout):
+                with self.assertRaisesRegex(OSError, "Bash unavailable"):
+                    m3_entry.run_locked(qmd, ["preview"])
+            self.assertFalse(launch_error_preview.exists())
+            self.assertNotIn("PREVIEW_PATH=", launch_error_stdout.getvalue())
 
     def test_required_internal_status_labels_are_representable(self):
         self.assertEqual(PROBE_STATES, {

@@ -21,9 +21,9 @@ Regression: **UNVERIFIED overall**. Root npm, Python, and extension suites pass;
 | Canonical PPTX untouched | PASS (helper fixture only) | Marker is written to a copied candidate and canonical bytes are fingerprinted unchanged in `test_preview_paths_identity_and_canonical_untouched`. This does not invoke `m3_entry preview` or the render pipeline; end-to-end untouched status remains UNVERIFIED with preview generation. |
 | Preview identity | PASS (fixture) | Custom properties identify preview marker, documentId, generation, and resolved source QMD path. |
 | Preview ignored as import source | PASS (policy fixture) | `is_preview()` distinguishes the marker; import trigger selection must reject marked preview files. Production watcher is out of scope and does not exist. |
-| Exact preview path handoff | PASS (mock) | Isolated Local UI helper forwards the exact supplied file URI, including Japanese/space paths. It is not yet wired to the command, and PowerPoint selection/focus remains HUMAN_REQUIRED. |
-| Previous clean preview close | HUMAN_REQUIRED | No PowerPoint state controller exists. Cleanup eligibility policy is tested, but actual close behavior is not. |
-| Dirty preview preservation | HUMAN_REQUIRED | Policy keeps dirty/unknown/open previews; actual desktop dirty state reporting remains unverified. |
+| Exact preview path handoff | PASS (extension mocks) | Manual command `T-402A Probe: Open Versioned Preview` uses the selected or active QMD, refuses an exact dirty editor buffer, generates through `m3_entry.py preview`, validates its exact `PREVIEW_PATH`, maps it to the host, and passes that URI to Local UI. Japanese/space paths and generation/documentId parsing are tested; PowerPoint focus remains HUMAN_REQUIRED. |
+| Previous clean preview close | HUMAN_REQUIRED / deferred | The probe command does not inspect PowerPoint state and leaves every previously opened preview open. |
+| Dirty preview preservation | HUMAN_REQUIRED / deferred | The probe command does not inspect PowerPoint open/dirty state and leaves every prior preview open without save or discard. |
 | Canonical PPTX open while previewing | HUMAN_REQUIRED | Distinct output path means there is no file replacement by design; real PowerPoint open-clean/open-dirty coexistence requires Windows check. |
 | Preview cleanup | UNVERIFIED | Eligibility policy keeps the exact canonical path, open, dirty, and unknown previews. No real PowerPoint open/dirty inventory or cleanup controller exists, so actual cleanup safety is not proven. |
 | Canonical checkpoint unchanged | UNVERIFIED | No canonical checkpoint writer/state exists on this branch, so the preview fixture cannot observe a checkpoint value. Preview skips M3 render commit and rejects a pending journal, but checkpoint non-mutation needs re-evaluation when that state exists. |
@@ -58,10 +58,10 @@ bash scripts/smoke-test.sh
 
 Automated results in this execution environment:
 
-- `python -m unittest discover -s tests` — PASS, 70 tests (using a workspace-local TEMP/TMP directory because the Windows sandbox redirects AppData temp operations and denies atomic replacement there).
-- `python -m unittest discover -s tests -p test_m4_probe.py` — PASS, 10 T-402 probe tests.
-- `npm test --prefix vscode-extension` — PASS, 28 tests.
-- `npm test` — PASS, 70 tests. A temporary workspace-local `python3` shim routed the script to the installed Python runtime.
+- `python -m unittest discover -s tests` — PASS, 71 tests (using a workspace-local TEMP/TMP directory because the Windows sandbox redirects AppData temp operations and denies atomic replacement there).
+- `python -m unittest discover -s tests -p test_m4_probe.py` — PASS, 11 T-402 probe tests.
+- `npm test --prefix vscode-extension` — PASS, 32 tests.
+- `npm test` — PASS, 71 tests. A temporary workspace-local `python3` shim routed the script to the installed Python runtime.
 - `bash scripts/smoke-test.sh` — UNVERIFIED; both Windows Bash and Git Bash could not start because the sandbox denied creation of an MSYS named object (`E_ACCESSDENIED` / `0xC0000022`).
 - Dev Container preview render and actual desktop PowerPoint / VS Code Extension Host checks — HUMAN_REQUIRED.
 

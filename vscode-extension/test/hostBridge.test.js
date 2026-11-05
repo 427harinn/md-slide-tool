@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPptxForHost, mapContainerPathToHostPath, resolveCanonicalPptxForHost } from '../extensions/workspace/src/hostBridge.js';
-import { buildAndOpenLocally, openExactPptxLocally, openEditablePowerPoint } from '../extensions/ui/src/hostBridge.js';
+import { buildPptxForHost, mapContainerPathToHostPath, resolveCanonicalPptxForHost, generateVersionedPreviewForHost } from '../extensions/workspace/src/hostBridge.js';
+import { buildAndOpenLocally, openExactPptxLocally, openEditablePowerPoint, openVersionedPreview } from '../extensions/ui/src/hostBridge.js';
 
 test('maps container paths to Windows host paths with Japanese and spaces', () => {
   assert.equal(mapContainerPathToHostPath(
@@ -51,6 +51,89 @@ test('editable PowerPoint resolves and opens the exact canonical path, never a p
     inspectCanonical: async () => '/work/.md-slide-tool/previews/document-x/preview-000001.pptx',
     outputExists: async () => true,
   }), /non-canonical/);
+});
+
+test('versioned preview command returns and opens exact generated Japanese/space path without closing prior previews', async () => {
+  const qmd = '/work/projects/資料 folder/deck.qmd';
+  const preview = '/work/projects/資料 folder/.md-slide-tool/previews/document-123e4567-e89b-42d3-a456-426614174000/preview-000042.pptx';
+  let runInput;
+  const result = await generateVersionedPreviewForHost({
+    qmdPath: qmd,
+    workspacePath: '/work',
+    hostWorkspace: 'C:\\Users\\rinnr\\Documents\\Project With Spaces',
+    runPreview: async (exactQmd) => {
+      runInput = exactQmd;
+      return `Rendering...\nPREVIEW_PATH=${preview}\nPREVIEW_DOCUMENT_ID=document-123e4567-e89b-42d3-a456-426614174000\nPREVIEW_SOURCE_QMD=${qmd}\n`;
+    },
+    outputExists: async (path) => path === preview,
+  });
+  assert.equal(runInput, qmd);
+  assert.equal(result.previewPath, preview);
+  assert.equal(result.generation, 42);
+  assert.equal(result.documentId, 'document-123e4567-e89b-42d3-a456-426614174000');
+  assert.equal(result.sourceQmd, qmd);
+  assert.equal(result.hostPath, 'C:\\Users\\rinnr\\Documents\\Project With Spaces\\projects\\資料 folder\\.md-slide-tool\\previews\\document-123e4567-e89b-42d3-a456-426614174000\\preview-000042.pptx');
+  assert.equal(result.previousPreviewsClosed, false);
+  assert.match(result.note, /open\/dirty state was not inspected/);
+
+  let command;
+  let opened;
+  const openedResult = await openVersionedPreview({
+    qmdUri: 'file:///work/projects/%E8%B3%87%E6%96%99%20folder/deck.qmd',
+    executeCommand: async (name) => {
+      command = name;
+      return { status: result.status, hostPath: result.hostPath, previewPath: result.previewPath, generation: result.generation };
+    },
+    fileUri: (fsPath) => ({ scheme: 'file', fsPath }),
+    openExternal: async (uri) => { opened = uri; return true; },
+  });
+  assert.equal(command, 'mdSlideTool.generateVersionedPreview');
+  assert.equal(openedResult.status, 'preview-opened');
+  assert.equal(opened.fsPath, result.hostPath);
+  assert.equal(openedResult.previousPreviewsClosed, false);
+  assert.match(openedResult.note, /all prior previews remain open/);
+});
+
+test('preview path resolver rejects outside-workspace inputs, canonical files, malformed paths, and missing output', async () => {
+  let calls = 0;
+  const common = {
+    workspacePath: '/work', hostWorkspace: 'C:\\Project',
+    runPreview: async () => {
+      calls++;
+      return 'PREVIEW_PATH=/work/deck.pptx\nPREVIEW_DOCUMENT_ID=document-123e4567-e89b-42d3-a456-426614174000\nPREVIEW_SOURCE_QMD=/work/deck.qmd';
+    },
+    outputExists: async () => true,
+  };
+  await assert.rejects(generateVersionedPreviewForHost({ ...common, qmdPath: '/elsewhere/deck.qmd' }), /inside the workspace/);
+  await assert.rejects(generateVersionedPreviewForHost({ ...common, qmdPath: '/work/deck.qmd' }), /selected QMD project directory/);
+  assert.equal(calls, 1);
+  const preview = '/work/.md-slide-tool/previews/document-123e4567-e89b-42d3-a456-426614174000/preview-000001.pptx';
+  const metadata = `PREVIEW_PATH=${preview}\nPREVIEW_DOCUMENT_ID=document-123e4567-e89b-42d3-a456-426614174000\nPREVIEW_SOURCE_QMD=/work/deck.qmd`;
+  await assert.rejects(generateVersionedPreviewForHost({ ...common, qmdPath: '/work/deck.qmd', runPreview: async () => metadata, outputExists: async () => false }), /does not exist/);
+  const otherProject = '/work/projects/other/.md-slide-tool/previews/document-123e4567-e89b-42d3-a456-426614174000/preview-000001.pptx';
+  await assert.rejects(generateVersionedPreviewForHost({
+    ...common,
+    qmdPath: '/work/projects/資料 folder/deck.qmd',
+    runPreview: async () => `PREVIEW_PATH=${otherProject}\nPREVIEW_DOCUMENT_ID=document-123e4567-e89b-42d3-a456-426614174000\nPREVIEW_SOURCE_QMD=/work/projects/資料 folder/deck.qmd`,
+  }), /selected QMD project directory/);
+  await assert.rejects(generateVersionedPreviewForHost({
+    ...common,
+    qmdPath: '/work/projects/資料 folder/deck.qmd',
+    runPreview: async () => `PREVIEW_PATH=/work/projects/資料 folder/.md-slide-tool/previews/document-123e4567-e89b-42d3-a456-426614174000/preview-000001.pptx\nPREVIEW_DOCUMENT_ID=document-123e4567-e89b-42d3-a456-426614174000\nPREVIEW_SOURCE_QMD=/work/projects/other/deck.qmd`,
+  }), /source QMD does not match/);
+});
+
+test('preview opener does not open when generation fails or returns an invalid result', async () => {
+  let opened = false;
+  const local = {
+    qmdUri: 'file:///work/deck.qmd',
+    executeCommand: async () => { throw new Error('preview failed'); },
+    fileUri: (fsPath) => ({ scheme: 'file', fsPath }),
+    openExternal: async () => { opened = true; return true; },
+  };
+  await assert.rejects(openVersionedPreview(local), /preview failed/);
+  await assert.rejects(openVersionedPreview({ ...local, executeCommand: async () => ({ status: 'built', hostPath: 'C:\\deck.pptx' }) }), /exact versioned preview/);
+  assert.equal(opened, false);
 });
 
 test('maps a POSIX host workspace', () => {

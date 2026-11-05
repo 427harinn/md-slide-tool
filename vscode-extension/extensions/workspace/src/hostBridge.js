@@ -70,3 +70,46 @@ export async function resolveCanonicalPptxForHost({ qmdPath, workspacePath, host
     hostPath: mapContainerPathToHostPath(canonicalPath, rootPath, hostWorkspace),
   };
 }
+
+export async function generateVersionedPreviewForHost({ qmdPath, workspacePath, hostWorkspace, runPreview, outputExists }) {
+  const inputPath = path.posix.resolve(qmdPath);
+  const rootPath = path.posix.resolve(workspacePath);
+  const relativeInput = path.posix.relative(rootPath, inputPath);
+  if (relativeInput === '..' || relativeInput.startsWith('../') || path.posix.isAbsolute(relativeInput)) {
+    throw new Error('Select a QMD file inside the workspace.');
+  }
+  if (path.posix.extname(inputPath).toLowerCase() !== '.qmd') throw new Error('Select a .qmd file.');
+
+  const output = await runPreview(inputPath);
+  const lines = String(output).split(/\r?\n/);
+  const readOne = (key) => {
+    const matches = lines.filter((line) => line.startsWith(`${key}=`));
+    if (matches.length !== 1 || !matches[0].slice(key.length + 1)) {
+      throw new Error(`Preview generation did not return exactly one ${key} value.`);
+    }
+    return matches[0].slice(key.length + 1);
+  };
+  const reportedPath = readOne('PREVIEW_PATH');
+  const documentId = readOne('PREVIEW_DOCUMENT_ID');
+  const sourceQmd = path.posix.resolve(readOne('PREVIEW_SOURCE_QMD'));
+  if (sourceQmd !== inputPath) throw new Error('Preview source QMD does not match the selected document.');
+  const previewPath = path.posix.resolve(reportedPath);
+  const previewRoot = path.posix.resolve(path.posix.dirname(inputPath), '.md-slide-tool', 'previews');
+  const relativePreview = path.posix.relative(previewRoot, previewPath);
+  const parts = relativePreview.split('/');
+  const previewName = parts.at(-1) ?? '';
+  if (relativePreview === '..' || relativePreview.startsWith('../') || path.posix.isAbsolute(relativePreview) ||
+      parts.length !== 2 || parts.at(-2) !== documentId ||
+      !/^document-[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(documentId) ||
+      !/^preview-\d{6,}\.pptx$/.test(previewName)) {
+    throw new Error('Workspace returned a preview outside the selected QMD project directory.');
+  }
+  if (!await outputExists(previewPath)) throw new Error(`Generated preview does not exist: ${previewPath}`);
+  const generation = Number(previewName.slice('preview-'.length, -'.pptx'.length));
+  return {
+    status: 'preview-ready', previewPath, generation, documentId, sourceQmd,
+    hostPath: mapContainerPathToHostPath(previewPath, rootPath, hostWorkspace),
+    previousPreviewsClosed: false,
+    note: 'PowerPoint open/dirty state was not inspected; all prior previews remain open.',
+  };
+}

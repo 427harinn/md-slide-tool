@@ -1,5 +1,6 @@
 const BUILD_COMMAND = 'mdSlideTool.buildRemotePptx';
 const CANONICAL_COMMAND = 'mdSlideTool.resolveEditablePptx';
+const PREVIEW_COMMAND = 'mdSlideTool.generateVersionedPreview';
 
 // T-402A probe seam: preserve the exact preview path supplied by Workspace.
 export async function openExactPptxLocally(pptxPath, { fileUri, openExternal }) {
@@ -16,6 +17,22 @@ export async function openEditablePowerPoint({ qmdUri, executeCommand, fileUri, 
     throw new Error('The workspace did not resolve the canonical managed PPTX.');
   }
   return openExactPptxLocally(result.hostPath, { fileUri, openExternal });
+}
+
+export async function openVersionedPreview({ qmdUri, executeCommand, fileUri, openExternal }) {
+  const result = await executeCommand(PREVIEW_COMMAND, qmdUri);
+  if (!result || result.status !== 'preview-ready' || typeof result.hostPath !== 'string') {
+    throw new Error('The workspace did not return an exact versioned preview path.');
+  }
+  const opened = await openExactPptxLocally(result.hostPath, { fileUri, openExternal });
+  return {
+    ...opened,
+    status: 'preview-opened',
+    previewPath: result.previewPath,
+    generation: result.generation,
+    previousPreviewsClosed: false,
+    note: 'PowerPoint open/dirty state was not inspected; all prior previews remain open.',
+  };
 }
 
 export async function buildAndOpenLocally({ qmdUri, executeCommand, fileUri, openExternal }) {

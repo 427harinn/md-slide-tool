@@ -2,10 +2,12 @@ import * as vscode from 'vscode';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
-import { buildPptxForHost, resolveCanonicalPptxForHost } from './hostBridge.js';
+import { buildPptxForHost, resolveCanonicalPptxForHost, generateVersionedPreviewForHost } from './hostBridge.js';
+import { requireSavedQmdForPreview } from './m4EditorProbe.js';
 
 const BUILD_COMMAND = 'mdSlideTool.buildRemotePptx';
 const CANONICAL_COMMAND = 'mdSlideTool.resolveEditablePptx';
+const PREVIEW_COMMAND = 'mdSlideTool.generateVersionedPreview';
 
 function runRender(qmdPath, workspacePath) {
   return new Promise((resolve, reject) => {
@@ -33,6 +35,23 @@ function inspectCanonicalPptx(qmdPath, workspacePath) {
       if (signal) reject(new Error(`Canonical PowerPoint lookup stopped by signal: ${signal}`));
       else if (code !== 0) reject(new Error(stderr.trim() || `Canonical PowerPoint lookup failed with exit code ${code ?? 1}.`));
       else resolve(stdout.trim());
+    });
+  });
+}
+
+function runPreview(qmdPath, workspacePath) {
+  return new Promise((resolve, reject) => {
+    const scriptPath = path.posix.join(workspacePath, 'scripts', 'm3_entry.py');
+    const child = spawn('python3', [scriptPath, 'preview', qmdPath], { cwd: workspacePath, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
+    child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
+    child.once('error', reject);
+    child.once('close', (code, signal) => {
+      if (signal) reject(new Error(`Preview generation stopped by signal: ${signal}`));
+      else if (code !== 0) reject(new Error(stderr.trim() || `Preview generation failed with exit code ${code ?? 1}.`));
+      else resolve(stdout);
     });
   });
 }
@@ -89,6 +108,32 @@ export function activate(context) {
       inspectCanonical: (exactQmdPath) => inspectCanonicalPptx(exactQmdPath, workspace.uri.fsPath),
       outputExists: async (filePath) => fs.stat(filePath).then((stat) => stat.isFile(), () => false),
     });
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand(PREVIEW_COMMAND, async (qmdUriString) => {
+    if (typeof qmdUriString !== 'string') throw new Error('The UI extension did not provide a QMD URI.');
+    const qmdUri = vscode.Uri.parse(qmdUriString);
+    const qmdPath = path.posix.resolve(qmdUri.path);
+    const workspace = vscode.workspace.workspaceFolders?.find((folder) => {
+      const folderPath = path.posix.resolve(folder.uri.fsPath);
+      const relative = path.posix.relative(folderPath, qmdPath);
+      return relative !== '..' && !relative.startsWith('../') && !path.posix.isAbsolute(relative);
+    });
+    if (!qmdPath.toLowerCase().endsWith('.qmd') || !workspace) {
+      throw new Error('Select a QMD file inside the Dev Container workspace.');
+    }
+    try {
+      requireSavedQmdForPreview(vscode, qmdUri);
+      return await generateVersionedPreviewForHost({
+        qmdPath,
+        workspacePath: workspace.uri.fsPath,
+        hostWorkspace: process.env.MD_SLIDE_TOOL_HOST_WORKSPACE,
+        runPreview: (exactQmdPath) => runPreview(exactQmdPath, workspace.uri.fsPath),
+        outputExists: async (filePath) => fs.stat(filePath).then((stat) => stat.isFile(), () => false),
+      });
+    } catch (error) {
+      output.appendLine(error?.stack ?? String(error));
+      throw error;
+    }
   }));
 }
 

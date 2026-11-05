@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { exactQmdState, applyCandidateThroughWorkspaceApi, contentHash, pendingFallbackDecision } from '../extensions/workspace/src/m4EditorProbe.js';
+import { exactQmdState, applyCandidateThroughWorkspaceApi, contentHash, pendingFallbackDecision, requireSavedQmdForPreview } from '../extensions/workspace/src/m4EditorProbe.js';
 
 function doc(filePath, text, { dirty = false, version = 3 } = {}) {
   return { uri: { scheme: 'file', fsPath: filePath }, isDirty: dirty, version, text,
@@ -49,6 +49,14 @@ test('closed QMD imports through M3, open-clean stays Pending, and dirty becomes
   assert.equal(pendingFallbackDecision('closed'), 'M3_IMPORT');
   assert.equal(pendingFallbackDecision('open-clean'), 'PENDING');
   assert.equal(pendingFallbackDecision('open-dirty'), 'CONFLICT');
+});
+
+test('preview command only reads saved QMD and refuses an exact dirty editor buffer', () => {
+  const uri = { scheme: 'vscode-remote', authority: 'dev-container+mdst', path: '/work/deck.qmd' };
+  const vscode = { workspace: { textDocuments: [{ uri, isDirty: true }] } };
+  assert.throws(() => requireSavedQmdForPreview(vscode, uri), /Save or discard/);
+  assert.equal(requireSavedQmdForPreview({ workspace: { textDocuments: [{ uri, isDirty: false }] } }, uri).state, 'open-clean');
+  assert.equal(requireSavedQmdForPreview({ workspace: { textDocuments: [] } }, uri).state, 'closed');
 });
 
 test('candidate apply refuses dirty, wrong-target, and stale version before edit', async () => {

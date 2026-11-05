@@ -11,7 +11,7 @@
   "categories": ["Other"],
   "extensionKind": ["ui"],
   "main": "./src/extension.js",
-  "activationEvents": ["onCommand:mdSlideTool.buildAndOpenPowerPoint", "onCommand:mdSlideTool.openEditablePowerPoint"],
+  "activationEvents": ["onCommand:mdSlideTool.buildAndOpenPowerPoint", "onCommand:mdSlideTool.openEditablePowerPoint", "onCommand:mdSlideTool.probeOpenVersionedPreview"],
   "contributes": {
     "commands": [
       {
@@ -22,6 +22,11 @@
       {
         "command": "mdSlideTool.openEditablePowerPoint",
         "title": "Open Editable PowerPoint",
+        "category": "md-slide-tool"
+      },
+      {
+        "command": "mdSlideTool.probeOpenVersionedPreview",
+        "title": "T-402A Probe: Open Versioned Preview",
         "category": "md-slide-tool"
       }
     ],
@@ -36,6 +41,11 @@
           "command": "mdSlideTool.openEditablePowerPoint",
           "when": "resourceExtname == .qmd",
           "group": "navigation@51"
+        },
+        {
+          "command": "mdSlideTool.probeOpenVersionedPreview",
+          "when": "resourceExtname == .qmd",
+          "group": "navigation@52"
         }
       ]
     }

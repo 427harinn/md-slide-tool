@@ -139,14 +139,26 @@ def run_locked(qmd: Path, operation: list[str]) -> int:
             ], text=True).strip()
             preview = Path(reserved)
             shell = Path(__file__).resolve().parent / "render-current-pipeline.sh"
-            result = subprocess.call(["bash", str(shell), str(qmd), active_id, str(preview)])
-            if result != 0:
-                # Only this invocation's still-empty reservation can be removed.
+            def remove_empty_reservation():
+                # Never remove a completed or partially written preview.
                 try:
                     if preview.stat().st_size == 0:
                         preview.unlink()
                 except OSError:
                     pass
+
+            try:
+                result = subprocess.call(["bash", str(shell), str(qmd), active_id, str(preview)])
+            except OSError:
+                remove_empty_reservation()
+                raise
+            if result != 0:
+                # Only this invocation's still-empty reservation can be removed.
+                remove_empty_reservation()
+            else:
+                print(f"PREVIEW_PATH={preview}")
+                print(f"PREVIEW_DOCUMENT_ID={active_id}")
+                print(f"PREVIEW_SOURCE_QMD={qmd}")
             return result
         importer = Path(__file__).resolve().parent / "import-pptx.py"
         return subprocess.call([sys.executable, str(importer), "--pptx", operation[1], "--locked"])

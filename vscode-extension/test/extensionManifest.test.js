@@ -15,15 +15,20 @@ test('workspace package owns remote build and canonical path resolution', async 
   assert.deepEqual(pkg.extensionKind, ['workspace']);
   assert.deepEqual(pkg.extensionDependencies, ['md-slide-tool.md-slide-tool-powerpoint-ui']);
   assert.deepEqual(pkg.contributes ?? {}, {});
-  assert.deepEqual(pkg.activationEvents, ['onCommand:mdSlideTool.buildRemotePptx', 'onCommand:mdSlideTool.resolveEditablePptx']);
+  assert.deepEqual(pkg.activationEvents, ['onCommand:mdSlideTool.buildRemotePptx', 'onCommand:mdSlideTool.resolveEditablePptx', 'onCommand:mdSlideTool.generateVersionedPreview']);
 });
 
 test('UI package owns user-facing PowerPoint commands and local host opener', async () => {
   const pkg = await manifest('ui');
   assert.deepEqual(pkg.extensionKind, ['ui']);
   assert.equal(pkg.api, 'none');
-  assert.deepEqual(pkg.contributes.commands.map(({ command }) => command), ['mdSlideTool.buildAndOpenPowerPoint', 'mdSlideTool.openEditablePowerPoint']);
+  assert.deepEqual(pkg.contributes.commands.map(({ command }) => command), [
+    'mdSlideTool.buildAndOpenPowerPoint', 'mdSlideTool.openEditablePowerPoint', 'mdSlideTool.probeOpenVersionedPreview',
+  ]);
   assert.ok(pkg.activationEvents.includes('onCommand:mdSlideTool.openEditablePowerPoint'));
+  assert.ok(pkg.activationEvents.includes('onCommand:mdSlideTool.probeOpenVersionedPreview'));
+  assert.equal(pkg.contributes.commands.find(({ command }) => command === 'mdSlideTool.probeOpenVersionedPreview').title,
+    'T-402A Probe: Open Versioned Preview');
 });
 
 test('Dev Container avoids unavailable lifecycle installs, local VSIX paths, and unpublished extension IDs', async () => {
